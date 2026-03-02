@@ -1,0 +1,17 @@
+data_path: examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat
+output_dir: reports/model-search/mlp64-silu-adam-240-lr8e4
+memory_depth: 5
+max_train_samples:
+train_ratio: 1.0
+seed: 42
+epochs: 240
+batch_size: 256
+learning_rate: 0.0008
+optimizer: adam
+scheduler_step_size: 10
+scheduler_gamma: 0.8
+nfft: 1024
+sample_rate_hz: 491520000.0
+model_type: tiny_mlp
+hidden_units: 64
+activation: silu
