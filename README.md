@@ -1,5 +1,28 @@
 # Nonlinear NN Experiment Agent
 
+## 2026-07-21 更新：Experiment Agent Harness v0.1
+
+本项目已经从“自动训练 Runner”升级为轻量级 Agent Harness 原型，新增能力集中在 Agent Harness / Runtime 岗位需要的工程证据：
+
+- `ToolRegistry`：把配置生成、训练、评估、报告等步骤抽象成可治理工具，支持 timeout 和 retry。
+- `HookManager`：支持 `before_tool`、`after_tool`、`on_error`、`on_metric`，用于观测、审批、错误处理和指标采集。
+- `SessionStore`：保存实验 session，支持后续 resume/replay。
+- `TraceLogger`：输出 JSONL 执行链路，记录 event、tool、status、latency、payload、error。
+- `ExperimentHarnessRuntime`：异步 Agentic Loop，以事件流形式执行工具链。
+
+核心验证命令：
+
+```powershell
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+配套文档：
+
+- `docs/learning/experiment-agent-harness-v0.1.md`
+- `docs/resume/experiment-agent-harness-resume.md`
+- `docs/handoff/deepseek-continuation-plan.md`
+- `docs/superpowers/plans/2026-07-21-experiment-agent-harness-v0.1.md`
+
 更新时间：2026-07-18
 
 ## 项目定位
@@ -462,3 +485,4 @@ NMSE: -37.4249 dB
 
 在 4000 参数以内完成小模型搜索，将原始 CNN 思路改造成复数记忆多项式特征 + 闭式最小二乘模型，得到 3626 参数、NMSE -37.42 dB 的可解释轻量模型，并输出参数量/NMSE/PSD/配置路径对比表。
 ```
+
