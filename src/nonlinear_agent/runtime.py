@@ -89,6 +89,7 @@ class ExperimentHarnessRuntime:
             self._apply_tool_output(session, result.output)
             await self.hooks.emit("after_tool", end_event)
             self._record(session, end_event)
+            self.session_store.save(session)
             yield end_event
 
             for metric_name, metric_value in result.output.get("metrics", {}).items():
@@ -132,3 +133,4 @@ class ExperimentHarnessRuntime:
         context_summary = output.get("context_summary")
         if context_summary:
             session.context_summary = str(context_summary)
+

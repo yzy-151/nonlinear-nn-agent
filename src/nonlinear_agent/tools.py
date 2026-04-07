@@ -37,6 +37,9 @@ class ToolRegistry:
             raise ValueError("Tool name must not be empty.")
         self._tools[name] = func
 
+    def tool_names(self) -> list[str]:
+        return sorted(self._tools)
+
     async def run(self, call: ToolCall) -> ToolResult:
         if call.name not in self._tools:
             raise KeyError(f"Unknown tool: {call.name}")
@@ -75,3 +78,4 @@ class ToolRegistry:
         if inspect.iscoroutinefunction(func):
             return await func(**args)
         return await asyncio.to_thread(func, **args)
+

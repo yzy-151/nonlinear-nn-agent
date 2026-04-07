@@ -9,3 +9,5 @@ reports/
 *.pth
 *.xlsx
 
+sessions/
+traces/

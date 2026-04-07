@@ -81,3 +81,13 @@
 完成 MCP 后可补一句：
 
 - 将实验工具封装为 MCP server tools，使 Agent 可通过标准协议调用配置生成、训练、评估和报告工具，提升工具系统的可扩展性和协议兼容性。
+
+## v0.2 新增简历证据
+
+v0.2 后可以把项目表述升级为：
+
+- 将轻量级 Agent Harness Runtime 接入真实非线性拟合训练链路，封装配置生成、训练执行、NMSE/PSD 验证和报告生成工具；训练工具捕获 stdout/stderr/returncode/elapsed time，runtime 自动记录 session 与 JSONL trace，并通过 replay 报告统计工具耗时、重试次数、指标事件和失败路径。
+
+更强的面试表达：
+
+> v0.1 我先实现了 harness 的抽象结构；v0.2 我把它接到真实实验命令上，证明 runtime 不是空架子。现在一次实验会生成 config、metrics、PSD、session、trace、agent report 和 replay report，能从结果回溯到每个工具调用的耗时、参数和状态。
