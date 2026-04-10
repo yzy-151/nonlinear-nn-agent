@@ -1,6 +1,29 @@
 # Nonlinear NN Experiment Agent
 
 
+
+## 2026-07-22 更新：Experiment Agent Harness v0.3
+
+v0.3 增加流式服务层，把 Agent runtime 内部事件转成 SSE：
+
+- `server.py`：提供 `HarnessRunSpec`、`build_harness_request`、`encode_sse_event`、`stream_sse_events` 和可选 FastAPI app。
+- `serve_harness.py`：启动本地服务。
+- `tests/test_server_streaming.py`：验证 SSE 格式、runtime event stream 和默认工具链构造。
+
+启动服务：
+
+```powershell
+python examples\nonlinear_fit\serve_harness.py --host 127.0.0.1 --port 8000
+```
+
+请求流式执行：
+
+```powershell
+curl -N -X POST http://127.0.0.1:8000/runs/server-demo/events -H "Content-Type: application/json" -d "{\"epochs\":0,\"nmse_threshold_db\":-35}"
+```
+
+这一步对应 Agent Harness 岗位里的实时链路观测、流式响应和长任务执行可见性。
+
 ## 2026-07-22 更新：Experiment Agent Harness v0.2
 
 v0.2 已把 v0.1 的抽象 runtime 接入真实非线性拟合实验：
@@ -503,5 +526,6 @@ NMSE: -37.4249 dB
 
 在 4000 参数以内完成小模型搜索，将原始 CNN 思路改造成复数记忆多项式特征 + 闭式最小二乘模型，得到 3626 参数、NMSE -37.42 dB 的可解释轻量模型，并输出参数量/NMSE/PSD/配置路径对比表。
 ```
+
 
 

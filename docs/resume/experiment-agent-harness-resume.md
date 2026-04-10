@@ -91,3 +91,13 @@ v0.2 后可以把项目表述升级为：
 更强的面试表达：
 
 > v0.1 我先实现了 harness 的抽象结构；v0.2 我把它接到真实实验命令上，证明 runtime 不是空架子。现在一次实验会生成 config、metrics、PSD、session、trace、agent report 和 replay report，能从结果回溯到每个工具调用的耗时、参数和状态。
+
+## v0.3 新增简历证据
+
+v0.3 后可以增加流式 runtime 表述：
+
+- 为 Agent Harness 增加 SSE 流式服务层，将 start/tool_start/tool_end/metric/error/complete 等 runtime event 转为 `text/event-stream`，支持客户端实时观测工具调用状态、耗时、重试、指标和失败路径；通过 FastAPI app 工厂和 CLI 启动入口验证长任务 Agent 的在线可观测能力。
+
+面试表达：
+
+> 我把 Agent 内部执行事件做成标准 SSE 流，前端或 CLI 不需要等最终报告生成，就能实时看到正在执行哪个工具、耗时多少、是否失败、NMSE 等指标何时出现。这是长链路 Agent 从 demo 走向可调试系统的关键能力。
