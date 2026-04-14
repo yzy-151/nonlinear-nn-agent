@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable
+
+from nonlinear_agent.planner import ExperimentPlanner
+from nonlinear_agent.server import HarnessRunSpec, build_harness_request, build_runtime
+
+
+@dataclass(frozen=True)
+class PlannerLoopResult:
+    status: str
+    rounds: int
+    history: list[dict[str, Any]] = field(default_factory=list)
+    summaries: list[str] = field(default_factory=list)
+
+
+RuntimeFactory = Callable[[str], Any]
+
+
+class ExperimentPlannerLoop:
+    def __init__(
+        self,
+        planner: ExperimentPlanner,
+        workspace: Path | str,
+        runtime_factory: RuntimeFactory | None = None,
+        base_config: str = "configs/model-search/lstsq-complexmp-o12-m150.yaml",
+        constraints: dict[str, Any] | None = None,
+        timeout_seconds: float = 300.0,
+    ):
+        self.planner = planner
+        self.workspace = Path(workspace)
+        self.runtime_factory = runtime_factory or (
+            lambda session_id: build_runtime(self.workspace, session_id=session_id, timeout_seconds=timeout_seconds)
+        )
+        self.base_config = base_config
+        self.constraints = constraints or {"parameter_count_max": 4000, "metric": "nmse_db"}
+        self.timeout_seconds = timeout_seconds
+
+    async def run(self, goal: str, max_rounds: int = 3) -> PlannerLoopResult:
+        history: list[dict[str, Any]] = []
+        summaries: list[str] = []
+        rounds = 0
+        for _ in range(max_rounds):
+            rounds += 1
+            plan = self.planner.plan(goal=goal, history=history, constraints=self.constraints)
+            summaries.append(plan.summary)
+            if plan.stop and not plan.experiments:
+                return PlannerLoopResult(status="stopped", rounds=rounds, history=history, summaries=summaries)
+            for experiment in plan.experiments:
+                metrics = await self._run_experiment(experiment.experiment_id, experiment.overrides)
+                record = {"id": experiment.experiment_id, "reason": experiment.reason, **metrics}
+                history.append(record)
+        return PlannerLoopResult(status="max_rounds_reached", rounds=rounds, history=history, summaries=summaries)
+
+    async def _run_experiment(self, experiment_id: str, overrides: dict[str, Any]) -> dict[str, Any]:
+        output_dir = str(overrides.get("output_dir", f"reports/{experiment_id}"))
+        spec = HarnessRunSpec(
+            session_id=experiment_id,
+            base_config=self.base_config,
+            output_dir=output_dir,
+            epochs=int(overrides.get("epochs", 0)),
+            learning_rate=float(overrides.get("learning_rate", 0.0008)),
+            optimizer=str(overrides.get("optimizer", "adam")),
+            nmse_threshold_db=float(overrides.get("nmse_threshold_db", -35.0)),
+            timeout_seconds=self.timeout_seconds,
+            overrides=overrides,
+        )
+        request = build_harness_request(spec)
+        runtime = self.runtime_factory(experiment_id)
+        metrics: dict[str, Any] = {}
+        async for event in runtime.run(request):
+            if event.event_type == "metric":
+                name = event.payload.get("name")
+                if name:
+                    metrics[str(name)] = event.payload.get("value")
+            elif event.event_type == "error":
+                metrics["error"] = event.error
+        return metrics

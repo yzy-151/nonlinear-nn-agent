@@ -70,6 +70,18 @@ class ServerStreamingTest(unittest.TestCase):
         self.assertEqual(request.steps[0].args["overrides"]["output_dir"], "reports/server-demo")
         self.assertEqual(request.steps[2].args["nmse_threshold_db"], -35.0)
 
+    def test_create_app_health_route(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("FastAPI test client is not installed")
+        from nonlinear_agent.server import create_app
+
+        client = TestClient(create_app(PROJECT_ROOT))
+        response = client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
 
 async def _collect(stream):
     return [chunk async for chunk in stream]
@@ -77,3 +89,4 @@ async def _collect(stream):
 
 if __name__ == "__main__":
     unittest.main()
+

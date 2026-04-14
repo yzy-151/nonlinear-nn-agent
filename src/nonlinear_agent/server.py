@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Dict, Optional
 
 from nonlinear_agent.experiment_tools import build_experiment_tool_registry
 from nonlinear_agent.replay import write_replay_report
@@ -24,10 +24,19 @@ class HarnessRunSpec:
     optimizer: str = "adam"
     nmse_threshold_db: float = -35.0
     timeout_seconds: float = 300.0
+    overrides: dict[str, Any] = field(default_factory=dict)
 
 
 def build_harness_request(spec: HarnessRunSpec) -> HarnessRequest:
     output_dir = spec.output_dir or f"reports/{spec.session_id}"
+    overrides = {
+        "output_dir": output_dir,
+        "epochs": spec.epochs,
+        "learning_rate": spec.learning_rate,
+        "optimizer": spec.optimizer,
+    }
+    overrides.update(spec.overrides)
+    overrides["output_dir"] = output_dir
     return HarnessRequest(
         session_id=spec.session_id,
         goal=spec.goal,
@@ -37,12 +46,7 @@ def build_harness_request(spec: HarnessRunSpec) -> HarnessRequest:
                 args={
                     "base_config_path": spec.base_config,
                     "experiment_id": spec.session_id,
-                    "overrides": {
-                        "output_dir": output_dir,
-                        "epochs": spec.epochs,
-                        "learning_rate": spec.learning_rate,
-                        "optimizer": spec.optimizer,
-                    },
+                    "overrides": overrides,
                 },
             ),
             ToolCall(
@@ -95,7 +99,7 @@ def create_app(workspace: Path | str):
         return {"status": "ok"}
 
     @app.post("/runs/{session_id}/events")
-    async def run_events(session_id: str, body: dict[str, Any] | None = None):
+    async def run_events(session_id: str, body: Optional[Dict[str, Any]] = None):
         payload = body or {}
         spec = HarnessRunSpec(session_id=session_id, **payload)
         runtime = build_runtime(root, session_id=session_id, timeout_seconds=spec.timeout_seconds)
@@ -126,3 +130,5 @@ __all__ = [
     "encode_sse_event",
     "stream_sse_events",
 ]
+
+

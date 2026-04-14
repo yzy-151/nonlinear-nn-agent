@@ -300,3 +300,63 @@ v0.4 推荐目标：
 5. 最后做 LangGraph 对照版。
 
 注意：FastAPI/uvicorn 已加入 `requirements.txt`，但 `server.py` 采用懒加载，未安装时核心测试仍可运行。
+
+## 2026-07-22 v0.4 已完成内容
+
+v0.4 修正项目定位：v0.1-v0.3 是可观测 workflow/harness 底座，v0.4 开始具备 LLM planner 和真正 plan-run-observe loop。
+
+新增模块：
+
+- `src/nonlinear_agent/llm.py`
+  - `LLMClient`
+  - `FakeLLMClient`
+  - `OpenAICompatibleClient.deepseek()`
+
+- `src/nonlinear_agent/planner.py`
+  - `ExperimentPlanner`
+  - `ExperimentPlan`
+  - `PlannedExperiment`
+
+- `src/nonlinear_agent/loop.py`
+  - `ExperimentPlannerLoop`
+  - `PlannerLoopResult`
+
+- `examples/nonlinear_fit/run_planner_loop.py`
+  - `--provider fake`
+  - `--provider deepseek`
+
+新增测试：
+
+- `tests/test_llm_planner.py`
+
+离线验证命令：
+
+```powershell
+python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --timeout-seconds 120
+```
+
+离线 demo 结果：
+
+```text
+status: stopped
+rounds: 2
+experiment: planner-demo-001
+NMSE: -37.4249 dB
+parameter_count: 3626
+```
+
+DeepSeek 使用方式：
+
+```powershell
+$env:DEEPSEEK_API_KEY="你的 key"
+python examples\nonlinear_fit\run_planner_loop.py --provider deepseek --max-rounds 2 --timeout-seconds 120
+```
+
+注意：不要把 API key 写入代码、文档、session、trace 或 Git。
+
+v0.5 推荐目标：
+
+1. 做参数预算预估器，planner 输出后先检查 `parameter_count <= 4000`。
+2. 做 Planner JSON schema 校验和自动修复。
+3. 做 cancel/interrupt。
+4. 做 MCP server。
