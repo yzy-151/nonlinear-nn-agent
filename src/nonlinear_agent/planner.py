@@ -46,8 +46,15 @@ class ExperimentPlanner:
             "Return JSON only with schema:\n"
             "{\"summary\": str, \"stop\": bool, \"experiments\": ["
             "{\"id\": str, \"reason\": str, \"overrides\": object}]}\n"
-            "Use overrides for YAML config fields such as model_type, feature_mode, memory_depth, "
-            "mp_order_count, epochs, learning_rate, optimizer, output_dir. Do not output shell commands. "
+            "Executable design space:\n"
+            "- model_type: complex_lstsq, linear, tiny_mlp, spline_mlp.\n"
+            "- feature_mode: complex_mp is preferred for RF nonlinear memory polynomial structure; legacy_abs is a baseline.\n"
+            "- complex_lstsq explores memory_depth and mp_order_count with closed-form fitting.\n"
+            "- tiny_mlp explores hidden_units and activation in relu/tanh/silu/gelu.\n"
+            "- spline_mlp is a physics-informed shallow nonlinear model: one nonlinear layer with a learnable 1D LUT activation, usually spline_knots=16 and first-order linear interpolation.\n"
+            "- Good spline_mlp candidates under 4000 params: feature_mode=complex_mp, mp_order_count=1, memory_depth in [24, 48, 72], hidden_units in [16, 32], spline_knots=16.\n"
+            "- Keep parameter_count_max from constraints; prefer fewer parameters when NMSE is similar.\n"
+            "Use overrides for YAML config fields such as model_type, feature_mode, memory_depth, mp_order_count, epochs, learning_rate, optimizer, output_dir, hidden_units, activation, spline_knots, spline_range. Do not output shell commands. "
             f"The runtime will only use these tools: {', '.join(self.allowed_tools)}."
         )
 
@@ -86,3 +93,4 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Planner response must be a JSON object.")
     return payload
+

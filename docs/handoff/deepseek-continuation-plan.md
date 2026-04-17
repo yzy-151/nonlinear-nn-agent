@@ -360,3 +360,32 @@ v0.5 推荐目标：
 2. 做 Planner JSON schema 校验和自动修复。
 3. 做 cancel/interrupt。
 4. 做 MCP server。
+
+## 2026-07-22 追加：Planner 设计空间增强
+
+已新增：
+
+- `model_type="spline_mlp"`
+  - 一层 `Linear -> LearnableSplineActivation -> Linear`。
+  - `LearnableSplineActivation` 是每通道 learnable 1D LUT，默认 `spline_knots=16`，一阶线性插值。
+  - 适合表达用户提出的“1D LUT + 16 spline 激活函数，非线性层只用一层”的物理启发方案。
+
+已增强 planner prompt：
+
+- 明确可执行 `model_type`: `complex_lstsq`, `linear`, `tiny_mlp`, `spline_mlp`。
+- 明确 `spline_mlp` 设计建议。
+- 明确参数预算和历史 baseline。
+
+已跑多实验 fake planner demo：
+
+```text
+planner-lstsq-o10-m120: 2422 params, NMSE -37.3298 dB
+planner-spline-m48-h32: 3746 params, NMSE -3.5603 dB, failed threshold
+planner-tiny-silu-m48-h32: 3234 params, NMSE -1.4559 dB, failed threshold
+```
+
+接手建议：
+
+1. 对 `spline_mlp` 做更合理训练：更多 epoch、输入归一化、初始化、scheduler。
+2. 增加参数预算预估器，planner 输出后先 reject 超预算方案。
+3. 真实 DeepSeek 运行前先设置 `$env:DEEPSEEK_API_KEY`，不要把 key 写入命令历史或 Git。

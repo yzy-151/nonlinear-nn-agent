@@ -42,6 +42,8 @@ class ExperimentConfig:
     feature_mode: str = "legacy_abs"
     mp_order_count: int = 4
     plot_title: str = "complex CNN"
+    spline_knots: int = 16
+    spline_range: float = 3.0
 
 
 class ComplexConv2d(nn.Module):
@@ -99,6 +101,40 @@ class TinyMLP(nn.Module):
         features = torch.cat((real, imag), dim=1)
         return self.net(features)
 
+class LearnableSplineActivation(nn.Module):
+    def __init__(self, channels: int, knots: int = 16, value_range: float = 3.0):
+        super().__init__()
+        if knots < 2:
+            raise ValueError("spline_knots must be at least 2.")
+        self.channels = channels
+        self.knots = knots
+        self.value_range = float(value_range)
+        initial = torch.linspace(-self.value_range, self.value_range, steps=knots).repeat(channels, 1)
+        self.values = nn.Parameter(initial)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        clipped = torch.clamp(inputs, -self.value_range, self.value_range)
+        scaled = (clipped + self.value_range) / (2 * self.value_range) * (self.knots - 1)
+        left = torch.floor(scaled).long().clamp(0, self.knots - 2)
+        right = left + 1
+        weight = (scaled - left.float()).clamp(0.0, 1.0)
+        channel_index = torch.arange(inputs.shape[1], device=inputs.device).view(1, -1).expand_as(left)
+        left_values = self.values[channel_index, left]
+        right_values = self.values[channel_index, right]
+        return left_values * (1.0 - weight) + right_values * weight
+
+
+class SplineMLP(nn.Module):
+    def __init__(self, input_dim: int, hidden_units: int, spline_knots: int, spline_range: float):
+        super().__init__()
+        self.input_layer = nn.Linear(input_dim, hidden_units)
+        self.activation = LearnableSplineActivation(hidden_units, spline_knots, spline_range)
+        self.output_layer = nn.Linear(hidden_units, 2)
+
+    def forward(self, real: torch.Tensor, imag: torch.Tensor) -> torch.Tensor:
+        features = torch.cat((real, imag), dim=1)
+        hidden = self.input_layer(features)
+        return self.output_layer(self.activation(hidden))
 
 class LinearModel(nn.Module):
     def __init__(self, input_dim: int):
@@ -129,6 +165,8 @@ def build_model(config: ExperimentConfig) -> nn.Module:
         return ComplexCNN(config.memory_depth)
     if config.model_type == "tiny_mlp":
         return TinyMLP(input_dim, config.hidden_units, config.activation)
+    if config.model_type == "spline_mlp":
+        return SplineMLP(input_dim, config.hidden_units, config.spline_knots, config.spline_range)
     if config.model_type == "linear":
         return LinearModel(input_dim)
     raise ValueError(f"Unsupported model_type: {config.model_type}")
@@ -445,3 +483,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

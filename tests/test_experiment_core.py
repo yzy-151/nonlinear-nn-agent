@@ -122,6 +122,40 @@ class ExperimentCoreTest(unittest.TestCase):
         self.assertAlmostEqual(targets[0, 0], (d[1] - x[1]).real)
         self.assertAlmostEqual(targets[0, 1], (d[1] - x[1]).imag)
 
+    def test_spline_mlp_uses_learnable_lut_activation_under_budget(self):
+        config = ExperimentConfig(
+            model_type="spline_mlp",
+            feature_mode="complex_mp",
+            memory_depth=48,
+            mp_order_count=1,
+            hidden_units=32,
+            spline_knots=16,
+        )
+
+        model = build_model(config)
+
+        self.assertLessEqual(count_trainable_parameters(model), 4000)
+        self.assertTrue(hasattr(model, "activation"))
+
+    def test_spline_mlp_forward_preserves_batch_and_complex_output_shape(self):
+        config = ExperimentConfig(
+            model_type="spline_mlp",
+            feature_mode="complex_mp",
+            memory_depth=2,
+            mp_order_count=1,
+            hidden_units=4,
+            spline_knots=16,
+        )
+        model = build_model(config)
+        width = 2 * (config.memory_depth + 1)
+        real = np.ones((3, width // 2), dtype=np.float32)
+        imag = np.zeros((3, width // 2), dtype=np.float32)
+
+        import torch
+        output = model(torch.from_numpy(real), torch.from_numpy(imag))
+
+        self.assertEqual(tuple(output.shape), (3, 2))
 
 if __name__ == "__main__":
     unittest.main()
+

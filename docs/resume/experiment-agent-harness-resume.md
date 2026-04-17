@@ -111,3 +111,7 @@ v0.4 后可以把项目升级表述为：
 更严谨的项目总表述：
 
 > 先构建可观测实验 Harness 底座，再接入 LLM Planner 形成真正 Agent loop。底座负责工具治理、session、trace、SSE 和失败处理；Planner 负责根据目标与历史结果生成下一轮实验候选，执行层仍通过受控工具链完成实验。
+
+## v0.4 追加：实验设计能力表达
+
+- 在 LLM Planner prompt 中显式注入可执行设计空间、物理先验、参数预算和历史实验结果，引导模型设计 `complex_lstsq`、`tiny_mlp`、`spline_mlp` 等候选实验；新增 learnable 1D LUT + 16-knot first-order spline activation 的浅层非线性模型，并通过 Harness Runtime 自动执行、验证 NMSE/参数量、记录失败路径和汇总对比。
