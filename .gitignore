@@ -11,3 +11,4 @@ reports/
 
 sessions/
 traces/
+.env.local
