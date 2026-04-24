@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from nonlinear_agent.llm import LLMClient
+from nonlinear_agent.planner_validation import normalize_planner_overrides
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,7 @@ class ExperimentPlanner:
             overrides = item.get("overrides", {})
             if not isinstance(overrides, dict):
                 raise ValueError(f"Experiment {experiment_id} overrides must be an object.")
+            overrides = normalize_planner_overrides(overrides)
             experiments.append(
                 PlannedExperiment(
                     experiment_id=experiment_id,
@@ -93,4 +95,6 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Planner response must be a JSON object.")
     return payload
+
+
 

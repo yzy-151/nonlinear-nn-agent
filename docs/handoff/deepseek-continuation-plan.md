@@ -389,3 +389,25 @@ planner-tiny-silu-m48-h32: 3234 params, NMSE -1.4559 dB, failed threshold
 1. 对 `spline_mlp` 做更合理训练：更多 epoch、输入归一化、初始化、scheduler。
 2. 增加参数预算预估器，planner 输出后先 reject 超预算方案。
 3. 真实 DeepSeek 运行前先设置 `$env:DEEPSEEK_API_KEY`，不要把 key 写入命令历史或 Git。
+
+## 2026-07-22 追加：v0.5 Planner Schema Guard
+
+新增文件：
+
+- `src/nonlinear_agent/planner_validation.py`
+  - `normalize_planner_overrides`
+  - `validate_planned_overrides`
+  - `estimate_parameter_count`
+
+新增测试：
+
+- `tests/test_planner_validation.py`
+
+行为：
+
+- `train_samples` 自动映射为 `max_train_samples`。
+- `rank` 等未支持字段会被拒绝。
+- 超过 `parameter_count_max` 的候选不会运行。
+- `ExperimentPlannerLoop` 会把拒绝项写入 history：`run_status: rejected`。
+
+下一步建议真实 DeepSeek 再跑一轮，观察第二轮非法字段是否变成 rejected history，而不是训练脚本报错。

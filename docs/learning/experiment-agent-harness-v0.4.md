@@ -207,3 +207,39 @@ v0.5 建议做：
 - `complex_lstsq` 仍是当前最强、最稳路线。
 - `spline_mlp` 是值得探索的物理启发结构，但不能用 8 epoch 小样本就否定，需要更合理训练策略、归一化或初始化。
 - Planner 的价值不是保证每个实验成功，而是提出可解释候选、执行、记录失败，并把失败反馈给下一轮。
+
+## 2026-07-22 追加：Planner Schema Guard
+
+DeepSeek 真实运行暴露了典型 Agent 问题：第二轮会输出看似合理但当前训练 schema 不支持的字段，例如 `train_samples`、`rank`。
+
+本轮新增 `planner_validation.py`，处理三类问题：
+
+1. 字段别名映射
+   - `train_samples` -> `max_train_samples`
+   - 这样 DeepSeek 常用表述可以落到真实 `ExperimentConfig` 字段。
+
+2. 非法字段拒绝
+   - `rank`、`parameter_count`、`nmse_db`、`status` 等属于结果字段或未支持控制字段。
+   - planner 输出这些字段时，loop 不再启动训练，而是在 history 中记录 `run_status: rejected`。
+
+3. 参数预算预估
+   - `complex_lstsq`: `2 * (feature_width + 1)`。
+   - `linear`, `tiny_mlp`, `spline_mlp` 按真实模型参数公式估算。
+   - 超过 `parameter_count_max` 的候选会在运行前被拒绝。
+
+验证命令：
+
+```powershell
+python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 1 --timeout-seconds 30 --fake-plan "... rank ..."
+```
+
+结果示例：
+
+```json
+{
+  "run_status": "rejected",
+  "error": "Unsupported planner override fields: rank"
+}
+```
+
+这一步让项目更接近生产 Agent：LLM 可以提议，但不能绕过 schema、预算和工具边界。
