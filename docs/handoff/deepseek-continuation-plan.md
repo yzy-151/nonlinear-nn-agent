@@ -411,3 +411,26 @@ planner-tiny-silu-m48-h32: 3234 params, NMSE -1.4559 dB, failed threshold
 - `ExperimentPlannerLoop` 会把拒绝项写入 history：`run_status: rejected`。
 
 下一步建议真实 DeepSeek 再跑一轮，观察第二轮非法字段是否变成 rejected history，而不是训练脚本报错。
+
+## 2026-07-22 追加：真实 DeepSeek 自我修正记录
+
+真实 DeepSeek run 已验证初步 plan-run-observe 自我修正：
+
+- 第一轮 spline_mlp 输出 `spline_range` 为 list，训练报错。
+- 错误进入 loop history。
+- 第二轮 DeepSeek 根据错误把 `spline_range` 修正为 scalar，并继续执行 spline_mlp。
+- 第三轮发现 `exp_019` 达到 NMSE `-36.0275 dB`，主动停止。
+
+最佳结果：
+
+```text
+exp_019
+model_type: complex_lstsq
+feature_mode: complex_mp
+memory_depth: 24
+mp_order_count: 4
+parameter_count: 202
+nmse_db: -36.0275 dB
+```
+
+这个记录可以作为面试中的“Agent loop 不是固定 workflow，而能根据错误和指标修正下一轮计划”的证据。

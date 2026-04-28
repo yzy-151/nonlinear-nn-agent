@@ -243,3 +243,42 @@ python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 1
 ```
 
 这一步让项目更接近生产 Agent：LLM 可以提议，但不能绕过 schema、预算和工具边界。
+
+## 2026-07-22 追加：真实 DeepSeek Loop 的自我修正证据
+
+这次真实 DeepSeek planner 运行展示了初步自我修正能力。
+
+现象：
+
+1. 第一轮 DeepSeek 设计了 spline_mlp 系列实验，但把 `spline_range` 输出成 list，导致训练报错：
+
+```text
+TypeError: float() argument must be a string or a number, not 'list'
+```
+
+2. 这个错误被 Harness Runtime 记录到 history 中，连同实验 id、reason、error 一起回传给下一轮 planner。
+
+3. 第二轮 DeepSeek 根据 history/error 修正了输出，把 `spline_range` 改成 scalar，例如 `spline_range=3.0` 或 `spline_range=1.0`，后续 spline_mlp 实验可以正常执行。
+
+4. 第三轮 DeepSeek 根据已有结果判断 `complex_lstsq + memory_depth=24 + mp_order_count=4` 达到 NMSE `-36.0275 dB`，主动停止继续实验。
+
+这说明当前 loop 已经不只是固定 workflow，而具备基本反馈闭环：
+
+```text
+LLM proposes experiment
+  -> runtime executes
+  -> tool error / metric enters history
+  -> LLM reads history
+  -> LLM revises next experiment
+  -> LLM stops when target is met
+```
+
+本轮关键结果：
+
+| Experiment | Model | Params | NMSE dB | Meaning |
+|---|---|---:|---:|---|
+| exp_019 | complex_lstsq, memory_depth=24, mp_order_count=4 | 202 | -36.0275 | 达到 -35 dB 阈值，DeepSeek 第三轮停止 |
+| exp_022 | spline_mlp, memory_depth=24, hidden=32, spline_range=1.0 | 2210 | -16.3082 | 修正 spline_range 类型后可运行，但效果弱 |
+| exp_023 | tiny_mlp, hidden=32, tanh, max_train_samples=5000 | 1698 | -20.8188 | 神经小模型仍弱于闭式 MP |
+
+注意：这只是“初步自我修正”，不是完全可靠的 autonomous research agent。它仍需要 schema guard、参数预算检查和结果验证约束，否则可能继续输出非法字段或低质量实验。
