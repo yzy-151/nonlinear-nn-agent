@@ -128,7 +128,48 @@ class LLMPlannerTest(unittest.TestCase):
         self.assertEqual(result.history[0]["run_status"], "failed")
         self.assertEqual(result.history[0]["error"], "NMSE threshold failed")
 
+
+    def test_planner_loop_limits_total_executed_experiments_and_passes_threshold(self):
+        experiments = []
+        for index in range(5):
+            experiments.append(
+                '{"id":"candidate-%03d", "reason":"budget test", '
+                '"overrides":{"output_dir":"reports/candidate-%03d", "epochs":0}}' % (index + 1, index + 1)
+            )
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"too many candidates", "stop": false, "experiments": [' + ",".join(experiments) + "]}",
+                '{"summary":"stop", "stop": true, "experiments": []}',
+            ]
+        )
+        planner = ExperimentPlanner(llm_client=llm)
+        executed_sessions = []
+        thresholds = []
+
+        class FakeRuntime:
+            async def run(self, request):
+                executed_sessions.append(request.session_id)
+                thresholds.append(request.steps[2].args["nmse_threshold_db"])
+                yield TraceEvent(
+                    session_id=request.session_id,
+                    event_type="metric",
+                    status="succeeded",
+                    payload={"name": "nmse_db", "value": -42.0},
+                )
+
+        with TemporaryDirectory() as tmpdir:
+            loop = ExperimentPlannerLoop(
+                planner=planner,
+                workspace=Path(tmpdir),
+                runtime_factory=lambda session_id: FakeRuntime(),
+                constraints={"parameter_count_max": 4000, "metric": "nmse_db", "nmse_threshold_db": -41.0},
+            )
+            result = asyncio.run(loop.run(goal="target -41 dB", max_rounds=2, max_experiments=3))
+
+        self.assertEqual(executed_sessions, ["candidate-001", "candidate-002", "candidate-003"])
+        self.assertEqual(thresholds, [-41.0, -41.0, -41.0])
+        self.assertEqual(result.status, "max_experiments_reached")
+        self.assertEqual(len(result.history), 3)
+
 if __name__ == "__main__":
     unittest.main()
-
-
