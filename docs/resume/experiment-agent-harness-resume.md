@@ -123,3 +123,7 @@ v0.4 后可以把项目升级表述为：
 ## v0.5 追加：自我修正能力表达
 
 - 通过真实 DeepSeek planner run 验证 plan-run-observe 反馈闭环：LLM 第一轮输出非法 `spline_range` 类型导致 spline_mlp 训练失败，Harness 将错误写入 history，第二轮 planner 根据错误修正为 scalar 并继续实验，第三轮基于 NMSE 结果选择 202 参数的 `complex_lstsq` 候选并主动停止。
+
+## v0.6 追加：可观测实验记录表达
+
+- 为 Agent Harness 增加 run artifact 自动落盘能力，结构化保存每轮 planner JSON、最终 result、按 NMSE 排序的 leaderboard.csv 与 summary.md，实现 LLM 实验循环的可复现、可审计和结果展示闭环。

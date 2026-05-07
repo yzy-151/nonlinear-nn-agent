@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from nonlinear_agent.planner import ExperimentPlanner
 from nonlinear_agent.planner_validation import validate_planned_overrides
+from nonlinear_agent.run_artifacts import RunArtifactWriter, default_run_dir
 from nonlinear_agent.server import HarnessRunSpec, build_harness_request, build_runtime
 
 
@@ -29,6 +30,7 @@ class ExperimentPlannerLoop:
         base_config: str = "configs/model-search/lstsq-complexmp-o12-m150.yaml",
         constraints: dict[str, Any] | None = None,
         timeout_seconds: float = 300.0,
+        artifact_dir: Path | str | None = None,
     ):
         self.planner = planner
         self.workspace = Path(workspace)
@@ -38,6 +40,7 @@ class ExperimentPlannerLoop:
         self.base_config = base_config
         self.constraints = constraints or {"parameter_count_max": 4000, "metric": "nmse_db"}
         self.timeout_seconds = timeout_seconds
+        self.artifact_writer = RunArtifactWriter(artifact_dir or default_run_dir(self.workspace))
 
     async def run(self, goal: str, max_rounds: int = 3, max_experiments: int | None = None) -> PlannerLoopResult:
         history: list[dict[str, Any]] = []
@@ -48,16 +51,21 @@ class ExperimentPlannerLoop:
             rounds += 1
             plan = self.planner.plan(goal=goal, history=history, constraints=self.constraints)
             summaries.append(plan.summary)
+            self.artifact_writer.write_plan(rounds, plan)
             if plan.stop and not plan.experiments:
-                return PlannerLoopResult(status="stopped", rounds=rounds, history=history, summaries=summaries)
+                result = PlannerLoopResult(status="stopped", rounds=rounds, history=history, summaries=summaries)
+                self.artifact_writer.write_result(result)
+                return result
             for experiment in plan.experiments:
                 if max_experiments is not None and executed_experiments >= max_experiments:
-                    return PlannerLoopResult(
+                    result = PlannerLoopResult(
                         status="max_experiments_reached",
                         rounds=rounds,
                         history=history,
                         summaries=summaries,
                     )
+                    self.artifact_writer.write_result(result)
+                    return result
                 try:
                     overrides = validate_planned_overrides(
                         experiment.overrides,
@@ -75,7 +83,9 @@ class ExperimentPlannerLoop:
                 executed_experiments += 1
                 record = {"id": experiment.experiment_id, "reason": experiment.reason, **metrics}
                 history.append(record)
-        return PlannerLoopResult(status="max_rounds_reached", rounds=rounds, history=history, summaries=summaries)
+        result = PlannerLoopResult(status="max_rounds_reached", rounds=rounds, history=history, summaries=summaries)
+        self.artifact_writer.write_result(result)
+        return result
 
     async def _run_experiment(self, experiment_id: str, overrides: dict[str, Any]) -> dict[str, Any]:
         output_dir = str(overrides.get("output_dir", f"reports/{experiment_id}"))

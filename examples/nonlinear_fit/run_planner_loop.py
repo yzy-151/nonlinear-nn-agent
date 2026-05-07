@@ -54,6 +54,7 @@ async def run(args) -> None:
         base_config=args.base_config,
         constraints={"parameter_count_max": args.parameter_count_max, "metric": "nmse_db", "nmse_threshold_db": args.nmse_threshold_db},
         timeout_seconds=args.timeout_seconds,
+        artifact_dir=args.artifact_dir,
     )
     result = await loop.run(goal=args.goal, max_rounds=args.max_rounds, max_experiments=args.max_experiments)
     print(json.dumps(result.__dict__, ensure_ascii=False, indent=2))
@@ -69,6 +70,7 @@ def main() -> None:
     parser.add_argument("--max-rounds", type=int, default=2)
     parser.add_argument("--max-experiments", type=int)
     parser.add_argument("--timeout-seconds", type=float, default=300.0)
+    parser.add_argument("--artifact-dir")
     parser.add_argument("--fake-plan")
     args = parser.parse_args()
     asyncio.run(run(args))
