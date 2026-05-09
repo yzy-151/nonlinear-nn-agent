@@ -62,6 +62,31 @@ class PlannerValidationTest(unittest.TestCase):
                 parameter_count_max=4000,
             )
 
+    def test_validate_rejects_invalid_spline_range_before_training(self):
+        for invalid_value in (None, [1.0, 3.0]):
+            with self.subTest(invalid_value=invalid_value):
+                with self.assertRaisesRegex(ValueError, "spline_range must be a number"):
+                    validate_planned_overrides(
+                        {
+                            "model_type": "spline_mlp",
+                            "feature_mode": "complex_mp",
+                            "memory_depth": 24,
+                            "mp_order_count": 1,
+                            "hidden_units": 16,
+                            "spline_knots": 16,
+                            "spline_range": invalid_value,
+                        },
+                        parameter_count_max=4000,
+                    )
+
+    def test_validate_rejects_zero_epoch_neural_models_but_allows_lstsq(self):
+        with self.assertRaisesRegex(ValueError, "epochs must be >= 1 for neural model"):
+            validate_planned_overrides({"model_type": "tiny_mlp", "epochs": 0})
+
+        validated = validate_planned_overrides({"model_type": "complex_lstsq", "epochs": 0})
+
+        self.assertEqual(validated["epochs"], 0)
+
     def test_planner_applies_mapping_before_returning_experiment(self):
         llm = FakeLLMClient(responses=[
             '{"summary":"map aliases", "stop": false, "experiments": ['
@@ -98,6 +123,34 @@ class PlannerValidationTest(unittest.TestCase):
         self.assertFalse(called["runtime"])
         self.assertEqual(result.history[0]["run_status"], "rejected")
         self.assertIn("rank", result.history[0]["error"])
+
+    def test_loop_records_invalid_spline_range_as_rejected_without_runtime(self):
+        llm = FakeLLMClient(responses=[
+            '{"summary":"bad spline", "stop": false, "experiments": ['
+            '{"id":"bad-spline", "reason":"bad", '
+            '"overrides":{"model_type":"spline_mlp","feature_mode":"complex_mp",'
+            '"memory_depth":24,"mp_order_count":1,"hidden_units":16,'
+            '"spline_knots":16,"spline_range":null,"epochs":50}}]}'
+        ])
+        planner = ExperimentPlanner(llm_client=llm)
+        called = {"runtime": False}
+
+        class FakeRuntime:
+            async def run(self, request):
+                called["runtime"] = True
+                yield None
+
+        with TemporaryDirectory() as tmpdir:
+            loop = ExperimentPlannerLoop(
+                planner=planner,
+                workspace=Path(tmpdir),
+                runtime_factory=lambda session_id: FakeRuntime(),
+            )
+            result = asyncio.run(loop.run(goal="reject invalid spline", max_rounds=1))
+
+        self.assertFalse(called["runtime"])
+        self.assertEqual(result.history[0]["run_status"], "rejected")
+        self.assertIn("spline_range must be a number", result.history[0]["error"])
 
 
 if __name__ == "__main__":

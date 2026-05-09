@@ -467,3 +467,31 @@ python -m unittest discover tests
 - `runs/` 已加入 `.gitignore`，默认不提交临时实验产物。
 - planner 自动生成的 `configs/exp*.yaml`、`configs/planner-*.yaml` 也已忽略。
 - 后续如果需要把某次重要实验放进 Git，建议手动整理成 `docs/experiments/*.md`，不要直接提交完整 `runs/`。
+
+## 2026-07-22 追加：v0.7 Validation Guard
+
+新增 planner 参数预检：
+
+- `src/nonlinear_agent/planner_validation.py`
+- 测试：`tests/test_planner_validation.py`
+
+已覆盖：
+
+- `spline_range=None` 或 list：reject，避免训练脚本 `float(None)` / `float(list)` 崩溃。
+- 神经模型显式 `epochs=0`：reject。
+- `complex_lstsq epochs=0`：allow。
+- 正整数参数和值类型参数预检。
+- loop 会把 validation error 写入 history：`run_status=rejected`，runtime 不会被调用。
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_planner_validation tests.test_llm_planner tests.test_experiment_core
+python -m unittest discover tests
+```
+
+下一步建议：
+
+1. 把 rejected/succeeded/failed 统计写进 `summary.md`。
+2. 在 planner prompt 中明确“看到 rejected history 后必须解释修正策略”。
+3. 增加自动保存 raw LLM response，便于审计 planner 输出和 parser 行为。
