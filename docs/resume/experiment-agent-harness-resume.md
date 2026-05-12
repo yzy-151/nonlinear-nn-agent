@@ -131,3 +131,7 @@ v0.4 后可以把项目升级表述为：
 ## v0.7 追加：Schema Guard 表达
 
 - 基于真实 DeepSeek planner 运行暴露的非法参数事故，补充 planner schema guard 和类型/值域预检，将 `spline_range=None/list`、神经模型 `epochs=0` 等不可执行计划在 runtime 前拒绝并写入 history，提升 Agent Harness 的稳定性、可审计性和自我修正输入质量。
+
+## v0.8 追加：Benchmark Evaluation 表达
+
+- 构建 Agent 级 benchmark evaluation，设计固定 case 集覆盖目标命中、非法 planner 输出和 runtime 失败等场景，统计 target_hit_rate、rejected_rate、runtime_failure_rate、best_nmse_db 与实验预算使用量，用指标评估 planner prompt、schema guard 和 runtime 改动效果。

@@ -16,3 +16,4 @@ configs/exp*.yaml
 configs/planner-*.yaml
 exp[0-9]*/
 runs/
+benchmarks/
