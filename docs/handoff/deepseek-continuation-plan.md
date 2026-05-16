@@ -524,3 +524,31 @@ python -m unittest discover tests
 
 - 做 context/memory compression。
 - 给 planner history 加窗口、压缩摘要和预算控制。
+
+## 2026-07-22 追加：v0.9 Context / Memory Compression
+
+新增：
+
+- `src/nonlinear_agent/context_memory.py`
+- `tests/test_context_memory.py`
+- 最新主学习文档：`docs/learning/experiment-agent-harness-v0.9.md`
+
+行为：
+
+- `HistoryCompressor(recent_window=3)` 默认接入 `ExperimentPlannerLoop`。
+- 完整 history 仍保留在 loop result 和 run artifacts。
+- 发给 planner 的 history 会压缩为 `history-summary + 最近 N 条原始记录`。
+- `history-summary` 包含状态统计、最佳实验、最佳 NMSE、参数量和代表性错误。
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_context_memory
+python -m unittest discover tests
+python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --max-experiments 1 --artifact-dir runs\fake-v09-check --goal "context memory smoke test"
+```
+
+下一步 v1.0：
+
+- 做 Tool Registry / Skill 化。
+- 明确工具 schema、allowed tools 渐进式披露和 tool error policy。

@@ -8,7 +8,7 @@
 
 把 `nonlinear-nn-agent` 打造成面向 Agent Harness / Runtime / Agent Coding 岗位的项目证据。
 
-当前已完成到 v0.8：
+当前已完成到 v0.9：
 
 - v0.1：Harness Runtime
 - v0.2：真实实验工具
@@ -18,6 +18,7 @@
 - v0.6：Run Artifacts
 - v0.7：Validation Guard 强化
 - v0.8：Benchmark Evaluation
+- v0.9：Context / Memory Compression
 
 ## 开发原则
 
@@ -91,16 +92,23 @@ benchmarks/<timestamp>/
 - `docs/handoff/deepseek-continuation-plan.md`
 - `docs/resume/experiment-agent-harness-resume.md`
 
-## v0.9 计划：Context / Memory Compression
+## v0.9 已完成：Context / Memory Compression
 
 目标：回答上下文管理高频问题。
 
-能力：
+已新增：
+
+- `src/nonlinear_agent/context_memory.py`
+- `tests/test_context_memory.py`
+
+已支持：
 
 - short-term history window
 - compressed run summary
-- rejected/failed/succeeded experience memory
-- prompt history budget
+- rejected/failed/succeeded 状态统计
+- best_nmse / best_experiment 摘要
+- notable error 摘要
+- 完整 history 保留在 result/artifacts，planner prompt 只注入 summary + recent window
 
 ## v1.0 计划：Tool Registry / Skill 化
 
