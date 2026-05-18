@@ -27,21 +27,57 @@ class ToolResult:
     error: str | None = None
 
 
-class ToolRegistry:
-    def __init__(self, default_timeout_seconds: float = 30.0):
-        self.default_timeout_seconds = default_timeout_seconds
-        self._tools: dict[str, ToolFunction] = {}
+@dataclass(frozen=True)
+class ToolSpec:
+    name: str
+    description: str = ""
+    input_schema: dict[str, Any] = field(default_factory=dict)
+    category: str = "general"
+    error_policy: str = "return_error"
 
-    def register(self, name: str, func: ToolFunction) -> None:
+
+class ToolRegistry:
+    def __init__(self, default_timeout_seconds: float = 30.0, unknown_tool_policy: str = "raise"):
+        self.default_timeout_seconds = default_timeout_seconds
+        self.unknown_tool_policy = unknown_tool_policy
+        self._tools: dict[str, ToolFunction] = {}
+        self._specs: dict[str, ToolSpec] = {}
+
+    def register(self, name: str, func: ToolFunction, spec: ToolSpec | None = None) -> None:
         if not name:
             raise ValueError("Tool name must not be empty.")
         self._tools[name] = func
+        self._specs[name] = spec or ToolSpec(name=name)
 
     def tool_names(self) -> list[str]:
         return sorted(self._tools)
 
+    def describe_tools(self, category: str | None = None) -> list[dict[str, Any]]:
+        specs = [self._specs[name] for name in self.tool_names()]
+        if category is not None:
+            specs = [spec for spec in specs if spec.category == category]
+        return [
+            {
+                "name": spec.name,
+                "description": spec.description,
+                "input_schema": spec.input_schema,
+                "category": spec.category,
+                "error_policy": spec.error_policy,
+            }
+            for spec in specs
+        ]
+
     async def run(self, call: ToolCall) -> ToolResult:
         if call.name not in self._tools:
+            if self.unknown_tool_policy == "return_error":
+                return ToolResult(
+                    name=call.name,
+                    status="failed",
+                    output={},
+                    attempts=0,
+                    latency_ms=0.0,
+                    error=f"Unknown tool: {call.name}",
+                )
             raise KeyError(f"Unknown tool: {call.name}")
         timeout = call.timeout_seconds or self.default_timeout_seconds
         attempts = 0

@@ -11,7 +11,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from nonlinear_agent.hooks import HookManager
 from nonlinear_agent.runtime import ExperimentHarnessRuntime, HarnessRequest
 from nonlinear_agent.session import SessionStore
-from nonlinear_agent.tools import ToolCall, ToolRegistry
+from nonlinear_agent.tools import ToolCall, ToolRegistry, ToolSpec
 from nonlinear_agent.trace import TraceLogger
 
 
@@ -33,6 +33,46 @@ class HarnessRuntimeTest(unittest.TestCase):
         self.assertEqual(result.output["metric"], -37.4)
         self.assertEqual(result.attempts, 2)
         self.assertGreaterEqual(result.latency_ms, 0.0)
+
+    def test_tool_registry_exposes_tool_specs_for_progressive_disclosure(self):
+        registry = ToolRegistry(default_timeout_seconds=1.0)
+
+        def generate_config(experiment_id):
+            return {"config_path": f"configs/{experiment_id}.yaml"}
+
+        registry.register(
+            "generate_config",
+            generate_config,
+            spec=ToolSpec(
+                name="generate_config",
+                description="Generate an experiment YAML config.",
+                input_schema={"type": "object", "required": ["experiment_id"]},
+                category="experiment",
+                error_policy="fail_fast",
+            ),
+        )
+
+        descriptions = registry.describe_tools(category="experiment")
+
+        self.assertEqual(descriptions, [
+            {
+                "name": "generate_config",
+                "description": "Generate an experiment YAML config.",
+                "input_schema": {"type": "object", "required": ["experiment_id"]},
+                "category": "experiment",
+                "error_policy": "fail_fast",
+            }
+        ])
+
+    def test_tool_registry_can_return_structured_unknown_tool_failure(self):
+        registry = ToolRegistry(default_timeout_seconds=1.0, unknown_tool_policy="return_error")
+
+        result = asyncio.run(registry.run(ToolCall(name="missing", args={})))
+
+        self.assertEqual(result.name, "missing")
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(result.attempts, 0)
+        self.assertIn("Unknown tool", result.error)
 
     def test_session_store_saves_and_loads_resume_state(self):
         with TemporaryDirectory() as tmpdir:

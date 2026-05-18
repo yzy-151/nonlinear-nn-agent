@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 
 from nonlinear_agent.agent_workflow import parse_metrics_stdout
-from nonlinear_agent.tools import ToolRegistry
+from nonlinear_agent.tools import ToolRegistry, ToolSpec
 
 
 def _resolve(workspace: Path | str, path: Path | str) -> Path:
@@ -166,10 +166,50 @@ def write_report_tool(
 def build_experiment_tool_registry(workspace: Path | str, default_timeout_seconds: float = 300.0) -> ToolRegistry:
     root = Path(workspace)
     registry = ToolRegistry(default_timeout_seconds=default_timeout_seconds)
-    registry.register("generate_config", partial(generate_config_tool, workspace=root))
-    registry.register("run_training", partial(run_training_tool, workspace=root))
-    registry.register("verify_artifacts", partial(verify_artifacts_tool, workspace=root))
-    registry.register("write_report", partial(write_report_tool, workspace=root))
+    registry.register(
+        "generate_config",
+        partial(generate_config_tool, workspace=root),
+        spec=ToolSpec(
+            name="generate_config",
+            description="Generate an experiment YAML config from a base config and planner overrides.",
+            input_schema={"type": "object", "required": ["base_config_path", "experiment_id"]},
+            category="experiment",
+            error_policy="fail_fast",
+        ),
+    )
+    registry.register(
+        "run_training",
+        partial(run_training_tool, workspace=root),
+        spec=ToolSpec(
+            name="run_training",
+            description="Run the nonlinear fitting training command for a generated config.",
+            input_schema={"type": "object", "required": ["config_path"]},
+            category="experiment",
+            error_policy="return_error",
+        ),
+    )
+    registry.register(
+        "verify_artifacts",
+        partial(verify_artifacts_tool, workspace=root),
+        spec=ToolSpec(
+            name="verify_artifacts",
+            description="Verify metrics, PSD artifact, and NMSE threshold.",
+            input_schema={"type": "object", "required": ["output_dir", "nmse_threshold_db"]},
+            category="experiment",
+            error_policy="return_error",
+        ),
+    )
+    registry.register(
+        "write_report",
+        partial(write_report_tool, workspace=root),
+        spec=ToolSpec(
+            name="write_report",
+            description="Write a Markdown Agent Harness report for a completed session.",
+            input_schema={"type": "object", "required": ["session_id"]},
+            category="reporting",
+            error_policy="return_error",
+        ),
+    )
     return registry
 
 

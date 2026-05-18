@@ -12,6 +12,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from nonlinear_agent.llm import FakeLLMClient, OpenAICompatibleClient
 from nonlinear_agent.loop import ExperimentPlannerLoop
 from nonlinear_agent.planner import ExperimentPlanner
+from nonlinear_agent.tools import ToolSpec
 from nonlinear_agent.trace import TraceEvent
 
 
@@ -103,6 +104,28 @@ class LLMPlannerTest(unittest.TestCase):
         self.assertIn("16", llm.last_prompt)
         self.assertIn("complex_lstsq", llm.last_prompt)
         self.assertIn("activation", llm.last_prompt)
+
+    def test_planner_prompt_can_include_tool_specs_for_progressive_disclosure(self):
+        llm = FakeLLMClient(responses=['{"summary":"stop", "stop": true, "experiments": []}'])
+        planner = ExperimentPlanner(
+            llm_client=llm,
+            allowed_tools=[
+                ToolSpec(
+                    name="generate_config",
+                    description="Generate YAML config.",
+                    input_schema={"required": ["base_config_path", "experiment_id"]},
+                    category="experiment",
+                    error_policy="fail_fast",
+                )
+            ],
+        )
+
+        planner.plan(goal="use tool specs", history=[], constraints={})
+
+        self.assertIn("Generate YAML config.", llm.last_prompt)
+        self.assertIn("base_config_path", llm.last_prompt)
+        self.assertIn("fail_fast", llm.last_prompt)
+
     def test_planner_loop_marks_error_event_as_failed_run_status(self):
         llm = FakeLLMClient(
             responses=[

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any
 
 from nonlinear_agent.llm import LLMClient
@@ -56,7 +56,7 @@ class ExperimentPlanner:
             "- Good spline_mlp candidates under 4000 params: feature_mode=complex_mp, mp_order_count=1, memory_depth in [24, 48, 72], hidden_units in [16, 32], spline_knots=16.\n"
             "- Keep parameter_count_max from constraints; prefer fewer parameters when NMSE is similar.\n"
             "Use overrides for YAML config fields such as model_type, feature_mode, memory_depth, mp_order_count, epochs, learning_rate, optimizer, output_dir, hidden_units, activation, spline_knots, spline_range. Do not output shell commands. "
-            f"The runtime will only use these tools: {', '.join(self.allowed_tools)}."
+            f"The runtime will only use these tools: {_format_allowed_tools(self.allowed_tools)}."
         )
 
     def _parse_plan(self, payload: dict[str, Any]) -> ExperimentPlan:
@@ -95,6 +95,20 @@ def _parse_json_object(text: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Planner response must be a JSON object.")
     return payload
+
+
+def _format_allowed_tools(allowed_tools: list[Any]) -> str:
+    formatted = []
+    for tool in allowed_tools:
+        if isinstance(tool, str):
+            formatted.append(tool)
+        elif is_dataclass(tool):
+            formatted.append(json.dumps(asdict(tool), ensure_ascii=False))
+        elif isinstance(tool, dict):
+            formatted.append(json.dumps(tool, ensure_ascii=False))
+        else:
+            formatted.append(str(tool))
+    return "; ".join(formatted)
 
 
 

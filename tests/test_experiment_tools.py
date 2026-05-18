@@ -111,6 +111,15 @@ class ExperimentToolsTest(unittest.TestCase):
         self.assertIn("verify_artifacts", registry.tool_names())
         self.assertIn("write_report", registry.tool_names())
 
+    def test_build_experiment_tool_registry_exposes_tool_specs(self):
+        registry = build_experiment_tool_registry(workspace=Path("."))
+
+        experiment_tools = registry.describe_tools(category="experiment")
+
+        self.assertEqual([tool["name"] for tool in experiment_tools], ["generate_config", "run_training", "verify_artifacts"])
+        self.assertEqual(experiment_tools[0]["input_schema"]["required"], ["base_config_path", "experiment_id"])
+        self.assertEqual(experiment_tools[1]["error_policy"], "return_error")
+
 
 if __name__ == "__main__":
     unittest.main()

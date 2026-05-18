@@ -2,7 +2,7 @@
 
 更新时间：2026-07-22
 
-这是当前最新主学习文档。你优先读这一份；旧版 `v0.1-v0.8` 保留为版本历史。
+这是 v0.9 历史学习文档。当前最新主学习入口是 `experiment-agent-harness-v1.0.md`。
 
 ## 1. 本版主题
 
@@ -107,4 +107,3 @@ python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2
 v1.0：Tool Registry / Skill 化。
 
 目标是回答面试高频问题：工具怎么定义、注册、发现、调用、失败恢复，以及 Skill 和 MCP 如何区分。
-
