@@ -581,3 +581,35 @@ python -m unittest discover tests
 
 - Reflection + Recovery Policy。
 - 每轮结束生成失败原因、修正策略、下一轮避免项。
+
+## 2026-07-22 追加：v1.1 Reflection / Recovery Policy
+
+新增：
+
+- `src/nonlinear_agent/reflection.py`
+- `tests/test_reflection.py`
+- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.1.md`
+- 结果图：`docs/assets/psd-exp016-best-41db-run.png`
+- 结果图：`docs/assets/psd-exp019-self-correction-run.png`
+
+能力：
+
+- 每轮执行后生成 reflection record。
+- 统计 `rejected`、`failed`、`succeeded`。
+- 记录 `failure_causes`、`recovery_actions`、`avoid_next`。
+- `RunArtifactWriter` 写入 `reflections/round-XXX.json`。
+- 最终 `result.json` 和 `summary.md` 包含 reflection 信息。
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_reflection
+python -m unittest discover tests
+python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --max-experiments 1 --artifact-dir runs\fake-v11-check --goal "reflection smoke test"
+```
+
+下一步 v1.2：
+
+- MCP Server / Tool Protocol。
+- 把当前 `ToolSpec` 映射为标准 MCP tool schema。
+- 让项目能回答“MCP 是什么、写过哪些 MCP 工具、Skill 和 MCP 有什么区别”。
