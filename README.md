@@ -603,7 +603,7 @@ benchmarks/<run>/
 
 | 文件夹 | 作用 |
 |---|---|
-| `docs/learning/` | v0.1 到 v1.1 学习文档 |
+| `docs/learning/` | v0.1 到 v1.2 学习文档 |
 | `docs/handoff/` | 交接文档，给另一个 Codex/DeepSeek 继续做 |
 | `docs/resume/` | 简历包装和面试表达 |
 | `docs/experiments/` | 重要实验记录 |
@@ -655,6 +655,7 @@ version/v0.8
 version/v0.9
 version/v1.0
 version/v1.1
+version/v1.2
 ```
 
 ### v0.1: Harness Runtime
@@ -853,6 +854,26 @@ version/v1.1
 - rejected / failed / succeeded 要分开处理。
 - reflection 可以作为下一轮 prompt、benchmark 分析和面试复盘依据。
 
+### v1.2: MCP Server / Tool Protocol
+
+新增：
+
+- `MCPToolBridge`
+- `tool_spec_to_mcp_tool()`
+- `build_mcp_tool_bridge()`
+- JSON-RPC `tools/list`
+- JSON-RPC `tools/call`
+- stdio JSON-lines mock server
+
+知识点：
+
+- MCP 是 Agent 工具发现和工具调用的协议层。
+- `ToolSpec` 可以映射为 MCP tool schema。
+- LLM Planner 和 MCP Client 可以共用同一个 `ToolRegistry`。
+- `tools/list` 负责暴露工具 schema。
+- `tools/call` 负责把外部工具调用转换为内部 `ToolCall`。
+- 当前实现是 MCP-compatible bridge，后续可接官方 MCP SDK transport。
+
 ## 13. 如何运行
 
 ### 安装依赖
@@ -903,6 +924,20 @@ python examples\nonlinear_fit\serve_harness.py --host 127.0.0.1 --port 8000
 ```powershell
 curl -N -X POST http://127.0.0.1:8000/runs/server-demo/events -H "Content-Type: application/json" -d "{\"epochs\":0,\"nmse_threshold_db\":-35}"
 ```
+
+### MCP-compatible Tool Bridge
+
+```powershell
+python examples\nonlinear_fit\serve_mcp_tools.py
+```
+
+输入一行：
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/list"}
+```
+
+输出会包含 `generate_config`、`run_training`、`verify_artifacts`、`write_report` 的 MCP-style schema。
 
 ### Tests
 
@@ -986,18 +1021,9 @@ configs/<experiment-id>.yaml
 - category
 - error_policy
 
-MCP tool schema 可以看作更标准化的跨进程工具协议。当前 `ToolSpec` 已经具备映射到 MCP 的核心信息，下一步 v1.2 计划就是把现有实验工具暴露成 MCP server tools。
+MCP tool schema 可以看作更标准化的跨进程工具协议。当前 v1.2 已经实现 MCP-compatible bridge：把现有 `ToolSpec` 映射为 MCP tool schema，并支持 `tools/list`、`tools/call` 两类 JSON-RPC 请求。
 
 ## 16. 后续路线
-
-### v1.2: MCP Server / Tool Protocol
-
-目标：
-
-- 把 `ToolSpec` 映射成 MCP tool schema。
-- 暴露 `generate_config`、`run_training`、`verify_artifacts`、`write_report`。
-- 支持 stdio server 或最小可运行 MCP server。
-- 写测试验证工具 schema、参数校验和错误返回。
 
 ### v1.3: Async Runtime Hardening
 
@@ -1022,7 +1048,7 @@ MCP tool schema 可以看作更标准化的跨进程工具协议。当前 `ToolS
 
 最新主学习文档：
 
-- `docs/learning/experiment-agent-harness-v1.1.md`
+- `docs/learning/experiment-agent-harness-v1.2.md`
 
 历史版本文档：
 
@@ -1037,6 +1063,7 @@ MCP tool schema 可以看作更标准化的跨进程工具协议。当前 `ToolS
 - `docs/learning/experiment-agent-harness-v0.9.md`
 - `docs/learning/experiment-agent-harness-v1.0.md`
 - `docs/learning/experiment-agent-harness-v1.1.md`
+- `docs/learning/experiment-agent-harness-v1.2.md`
 
 交接文档：
 

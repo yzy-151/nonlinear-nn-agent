@@ -2,7 +2,7 @@
 
 更新时间：2026-07-22
 
-这是当前最新主学习文档。你优先读这一份；旧版 `v0.1-v1.0` 保留为版本历史。
+这是 v1.1 历史学习文档。当前最新主学习入口是 `experiment-agent-harness-v1.2.md`。
 
 ## 1. 本版主题
 
@@ -134,4 +134,3 @@ python -m unittest discover tests
 v1.2：MCP Server / Tool Protocol。
 
 目标是把当前 `ToolSpec` 映射为标准 MCP tool schema，让项目能回答“MCP 是什么、写过哪些 MCP 工具、Skill 和 MCP 有什么区别”。
-
