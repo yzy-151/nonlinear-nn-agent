@@ -140,4 +140,5 @@ class ExperimentPlannerLoop:
             elif event.event_type == "error":
                 metrics["run_status"] = "failed"
                 metrics["error"] = event.error
+                metrics["error_type"] = event.error_type
         return metrics

@@ -151,3 +151,7 @@ v0.4 后可以把项目升级表述为：
 ## v1.2 追加：MCP Server / Tool Protocol 表达
 
 - 为 Agent Harness 增加 MCP-compatible Tool Protocol Bridge，将内部 ToolSpec 映射为 MCP tool schema，并实现 tools/list、tools/call 的 JSON-RPC 处理；底层复用 ToolRegistry 和真实实验工具链，使 LLM Planner 与 MCP Client 共享同一套工具能力边界。
+
+## v1.3 追加：Async Runtime Hardening 表达
+
+- 为 Agent Harness Runtime 增加结构化错误分类、取消/中断、超时与重试策略、step-level resume 能力，使长链路工具调用具备可观测、可恢复和可控失败处理能力；错误类型贯通 ToolResult、TraceEvent、Session 和 Reflection，支持后续 benchmark 分析。

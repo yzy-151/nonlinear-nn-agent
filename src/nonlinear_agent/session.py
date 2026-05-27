@@ -15,6 +15,8 @@ class ExperimentSession:
     metrics: dict[str, Any] = field(default_factory=dict)
     artifacts: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    error_types: list[str] = field(default_factory=list)
+    completed_steps: list[int] = field(default_factory=list)
     context_summary: str = ""
     history: list[dict[str, Any]] = field(default_factory=list)
 

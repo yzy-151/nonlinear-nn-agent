@@ -4,9 +4,18 @@ import asyncio
 import inspect
 import time
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Callable
 
+from nonlinear_agent.runtime_errors import ErrorType, classify_exception
+
 ToolFunction = Callable[..., Any]
+
+
+class RetryPolicy(str, Enum):
+    ALWAYS = "always"
+    NEVER = "never"
+    RETRY_TIMEOUT = "retry_timeout"
 
 
 @dataclass(frozen=True)
@@ -15,6 +24,7 @@ class ToolCall:
     args: dict[str, Any] = field(default_factory=dict)
     timeout_seconds: float | None = None
     retries: int = 0
+    retry_policy: RetryPolicy | str = RetryPolicy.ALWAYS
 
 
 @dataclass(frozen=True)
@@ -25,6 +35,8 @@ class ToolResult:
     attempts: int
     latency_ms: float
     error: str | None = None
+    error_type: str | None = None
+    retryable: bool = False
 
 
 @dataclass(frozen=True)
@@ -77,12 +89,15 @@ class ToolRegistry:
                     attempts=0,
                     latency_ms=0.0,
                     error=f"Unknown tool: {call.name}",
+                    error_type=ErrorType.TOOL_ERROR.value,
+                    retryable=False,
                 )
             raise KeyError(f"Unknown tool: {call.name}")
         timeout = call.timeout_seconds or self.default_timeout_seconds
         attempts = 0
         started = time.perf_counter()
-        last_error: Exception | None = None
+        last_error: BaseException | None = None
+        last_error_type: ErrorType | None = None
         for attempts in range(1, call.retries + 2):
             try:
                 output = await asyncio.wait_for(self._invoke(self._tools[call.name], call.args), timeout=timeout)
@@ -101,6 +116,9 @@ class ToolRegistry:
                 )
             except Exception as exc:  # noqa: BLE001 - returned as observable tool failure
                 last_error = exc
+                last_error_type = classify_exception(exc)
+                if attempts >= call.retries + 1 or not _should_retry(call.retry_policy, last_error_type):
+                    break
         return ToolResult(
             name=call.name,
             status="failed",
@@ -108,10 +126,21 @@ class ToolRegistry:
             attempts=attempts,
             latency_ms=(time.perf_counter() - started) * 1000,
             error=str(last_error),
+            error_type=(last_error_type or ErrorType.TOOL_ERROR).value,
+            retryable=False,
         )
 
     async def _invoke(self, func: ToolFunction, args: dict[str, Any]) -> Any:
         if inspect.iscoroutinefunction(func):
             return await func(**args)
         return await asyncio.to_thread(func, **args)
+
+
+def _should_retry(policy: RetryPolicy | str, error_type: ErrorType) -> bool:
+    policy_value = policy.value if isinstance(policy, RetryPolicy) else str(policy)
+    if policy_value == RetryPolicy.NEVER.value:
+        return False
+    if policy_value == RetryPolicy.RETRY_TIMEOUT.value:
+        return error_type == ErrorType.TIMEOUT_ERROR
+    return True
 
