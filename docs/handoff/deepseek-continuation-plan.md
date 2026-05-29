@@ -679,3 +679,34 @@ python -m unittest discover tests
 - Evaluation Dashboard / Runtime Diagnostics。
 - 对 benchmark 多次运行结果做汇总展示。
 - 统计 error_type 分布、target_hit_rate、runtime_failure_rate、best_nmse_db。
+
+## 2026-07-23 追加：v1.4 Evaluation Dashboard / Runtime Diagnostics
+
+新增：
+
+- `src/nonlinear_agent/diagnostics.py`
+- `examples/nonlinear_fit/write_diagnostics.py`
+- `tests/test_diagnostics.py`
+- `docs/learning/experiment-agent-harness-v1.4.md`
+- `docs/diagnostics/agent-runtime-dashboard.md`
+
+能力：
+
+- 读取 `benchmarks/*/results.json`。
+- 读取 `runs/*/result.json`。
+- 聚合 `target_hit_rate`、`rejected_rate`、`runtime_failure_rate`、`average_experiments_used`、`best_nmse_db`。
+- 统计 `run_status` 分布和 `error_type_counts`。
+- 输出 Markdown dashboard，便于 GitHub 展示和面试讲述。
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_diagnostics
+python -m unittest discover tests
+python examples\nonlinear_fit\write_diagnostics.py
+```
+
+下一步 v1.5：
+
+- Real DeepSeek Demo Replay / Case Study。
+- 把真实 DeepSeek planner run 整理成“失败 -> 反馈 -> 修正 -> 结果”的完整故事。
