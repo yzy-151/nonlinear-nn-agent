@@ -105,10 +105,10 @@ python -m unittest discover tests
 
 ## 9. 下一步
 
-v1.5：Real DeepSeek Demo Replay / Case Study。
+v1.5：Unified CLI / Local Dashboard Client。
 
 目标：
 
-- 选一轮真实 DeepSeek run 做 case study。
-- 展示 planner 输出、错误、修正、最终指标和 PSD。
-- 写成可以直接讲给面试官听的项目故事。
+- 把 planner loop、benchmark、diagnostics、dashboard、serve 收敛到一个 CLI。
+- 增加本地 HTML dashboard，降低展示和复现成本。
+- 安装后支持 `nonlinear-agent` 命令。

@@ -159,3 +159,7 @@ v0.4 后可以把项目升级表述为：
 ## v1.4 追加：Evaluation Dashboard / Runtime Diagnostics 表达
 
 - 构建 Agent Runtime diagnostics dashboard，聚合 benchmark 与 planner-loop artifacts，统计 target_hit_rate、rejected_rate、runtime_failure_rate、error_type 分布、最佳 NMSE 和实验预算使用情况，用于评估 prompt、guardrail 与 runtime hardening 改动收益。
+
+## v1.5 追加：Unified CLI / Local Dashboard Client 表达
+
+- 为 Agent Harness 增加统一命令行交付面和本地 HTML diagnostics dashboard，将 planner loop、benchmark、diagnostics、SSE server 等分散入口收敛为一个 CLI，并支持一键生成可分享的 runtime dashboard，降低复现实验和展示系统可观测性的成本。
