@@ -8,7 +8,7 @@
 
 把 `nonlinear-nn-agent` 打造成面向 Agent Harness / Runtime / Agent Coding 岗位的项目证据。
 
-当前已完成到 v1.5：
+当前已完成到 v1.6：
 
 - v0.1：Harness Runtime
 - v0.2：真实实验工具
@@ -25,6 +25,7 @@
 - v1.3：Async Runtime Hardening
 - v1.4：Evaluation Dashboard / Runtime Diagnostics
 - v1.5：Unified CLI / Local Dashboard Client
+- v1.6：Final Docs / Onboarding / Demo UI
 
 ## 开发原则
 
@@ -237,16 +238,32 @@ benchmarks/<timestamp>/
 - `python agent.py ...` 本地免安装入口
 - standalone HTML diagnostics dashboard
 
-## v1.6 计划：Real DeepSeek Demo Replay / Case Study
+## v1.6 已完成：Final Docs / Onboarding / Demo UI
 
-目标：把真实 DeepSeek planner run 写成一个能直接面试讲述的 case study。
+目标：项目功能封版，补齐新人上手、面试表达、case study 和可展示 UI。
 
-建议能力：
+已新增：
 
-- 选择一轮真实 DeepSeek run。
-- 提取 planner plan、history、reflection、leaderboard、PSD 图。
-- 写 `docs/case-studies/deepseek-planner-self-correction.md`。
-- 说明问题、失败、修正、结果和工程价值。
+- `docs/onboarding/newcomer-guide.md`
+- `docs/case-studies/deepseek-planner-self-correction.md`
+- `docs/interview/agent-harness-qa.md`
+- `docs/learning/experiment-agent-harness-v1.6.md`
+- `src/nonlinear_agent/web_ui.py`
+
+已支持：
+
+- `GET /` 浏览器首页。
+- 从页面配置 session、goal、epochs、threshold、timeout。
+- 页面通过 `fetch` 调用 `POST /runs/{session_id}/events`。
+- 实时展示 SSE chunks。
+- 首页提供 diagnostics dashboard 快捷入口。
+
+## 封版后维护原则
+
+- 不继续无目标堆 v1.7/v1.8。
+- 后续修改以修 bug、更新面试 Q&A、更新 case study 为主。
+- RAG/BM25/Rerank/Ragas 用 Storm 项目覆盖，不塞进本项目主线。
+- 每次修改仍然必须跑全量测试。
 
 ## 验证命令
 

@@ -745,5 +745,39 @@ python -m nonlinear_agent.cli dashboard
 
 下一步 v1.6：
 
-- Real DeepSeek Demo Replay / Case Study。
-- 把真实 DeepSeek planner run 整理成“失败 -> 反馈 -> 修正 -> 结果”的完整故事。
+- Final Docs / Onboarding / Demo UI。
+- 把项目收口为新人可上手、面试可讲、浏览器可展示的封版状态。
+
+## 2026-07-23 追加：v1.6 Final Docs / Onboarding / Demo UI
+
+新增：
+
+- `docs/onboarding/newcomer-guide.md`
+- `docs/case-studies/deepseek-planner-self-correction.md`
+- `docs/interview/agent-harness-qa.md`
+- `docs/learning/experiment-agent-harness-v1.6.md`
+- `src/nonlinear_agent/web_ui.py`
+
+能力：
+
+- `python agent.py serve --host 127.0.0.1 --port 8000` 启动 Web UI。
+- `GET /` 返回项目首页。
+- 首页能配置实验参数并通过 SSE endpoint 实时展示 runtime events。
+- 首页提供 Markdown/HTML diagnostics dashboard 快捷入口。
+- 新人 guide 指明读代码顺序、常用命令和注意事项。
+- case study 把 DeepSeek self-correction 写成面试故事。
+- Q&A 对齐面经高频 Agent Harness 问题。
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_server_streaming
+python -m unittest discover tests
+python agent.py dashboard
+```
+
+封版建议：
+
+- 本项目不继续堆功能。
+- 后续以维护文档、修 bug、演示稳定性为主。
+- RAG 全流程和 BM25/Rerank/Ragas 由 Storm 项目覆盖。
