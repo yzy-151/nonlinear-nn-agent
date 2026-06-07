@@ -18,7 +18,7 @@ def collect_diagnostics(workspace: Path | str) -> dict[str, Any]:
     )
     error_type_counts.update(reflection_error_counts)
     best_candidate = _best_candidate(history_records, benchmark_rows)
-    totals = _aggregate_benchmark_totals(benchmark_rows)
+    totals = _aggregate_all_totals(benchmark_rows, run_rows, history_records)
     return {
         "benchmark_count": len(benchmark_rows),
         "run_count": len(run_rows),
@@ -149,7 +149,7 @@ def _collect_run_rows(root: Path) -> tuple[list[dict[str, Any]], list[dict[str, 
     rows = []
     history_records = []
     reflection_error_counts: Counter = Counter()
-    for path in sorted((root / "runs").glob("*/result.json")):
+    for path in sorted((root / "runs").glob("*/result.json"), key=lambda p: p.stat().st_mtime, reverse=True):
         payload = _read_json(path)
         if not payload:
             continue
@@ -164,36 +164,46 @@ def _collect_run_rows(root: Path) -> tuple[list[dict[str, Any]], list[dict[str, 
                 record = dict(record)
                 record["source"] = _relative(path, root)
                 history_records.append(record)
+        nmse_values = [
+            _to_float(r.get("nmse_db"))
+            for r in history
+            if isinstance(r, dict) and r.get("nmse_db") is not None
+        ]
         rows.append({
             "source": _relative(path, root),
             "status": payload.get("status", ""),
             "rounds": payload.get("rounds", ""),
             "history_count": len(history),
+            "best_nmse_db": min(nmse_values) if nmse_values else None,
+            "succeeded": sum(1 for r in history if isinstance(r, dict) and r.get("run_status") == "succeeded"),
+            "failed": sum(1 for r in history if isinstance(r, dict) and r.get("run_status") == "failed"),
+            "rejected": sum(1 for r in history if isinstance(r, dict) and r.get("run_status") == "rejected"),
         })
     return rows, history_records, reflection_error_counts
 
 
-def _aggregate_benchmark_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    case_count = sum(int(row.get("case_count") or 0) for row in rows)
-    if not rows:
-        return {
-            "case_count": 0,
-            "target_hit_rate": 0.0,
-            "rejected_rate": 0.0,
-            "runtime_failure_rate": 0.0,
-            "average_experiments_used": 0.0,
-            "best_nmse_db": None,
-        }
+def _aggregate_all_totals(
+    benchmark_rows: list[dict[str, Any]],
+    run_rows: list[dict[str, Any]],
+    history_records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    succeeded = sum(1 for r in history_records if r.get("run_status") == "succeeded")
+    failed = sum(1 for r in history_records if r.get("run_status") == "failed")
+    rejected = sum(1 for r in history_records if r.get("run_status") == "rejected")
+    total = succeeded + failed + rejected
+    nmse_values = [_to_float(r.get("nmse_db")) for r in history_records if _to_float(r.get("nmse_db")) is not None]
+    for row in benchmark_rows:
+        for result in row.get("results", []):
+            n = _to_float(result.get("best_nmse_db"))
+            if n is not None:
+                nmse_values.append(n)
     return {
-        "case_count": case_count,
-        "target_hit_rate": _weighted_rate(rows, "target_hit_rate"),
-        "rejected_rate": _weighted_rate(rows, "rejected_rate"),
-        "runtime_failure_rate": _weighted_rate(rows, "runtime_failure_rate"),
-        "average_experiments_used": _mean([row.get("average_experiments_used") for row in rows]),
-        "best_nmse_db": min(
-            (float(row["best_nmse_db"]) for row in rows if row.get("best_nmse_db") is not None),
-            default=None,
-        ),
+        "case_count": total,
+        "target_hit_rate": succeeded / total if total else 0.0,
+        "rejected_rate": rejected / total if total else 0.0,
+        "runtime_failure_rate": failed / total if total else 0.0,
+        "average_experiments_used": total / len(run_rows) if run_rows else 0.0,
+        "best_nmse_db": min(nmse_values) if nmse_values else None,
     }
 
 

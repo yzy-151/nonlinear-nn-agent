@@ -32,7 +32,7 @@ class DashboardTest(unittest.TestCase):
         html = render_dashboard_html(diagnostics)
 
         self.assertIn("Agent Runtime Dashboard", html)
-        self.assertIn("target_hit_rate", html)
+        self.assertIn("Target Hit Rate", html)
         self.assertIn("exp016", html)
         self.assertIn("tool_error", html)
 

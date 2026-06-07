@@ -1,116 +1,239 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Agent Runtime Dashboard</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: #f7f8fa;
-      --panel: #ffffff;
-      --text: #1f2933;
-      --muted: #667085;
-      --line: #c8d0dc;
-      --accent: #0f766e;
-      --accent-2: #7c3aed;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Inter, "Segoe UI", Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-    header {
-      padding: 28px 36px 18px;
-      border-bottom: 2px solid var(--line);
-      background: var(--panel);
-    }
-    h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }
-    h2 { margin: 0 0 14px; font-size: 18px; letter-spacing: 0; }
-    p { margin: 0; color: var(--muted); line-height: 1.55; }
-    main { padding: 24px 36px 40px; display: grid; gap: 20px; }
-    section {
-      background: var(--panel);
-      border: 2px solid var(--line);
-      border-radius: 8px;
-      padding: 18px;
-    }
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 12px;
-    }
-    .metric {
-      border: 2px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
-      min-height: 86px;
-      background: #fbfcfe;
-    }
-    .metric .label { color: var(--muted); font-size: 13px; }
-    .metric .value { margin-top: 8px; font-size: 24px; font-weight: 700; overflow-wrap: anywhere; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { border: 2px solid var(--line); padding: 9px 10px; text-align: left; vertical-align: top; }
-    th { background: #eef2f7; }
-    code { font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Agent Runtime Dashboard</title>
+<style>
+:root {
+  --bg: #060b14;
+  --surface: #0c1222;
+  --card: #111827;
+  --border: #1e2d3d;
+  --text: #e8ecf2;
+  --muted: #8896a9;
+  --accent: #38bdf8;
+  --accent2: #818cf8;
+  --green: #34d399;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --radius: 14px;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height:100vh; line-height:1.6; font-size:16px;
+  -webkit-font-smoothing: antialiased;
+}
+header {
+  background: linear-gradient(135deg, #070e1a 0%, #0f172a 60%, #151e33 100%);
+  border-bottom:1px solid var(--border); padding:28px 40px;
+}
+header h1 { font-size:26px; font-weight:700; letter-spacing:-0.5px; margin-bottom:6px; }
+header p  { color: var(--muted); font-size:15px; }
+main { padding:28px 40px 44px; display:grid; gap:24px; }
+
+section {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:24px;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+section h2 { font-size:18px; font-weight:650; margin-bottom:18px; letter-spacing:-0.3px; }
+
+table { width:100%; border-collapse:collapse; font-size:15px; }
+th, td {
+  border:1px solid var(--border); padding:12px 14px;
+  text-align:left; vertical-align:top;
+}
+th {
+  background:#0f1a2a; color:var(--muted); font-weight:650;
+  font-size:13px; text-transform:uppercase; letter-spacing:.5px;
+}
+td { color:var(--text); }
+td .good { color:var(--green); font-weight:700; }
+td .warn { color:var(--amber); }
+td .bad  { color:var(--red); font-weight:700; }
+code {
+  font-family:"Cascadia Code","Fira Code",Consolas,monospace;
+  font-size:14px; color:var(--accent);
+}
+
+.metrics {
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap:16px;
+}
+.metric {
+  background: var(--card); border:1px solid var(--border);
+  border-radius: var(--radius); padding:22px 24px;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.metric .label {
+  color:var(--muted); font-size:13px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.7px; margin-bottom:10px;
+}
+.metric .value {
+  font-size:34px; font-weight:700; overflow-wrap:anywhere; color:var(--accent);
+}
+.metric .value.good { color: var(--green); }
+.metric .value.warn { color: var(--amber); }
+.metric .value.bad  { color: var(--red); }
+
+.grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap:24px;
+}
+
+.run-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:16px 20px; margin-bottom:12px;
+  display:flex; flex-wrap:wrap; gap:14px 28px; align-items:center;
+}
+.run-card .dir { font-size:13px; color:var(--muted); min-width:180px; font-family:"Cascadia Code",Consolas,monospace; }
+.run-card .stat { font-size:15px; font-weight:650; }
+.run-card .stat.good { color:var(--green); }
+.run-card .stat.bad  { color:var(--red); }
+.run-card .stat.warn { color:var(--amber); }
+.run-card .tag {
+  display:inline-block; padding:3px 10px; border-radius:12px;
+  font-size:12px; font-weight:700;
+}
+.tag-ok  { background:rgba(52,211,153,.15); color:var(--green); }
+.tag-err { background:rgba(248,113,113,.15); color:var(--red); }
+.tag-run { background:rgba(56,189,248,.15); color:var(--accent); }
+
+::-webkit-scrollbar { width:8px; height:8px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#2d3b52; border-radius:4px; }
+
+footer {
+  padding:0 40px 32px; font-size:14px; color:var(--muted);
+}
+footer strong { color:var(--accent); }
+</style>
 </head>
 <body>
-  <header>
-    <h1>Agent Runtime Dashboard</h1>
-    <p>Aggregated benchmark and planner-loop diagnostics for evaluating Agent Harness behavior.</p>
-  </header>
-  <main>
-    <section>
-      <h2>Aggregate Metrics</h2>
-      <div class="metrics">
-        <div class="metric"><div class="label">case_count</div><div class="value">3</div></div>
-<div class="metric"><div class="label">target_hit_rate</div><div class="value">0.3333333333333333</div></div>
-<div class="metric"><div class="label">rejected_rate</div><div class="value">0.3333333333333333</div></div>
-<div class="metric"><div class="label">runtime_failure_rate</div><div class="value">0.3333333333333333</div></div>
-<div class="metric"><div class="label">average_experiments_used</div><div class="value">0.6666666666666666</div></div>
-<div class="metric"><div class="label">best_nmse_db</div><div class="value">-36.0</div></div>
-      </div>
-    </section>
-    <section>
-      <h2>Best Candidate</h2>
-      <table><tr><th>id</th><td><code>planner-demo-001</code></td></tr>
-<tr><th>nmse_db</th><td><code>-37.42494350080102</code></td></tr>
-<tr><th>parameter_count</th><td><code>3626</code></td></tr>
-<tr><th>source</th><td><code>runs/fake-v06-check/result.json</code></td></tr></table>
-    </section>
-    <div class="grid">
-      <section>
-        <h2>Run Status Distribution</h2>
-        <table><tr><th>status</th><th>count</th></tr><tr><td>failed</td><td>3</td></tr>
-<tr><td>rejected</td><td>1</td></tr>
-<tr><td>succeeded</td><td>5</td></tr></table>
-      </section>
-      <section>
-        <h2>Error Type Distribution</h2>
-        <table><tr><th>error_type</th><th>count</th></tr><tr><td>tool_error</td><td>1</td></tr></table>
-      </section>
+
+<header>
+  <h1>Agent Runtime Diagnostics</h1>
+  <p>51 planner runs, 4 benchmark runs &mdash; <strong>Last updated:</strong> 2026-07-25 09:42:55 UTC</p>
+</header>
+
+<main>
+
+  <section>
+    <h2>Recent Runs (newest first)</h2>
+    <div class="run-card"><div class="dir">runs/20260725-172317-planner-loop/result.json</div><div class="stat bad">NMSE -38.19 dB</div><div>Round 8</div><div><span class="tag tag-ok">15 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">2 Rej</span></div><span class="tag tag-err">planner_error</span></div>
+<div class="run-card"><div class="dir">runs/20260725-143359-planner-loop/result.json</div><div class="stat bad">NMSE -40.87 dB</div><div>Round 16</div><div><span class="tag tag-ok">30 OK</span> <span class="tag tag-err">2 Fail</span> <span class="tag tag-run">10 Rej</span></div><span class="tag tag-err">planner_error</span></div>
+<div class="run-card"><div class="dir">runs/20260725-161140-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260725-161053-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260725-161002-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260724-221942-planner-loop/result.json</div><div class="stat bad">NMSE -37.56 dB</div><div>Round 29</div><div><span class="tag tag-ok">60 OK</span> <span class="tag tag-err">2 Fail</span> <span class="tag tag-run">11 Rej</span></div><span class="tag tag-err">planner_error</span></div>
+<div class="run-card"><div class="dir">runs/20260724-221845-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260724-221814-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260724-221743-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260724-221449-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+    <p style="color:var(--muted);margin-top:12px;font-size:14px;">Showing 10 of 51 total runs. Scroll down for full history.</p>
+  </section>
+
+  <section>
+    <h2>Aggregate Metrics</h2>
+    <div class="metrics">
+      <div class="metric"><div class="label">Total Runs</div><div class="value ">51</div></div>
+<div class="metric"><div class="label">Total Experiments</div><div class="value ">412</div></div>
+<div class="metric"><div class="label">Target Hit Rate</div><div class="value ">50.2%</div></div>
+<div class="metric"><div class="label">Rejected Rate</div><div class="value bad">26.5%</div></div>
+<div class="metric"><div class="label">Runtime Failures</div><div class="value bad">23.3%</div></div>
+<div class="metric"><div class="label">Best NMSE (dB)</div><div class="value good">-40.87 dB</div></div>
     </div>
+  </section>
+
+  <section>
+    <h2>Best Candidate</h2>
+    <table><tr><th>id</th><td><code>exp-029</code></td></tr>
+<tr><th>nmse_db</th><td><code>-40.87 dB</code></td></tr>
+<tr><th>parameter_count</th><td><code>21122</code></td></tr>
+<tr><th>source</th><td><code>runs/20260725-143359-planner-loop/result.json</code></td></tr></table>
+  </section>
+
+  <div class="grid">
     <section>
-      <h2>Benchmark Runs</h2>
-      <table><tr><th>source</th><th>case_count</th><th>target_hit_rate</th><th>best_nmse_db</th></tr><tr><td><code>benchmarks/fake-v08-check/results.json</code></td><td><code>3</code></td><td><code>0.3333333333333333</code></td><td><code>-36.0</code></td></tr></table>
+      <h2>Status Distribution</h2>
+      <table><tr><th>status</th><th>count</th></tr><tr><td>failed</td><td>96</td></tr>
+<tr><td>rejected</td><td>109</td></tr>
+<tr><td>succeeded</td><td>207</td></tr></table>
     </section>
     <section>
-      <h2>Planner Loop Runs</h2>
-      <table><tr><th>source</th><th>status</th><th>rounds</th><th>history_count</th></tr><tr><td><code>runs/benchmark-invalid-plan/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/benchmark-runtime-failure/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/benchmark-target-hit/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/fake-v06-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/fake-v07-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/fake-v09-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/fake-v11-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/fake-v13-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/fake-v13-check-2/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/fake-v15-cli-check/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>0</code></td><td><code>0</code></td></tr></table>
+      <h2>Error Types</h2>
+      <table><tr><th>error_type</th><th>count</th></tr><tr><td>metric_threshold_error</td><td>75</td></tr>
+<tr><td>tool_error</td><td>19</td></tr></table>
     </section>
-  </main>
+  </div>
+
+  <section>
+    <h2>Full Run History</h2>
+    <table><tr><th>source</th><th>status</th><th>rounds</th><th>best_nmse_db</th><th>succeeded</th><th>failed</th><th>rejected</th></tr><tr><td><code>runs/20260725-172317-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>8</code></td><td><code>-38.19327323103806</code></td><td><code>15</code></td><td><code>1</code></td><td><code>2</code></td></tr>
+<tr><td><code>runs/20260725-143359-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>16</code></td><td><code>-40.86985111609215</code></td><td><code>30</code></td><td><code>2</code></td><td><code>10</code></td></tr>
+<tr><td><code>runs/20260725-161140-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260725-161053-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260725-161002-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-221942-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>29</code></td><td><code>-37.562717983755064</code></td><td><code>60</code></td><td><code>2</code></td><td><code>11</code></td></tr>
+<tr><td><code>runs/20260724-221845-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-221814-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-221743-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-221449-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-221419-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-221348-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-200716-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>30</code></td><td><code>-39.069011431217795</code></td><td><code>42</code></td><td><code>2</code></td><td><code>20</code></td></tr>
+<tr><td><code>runs/20260724-165007-planner-loop/result.json</code></td><td><code>max_experiments_reached</code></td><td><code>10</code></td><td><code>-36.74956305717199</code></td><td><code>20</code></td><td><code>0</code></td><td><code>10</code></td></tr>
+<tr><td><code>runs/20260724-163209-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>10</code></td><td><code>-36.6893049413737</code></td><td><code>8</code></td><td><code>9</code></td><td><code>13</code></td></tr>
+<tr><td><code>runs/20260724-161639-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>10</code></td><td><code>-37.14801631642238</code></td><td><code>9</code></td><td><code>11</code></td><td><code>5</code></td></tr>
+<tr><td><code>runs/20260724-160347-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>10</code></td><td><code>-35.143563874483014</code></td><td><code>0</code></td><td><code>13</code></td><td><code>15</code></td></tr>
+<tr><td><code>runs/20260724-155349-planner-loop/result.json</code></td><td><code>max_experiments_reached</code></td><td><code>5</code></td><td><code>-36.310598830089084</code></td><td><code>0</code></td><td><code>10</code></td><td><code>4</code></td></tr>
+<tr><td><code>runs/20260724-153438-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>5</code></td><td><code>-36.2559074100775</code></td><td><code>0</code></td><td><code>11</code></td><td><code>2</code></td></tr>
+<tr><td><code>runs/20260724-152617-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-152226-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-151001-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-150545-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-145729-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>4</code></td><td><code>-36.28948210087256</code></td><td><code>1</code></td><td><code>5</code></td><td><code>2</code></td></tr>
+<tr><td><code>runs/20260724-144800-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-144541-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-143350-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>10</code></td><td><code>-34.90844839595971</code></td><td><code>0</code></td><td><code>14</code></td><td><code>12</code></td></tr>
+<tr><td><code>runs/20260724-143127-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-141620-planner-loop/result.json</code></td><td><code>max_experiments_reached</code></td><td><code>2</code></td><td><code>-33.186405836938306</code></td><td><code>0</code></td><td><code>3</code></td><td><code>2</code></td></tr>
+<tr><td><code>runs/20260724-141323-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-140556-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-130805-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-130607-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-125958-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-123004-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-122816-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-122211-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-121347-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-120937-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260724-120809-planner-loop/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/test/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/fake-v15-cli-check/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>0</code></td><td><code>None</code></td><td><code>0</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/fake-v13-check-2/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/fake-v13-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/fake-v11-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/fake-v09-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/benchmark-runtime-failure/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>-20.0</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/benchmark-invalid-plan/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>0</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/benchmark-target-hit/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-36.0</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/fake-v07-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/fake-v06-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr></table>
+  </section>
+
+</main>
+
+<footer>
+  <strong>Last updated:</strong> 2026-07-25 09:42:55 UTC &mdash; Dashboard auto-refreshes after each Agent Loop. Ctrl+Shift+R if stale.
+</footer>
 </body>
 </html>

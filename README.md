@@ -752,6 +752,7 @@ version/v1.3
 version/v1.4
 version/v1.5
 version/v1.6
+version/v1.6.1
 ```
 
 ### v0.1: Harness Runtime
@@ -1040,9 +1041,37 @@ version/v1.6
 
 知识点：
 
-- 项目功能封版后，重点从“继续加模块”转向“让别人能理解、能复现、能听懂面试故事”。
+- 项目功能封版后，重点从”继续加模块”转向”让别人能理解、能复现、能听懂面试故事”。
 - Case study 比版本流水账更能证明 Agent 真实解决了什么问题。
 - Demo UI 让面试展示从命令行输出变成浏览器可操作界面。
+
+### v1.6.1: Web UI Integration / Benchmark Online / Source Docs
+
+新增：
+
+- Benchmark Tab 集成到 Web UI，三个 Tab（Workflow / Agent Planner / Benchmark）统一入口
+- Agent 端点自动加载 `.env.local`，DeepSeek API Key 无需手动 export
+- Agent Loop 跑完后自动刷新 diagnostics dashboard
+- 全部核心源码添加完整中文注释（tools / session / runtime / experiment_tools / llm / planner / planner_validation / loop / context_memory / reflection / benchmark）
+- Dashboard 暗色主题重设计，Aggregate Metrics 基于全部实验数据计算
+- Event 日志格式化显示（时间戳 HH:MM:SS + 关键字段提取）
+- Recent Runs 按修改时间倒序排列
+- DeepSeek 超时提升至 180s，LLM 调用失败优雅退出
+
+更新：
+
+- `src/nonlinear_agent/server.py`
+- `src/nonlinear_agent/web_ui.py`
+- `src/nonlinear_agent/dashboard.py`
+- `src/nonlinear_agent/diagnostics.py`
+- `pyproject.toml` — version 1.6.1
+
+知识点：
+
+- Web UI 从单页 Demo 进化为三 Tab 集成操作面板
+- Benchmark 在线化：不再需要 CLI 命令，浏览器一键运行
+- 源码注释体系：16 个核心文件全部中英文对照，新人可按注释自学
+- Dashboard 从静态快照变为 Agent Loop 完成后自动刷新
 
 ## 13. 如何运行
 
@@ -1272,6 +1301,10 @@ MCP tool schema 可以看作更标准化的跨进程工具协议。当前 v1.2 �
 最新主学习文档：
 
 - `docs/learning/experiment-agent-harness-v1.6.md`
+
+v1.6.1:
+
+- `docs/learning/experiment-agent-harness-v1.6.1.md`
 
 历史版本文档：
 

@@ -96,7 +96,8 @@ class ServerStreamingTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
         self.assertIn("Nonlinear Agent Harness", response.text)
-        self.assertIn("runForm", response.text)
+        self.assertIn("wfBtn", response.text)
+        self.assertIn("agBtn", response.text)
         self.assertIn("/runs/", response.text)
         self.assertIn("agent-runtime-dashboard.html", response.text)
 
