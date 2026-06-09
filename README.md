@@ -689,16 +689,13 @@ benchmarks/<run>/
 
 | 文件夹 | 作用 |
 |---|---|
-| `docs/learning/` | v0.1 到 v1.5 学习文档 |
-| `docs/onboarding/` | 新人上手 guide |
-| `docs/case-studies/` | 真实 DeepSeek planner case study |
-| `docs/interview/` | Agent Harness 面试 Q&A |
+| `docs/learning/` | v0.1 到 v1.6.2 学习文档 |
+| `docs/onboarding/` | 新人上手 guide 和当前状态审查 |
 | `docs/diagnostics/` | Agent Runtime Markdown/HTML diagnostics dashboard |
-| `docs/handoff/` | 交接文档，给另一个 Codex/DeepSeek 继续做 |
-| `docs/resume/` | 简历包装和面试表达 |
+| `docs/handoff/` | 交接文档、维护计划和 DeepSeek self-correction case |
+| `docs/resume/` | 简历包装、面试表达和 Agent Harness Q&A |
 | `docs/experiments/` | 重要实验记录 |
 | `docs/assets/` | README 和文档使用的结果图 |
-| `docs/superpowers/plans/` | 唯一维护中的实施计划 |
 
 ### `tests/`
 
@@ -753,6 +750,7 @@ version/v1.4
 version/v1.5
 version/v1.6
 version/v1.6.1
+version/v1.6.2
 ```
 
 ### v0.1: Harness Runtime
@@ -1033,8 +1031,8 @@ version/v1.6.1
 新增：
 
 - `docs/onboarding/newcomer-guide.md`
-- `docs/case-studies/deepseek-planner-self-correction.md`
-- `docs/interview/agent-harness-qa.md`
+- `docs/handoff/deepseek-continuation-plan.md`
+- `docs/resume/experiment-agent-harness-resume.md`
 - `docs/learning/experiment-agent-harness-v1.6.md`
 - `src/nonlinear_agent/web_ui.py`
 - `GET /` 浏览器首页
@@ -1072,6 +1070,40 @@ version/v1.6.1
 - Benchmark 在线化：不再需要 CLI 命令，浏览器一键运行
 - 源码注释体系：16 个核心文件全部中英文对照，新人可按注释自学
 - Dashboard 从静态快照变为 Agent Loop 完成后自动刷新
+
+### v1.6.2: Artifact Guard / Reflection Context / Docs Consolidation
+
+新增：
+
+- `src/nonlinear_agent/artifact_paths.py` 统一实验产物路径策略，裸 `exp*`、`output*`、`result*` 目录自动落到 `reports/`
+- Reflection 产物写入 planner history，下一轮 LLM 能读取 `recovery_actions` 和 `avoid_next`
+- Benchmark 扩展为 5 个 case，并同步 Web UI benchmark endpoint
+- 文档收敛为 onboarding / handoff / resume / learning / diagnostics，删除旧的零散说明文件
+- Web UI 切回深色控制台主题，Dashboard 补充 benchmark 指标公式说明
+- `docs/learning/experiment-agent-harness-v1.6.2.md`
+
+更新：
+
+- `src/nonlinear_agent/planner_validation.py`
+- `src/nonlinear_agent/experiment_tools.py`
+- `src/nonlinear_agent/loop.py`
+- `src/nonlinear_agent/benchmark.py`
+- `src/nonlinear_agent/run_artifacts.py`
+- `src/nonlinear_agent/server.py`
+- `src/nonlinear_agent/web_ui.py`
+- `src/nonlinear_agent/dashboard.py`
+- `README.md`
+- `docs/onboarding/newcomer-guide.md`
+- `docs/handoff/deepseek-continuation-plan.md`
+- `docs/resume/experiment-agent-harness-resume.md`
+- `pyproject.toml` - version 1.6.2
+
+知识点：
+
+- Agent 工程不是只会跑通 demo，还要防止产物污染、统计口径污染和决策上下文断裂。
+- Reflection 更适合由确定性逻辑生成结构化错误分类；LLM 可以补充假设，但不能替代可审计恢复策略。
+- Benchmark case 数量要覆盖关键失败模式，3 个只能算 smoke test，5 个才更像可解释评估。
+- 文档收敛本身是工程交付能力：新人能上手、面试能讲清、后续 Codex/DeepSeek 能接着维护。
 
 ## 13. 如何运行
 
@@ -1300,7 +1332,11 @@ MCP tool schema 可以看作更标准化的跨进程工具协议。当前 v1.2 �
 
 最新主学习文档：
 
-- `docs/learning/experiment-agent-harness-v1.6.md`
+- `docs/learning/experiment-agent-harness-v1.6.2.md`
+
+v1.6.2:
+
+- `docs/learning/experiment-agent-harness-v1.6.2.md`
 
 v1.6.1:
 
@@ -1324,6 +1360,7 @@ v1.6.1:
 - `docs/learning/experiment-agent-harness-v1.4.md`
 - `docs/learning/experiment-agent-harness-v1.5.md`
 - `docs/learning/experiment-agent-harness-v1.6.md`
+- `docs/learning/experiment-agent-harness-v1.6.1.md`
 
 交接文档：
 
@@ -1335,4 +1372,4 @@ v1.6.1:
 
 维护计划：
 
-- `docs/superpowers/plans/experiment-agent-harness-plan.md`
+- `docs/handoff/deepseek-continuation-plan.md`

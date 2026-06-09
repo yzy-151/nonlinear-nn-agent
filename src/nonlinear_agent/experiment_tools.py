@@ -50,6 +50,7 @@ from typing import Any
 import yaml
 
 from nonlinear_agent.agent_workflow import parse_metrics_stdout
+from nonlinear_agent.artifact_paths import normalize_experiment_output_dir
 from nonlinear_agent.tools import ToolRegistry, ToolSpec
 
 
@@ -115,6 +116,8 @@ def generate_config_tool(
     base_path = _resolve(root, base_config_path)
     config = yaml.safe_load(base_path.read_text(encoding="utf-8")) or {}
     config.update(overrides or {})
+    if "output_dir" in config:
+        config["output_dir"] = normalize_experiment_output_dir(config["output_dir"])
 
     config_dir = root / "configs"
     config_dir.mkdir(parents=True, exist_ok=True)

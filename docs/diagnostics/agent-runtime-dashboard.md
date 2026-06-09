@@ -2,18 +2,18 @@
 
 ## Overview
 
-- benchmark_runs: `4`
-- planner_loop_runs: `51`
+- benchmark_runs: `5`
+- planner_loop_runs: `57`
 
 ## Aggregate Metrics
 
 | metric | value |
 |---|---:|
-| case_count | `412` |
-| target_hit_rate | `0.5024271844660194` |
-| rejected_rate | `0.2645631067961165` |
-| runtime_failure_rate | `0.23300970873786409` |
-| average_experiments_used | `8.07843137254902` |
+| case_count | `491` |
+| target_hit_rate | `0.48676171079429736` |
+| rejected_rate | `0.22810590631364563` |
+| runtime_failure_rate | `0.285132382892057` |
+| average_experiments_used | `8.614035087719298` |
 | best_nmse_db | `-40.86985111609215` |
 
 ## Best Candidate
@@ -29,16 +29,16 @@
 
 | status | count |
 |---|---:|
-| failed | 96 |
-| rejected | 109 |
-| succeeded | 207 |
+| failed | 140 |
+| rejected | 112 |
+| succeeded | 239 |
 
 ## Error Type Distribution
 
 | error_type | count |
 |---|---:|
-| metric_threshold_error | 75 |
-| tool_error | 19 |
+| metric_threshold_error | 104 |
+| tool_error | 34 |
 
 ## Benchmark Runs
 
@@ -48,11 +48,18 @@
 | `benchmarks/web-20260724-221339/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
 | `benchmarks/web-20260724-221743/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
 | `benchmarks/web-20260725-161002/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
+| `benchmarks/web-20260725-191422/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
 
 ## Planner Loop Runs
 
 | source | status | rounds | history_count |
 |---|---|---:|---:|
+| `runs/20260725-212356-planner-loop/result.json` | `planner_error` | 9 | 34 |
+| `runs/20260725-202655-planner-loop/result.json` | `planner_error` | 9 | 41 |
+| `runs/20260725-195714-planner-loop/result.json` | `stopped` | 2 | 1 |
+| `runs/20260725-191536-planner-loop/result.json` | `stopped` | 2 | 1 |
+| `runs/20260725-191503-planner-loop/result.json` | `stopped` | 2 | 1 |
+| `runs/20260725-191433-planner-loop/result.json` | `stopped` | 2 | 1 |
 | `runs/20260725-172317-planner-loop/result.json` | `planner_error` | 8 | 18 |
 | `runs/20260725-143359-planner-loop/result.json` | `planner_error` | 16 | 42 |
 | `runs/20260725-161140-planner-loop/result.json` | `stopped` | 2 | 1 |

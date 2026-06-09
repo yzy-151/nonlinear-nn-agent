@@ -79,6 +79,13 @@ class PlannerValidationTest(unittest.TestCase):
                         parameter_count_max=4000,
                     )
 
+    def test_validate_routes_bare_exp_output_dir_to_reports(self):
+        validated = validate_planned_overrides(
+            {"model_type": "complex_lstsq", "epochs": 0, "output_dir": "exp_001"}
+        )
+
+        self.assertEqual(validated["output_dir"], "reports/exp_001")
+
     def test_validate_rejects_zero_epoch_neural_models_but_allows_lstsq(self):
         with self.assertRaisesRegex(ValueError, "epochs must be >= 1 for neural model"):
             validate_planned_overrides({"model_type": "tiny_mlp", "epochs": 0})

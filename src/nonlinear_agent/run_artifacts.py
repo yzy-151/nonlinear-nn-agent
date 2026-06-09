@@ -128,6 +128,8 @@ class RunArtifactWriter:
 def build_leaderboard(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for record in history:
+        if record.get("run_status") in {"reflection", "summary"}:
+            continue
         row = {column: record.get(column, "") for column in LEADERBOARD_COLUMNS}
         rows.append(row)
     rows.sort(key=_leaderboard_sort_key)

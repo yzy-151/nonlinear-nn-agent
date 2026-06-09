@@ -50,6 +50,23 @@ class BenchmarkTest(unittest.TestCase):
         self.assertEqual(result.succeeded_count, 1)
         self.assertEqual(result.experiments_used, 2)
 
+    def test_summarize_loop_result_ignores_reflection_records(self):
+        case = BenchmarkCase(case_id="reflection", goal="reach -35 dB", target_nmse_db=-35.0)
+        loop_result = PlannerLoopResult(
+            status="stopped",
+            rounds=2,
+            history=[
+                {"id": "best", "run_status": "succeeded", "nmse_db": -36.0},
+                {"id": "reflection-round-001", "run_status": "reflection", "recovery_actions": ["try safer config"]},
+            ],
+        )
+
+        result = summarize_loop_result(case, loop_result)
+
+        self.assertEqual(result.history_count, 1)
+        self.assertEqual(result.succeeded_count, 1)
+        self.assertEqual(result.experiments_used, 1)
+
     def test_build_benchmark_summary_computes_rates(self):
         results = [
             BenchmarkCaseResult(case_id="a", target_hit=True, rejected_count=0, failed_count=1, succeeded_count=1, experiments_used=2),

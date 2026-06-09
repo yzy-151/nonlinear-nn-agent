@@ -71,6 +71,27 @@ class ReflectionTest(unittest.TestCase):
         self.assertEqual(reflection_payload["status_counts"]["failed"], 1)
         self.assertEqual(result_payload["reflections"][0]["round"], 1)
 
+    def test_planner_loop_feeds_reflection_record_into_next_round_history(self):
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"bad plan", "stop": false, "experiments": ['
+                '{"id":"bad-rank", "reason":"schema test", "overrides":{"rank":100}}]}',
+                '{"summary":"stop after seeing reflection", "stop": true, "experiments": []}',
+            ]
+        )
+        planner = ExperimentPlanner(llm_client=llm)
+
+        with TemporaryDirectory() as tmpdir:
+            loop = ExperimentPlannerLoop(
+                planner=planner,
+                workspace=Path(tmpdir),
+            )
+            result = asyncio.run(loop.run(goal="use reflection", max_rounds=2))
+
+        self.assertTrue(any(record.get("run_status") == "reflection" for record in result.history))
+        self.assertIn("reflection-round-001", llm.last_prompt)
+        self.assertIn("recovery_actions", llm.last_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

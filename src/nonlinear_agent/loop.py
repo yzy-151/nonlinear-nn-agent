@@ -210,6 +210,7 @@ class ExperimentPlannerLoop:
                     round_index=rounds, round_records=round_records
                 )
                 reflections.append(reflection)
+                history.append(_build_reflection_history_record(reflection))
                 self.artifact_writer.write_reflection(reflection)
 
         # ── 退出条件 3：轮数用完 ──
@@ -423,6 +424,7 @@ class ExperimentPlannerLoop:
                     round_index=rounds, round_records=round_records
                 )
                 reflections.append(reflection)
+                history.append(_build_reflection_history_record(reflection))
                 self.artifact_writer.write_reflection(reflection)
                 yield {
                     "type": "reflection",
@@ -491,3 +493,23 @@ class ExperimentPlannerLoop:
                 metrics["error_type"] = event.error_type
 
         return metrics
+
+
+def _build_reflection_history_record(reflection: dict[str, Any]) -> dict[str, Any]:
+    round_index = int(reflection.get("round", 0))
+    return {
+        "id": f"reflection-round-{round_index:03d}",
+        "run_status": "reflection",
+        "round": round_index,
+        "status_counts": reflection.get("status_counts", {}),
+        "failure_causes": reflection.get("failure_causes", []),
+        "recovery_actions": reflection.get("recovery_actions", []),
+        "avoid_next": reflection.get("avoid_next", []),
+        "best_experiment_id": reflection.get("best_experiment_id", ""),
+        "best_nmse_db": reflection.get("best_nmse_db"),
+        "context_summary": (
+            f"Reflection round {round_index}: "
+            f"recovery_actions={reflection.get('recovery_actions', [])}; "
+            f"avoid_next={reflection.get('avoid_next', [])}"
+        ),
+    }

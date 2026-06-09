@@ -15,5 +15,12 @@ traces/
 configs/exp*.yaml
 configs/planner-*.yaml
 exp[0-9]*/
+/exp*/
+/experiment*/
+/experiments/
+/exps/
+/output/
+/outputs/
+/results/
 runs/
 benchmarks/

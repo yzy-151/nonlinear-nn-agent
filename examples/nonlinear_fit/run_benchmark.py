@@ -61,11 +61,64 @@ CASE_PLANS = {
             ],
         }
     ],
+    "reflection-recovery": [
+        {
+            "summary": "bad first plan",
+            "stop": False,
+            "experiments": [
+                {
+                    "id": "bad-spline-range",
+                    "reason": "schema failure should become reflection input",
+                    "overrides": {
+                        "model_type": "spline_mlp",
+                        "feature_mode": "complex_mp",
+                        "memory_depth": 24,
+                        "mp_order_count": 1,
+                        "hidden_units": 16,
+                        "spline_knots": 16,
+                        "spline_range": None,
+                        "epochs": 50,
+                    },
+                }
+            ],
+        },
+        {
+            "summary": "recover with safe closed-form model",
+            "stop": False,
+            "experiments": [
+                {
+                    "id": "recovered-001",
+                    "reason": "safe candidate after reflection",
+                    "overrides": {"model_type": "complex_lstsq", "epochs": 0},
+                }
+            ],
+        },
+    ],
+    "budget-stop": [
+        {
+            "summary": "two candidates but budget allows one",
+            "stop": False,
+            "experiments": [
+                {
+                    "id": "budget-001",
+                    "reason": "first candidate consumes the only experiment slot",
+                    "overrides": {"model_type": "complex_lstsq", "epochs": 0},
+                },
+                {
+                    "id": "budget-002",
+                    "reason": "should not run after budget is exhausted",
+                    "overrides": {"model_type": "complex_lstsq", "epochs": 0},
+                },
+            ],
+        }
+    ],
 }
 
 CASE_METRICS = {
     "strong-001": {"nmse_db": -36.0, "parameter_count": 128},
     "weak-001": {"nmse_db": -20.0, "parameter_count": 128, "error": "NMSE threshold failed"},
+    "recovered-001": {"nmse_db": -36.5, "parameter_count": 128},
+    "budget-001": {"nmse_db": -35.5, "parameter_count": 128},
 }
 
 
@@ -95,6 +148,8 @@ def build_cases() -> list[BenchmarkCase]:
         BenchmarkCase(case_id="target-hit", goal="Reach NMSE <= -35 dB", target_nmse_db=-35.0, max_rounds=2, max_experiments=2),
         BenchmarkCase(case_id="invalid-plan", goal="Reject unsupported planner fields", target_nmse_db=-35.0, max_rounds=1, max_experiments=1),
         BenchmarkCase(case_id="runtime-failure", goal="Record runtime metric failure", target_nmse_db=-35.0, max_rounds=1, max_experiments=1),
+        BenchmarkCase(case_id="reflection-recovery", goal="Recover after rejected planner output", target_nmse_db=-35.0, max_rounds=2, max_experiments=2),
+        BenchmarkCase(case_id="budget-stop", goal="Stop cleanly when experiment budget is exhausted", target_nmse_db=-35.0, max_rounds=1, max_experiments=1),
     ]
 
 

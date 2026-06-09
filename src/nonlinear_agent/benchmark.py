@@ -7,7 +7,8 @@ Agent Benchmark 评估系统 ==============================================
 就像模型的回归测试——改了 prompt / guard / runtime 之后跑一遍 benchmark，
 看 target_hit_rate / rejected_rate / runtime_failure_rate 有没有退化。
 
-三个内置 Benchmark Case：
+默认 Benchmark 是一组小型回归测试，而不是只跑一次 demo。
+建议至少覆盖：
 
   case 1: target-under-budget
     目标：在 4000 参数约束下找到 NMSE <= -35 dB
@@ -20,6 +21,12 @@ Agent Benchmark 评估系统 ==============================================
   case 3: runtime-failure-handling
     目标：工具执行失败时，Agent 能否优雅处理
     测试：设一个不可能达成的 NMSE 阈值（-60 dB），观察 Agent 如何处理失败
+
+  case 4: reflection-recovery
+    目标：上一轮 reflection 进入下一轮 planner context 后能否恢复
+
+  case 5: budget-stop
+    目标：实验配额耗尽时能否稳定停止并保留已完成结果
 
 评价指标（不止看 NMSE）：
   target_hit_rate      — 达标率（越高越好）
@@ -128,7 +135,7 @@ def summarize_loop_result(
       - 判断是否 hit 目标阈值
       - experiments_used = failed + succeeded（不含 rejected，因为 rejected 不消耗训练资源）
     """
-    history = loop_result.history
+    history = _experiment_history(loop_result.history)
     best = _best_nmse_record(history)
 
     rejected_count = _count_status(history, "rejected")
@@ -295,6 +302,15 @@ def _best_nmse_record(history: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not records:
         return None
     return min(records, key=lambda r: _to_float(r.get("nmse_db")) or 0.0)
+
+
+def _experiment_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return only real experiment records, excluding synthetic loop notes."""
+    return [
+        record
+        for record in history
+        if record.get("run_status") not in {"reflection", "summary"}
+    ]
 
 
 def _count_status(history: list[dict[str, Any]], status: str) -> int:

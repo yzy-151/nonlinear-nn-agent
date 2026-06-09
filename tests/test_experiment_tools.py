@@ -42,6 +42,25 @@ class ExperimentToolsTest(unittest.TestCase):
             self.assertEqual(config["output_dir"], "reports/harness-demo")
             self.assertEqual(result["artifacts"], ["configs/harness-demo.yaml"])
 
+    def test_generate_config_tool_routes_bare_exp_output_dir_to_reports(self):
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            base_config = workspace / "base.yaml"
+            base_config.write_text(
+                yaml.safe_dump({"epochs": 10, "output_dir": "reports/base"}),
+                encoding="utf-8",
+            )
+
+            result = generate_config_tool(
+                workspace=workspace,
+                base_config_path="base.yaml",
+                experiment_id="exp-root-guard",
+                overrides={"output_dir": "exp_001"},
+            )
+
+            config = yaml.safe_load((workspace / result["config_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(config["output_dir"], "reports/exp_001")
+
     def test_run_training_tool_captures_metrics_and_process_output(self):
         with TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir)

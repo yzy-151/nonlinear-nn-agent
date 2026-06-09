@@ -1,79 +1,45 @@
-# DeepSeek / Other Codex Continuation Plan
+# Nonlinear NN Agent Harness 交接与维护文档
 
-更新时间：2026-07-21
+更新时间：2026-07-26
 
-## 项目路径
+本文件是唯一维护中的交接文档。它合并了原 DeepSeek continuation plan、DeepSeek planner self-correction case study 和 experiment-agent-harness-plan。
 
-本地项目：
+## 1. 项目路径
 
-`D:\FILEEEEEEEEEEE\projects\nonlinear-nn-agent`
+```text
+D:\FILEEEEEEEEEEE\projects\nonlinear-nn-agent
+```
 
 GitHub：
 
-`https://github.com/yzy-151/nonlinear-nn-agent`
+```text
+https://github.com/yzy-151/nonlinear-nn-agent
+```
 
-## 当前职业目标
+不要把本项目误放到 `storm` 工作区执行。
+
+## 2. 当前定位
 
 目标岗位方向：Agent Harness / Runtime / Agent Coding / LLM 应用工程。
 
-本项目不再只定位为“通信仿真实验”，而是定位为：
+项目定位：
 
-> 面向算法实验的 Agent Harness Runtime，用真实神经网络非线性拟合任务展示 Agentic Loop、工具系统、Hook、session 持久化、trace logging、失败重试、指标评估和报告生成。
+> 面向算法实验的 Agent Harness Runtime，用真实神经网络非线性拟合任务展示 Agentic Loop、工具系统、Hook、session 持久化、trace logging、失败重试、指标评估、reflection、benchmark、MCP bridge 和 Web UI。
 
-## 当前 v0.1 已完成内容
+不要写成“自动训练脚本”。应该写成“受控 Agent Runtime + 可观测实验工具链”。
 
-新增模块：
-
-- `src/nonlinear_agent/tools.py`
-  - `ToolCall`
-  - `ToolResult`
-  - `ToolRegistry`
-  - 支持同步/异步工具、timeout、retry、结构化失败结果。
-
-- `src/nonlinear_agent/hooks.py`
-  - `HookManager`
-  - 支持 `before_tool`、`after_tool`、`on_error`、`on_metric`。
-
-- `src/nonlinear_agent/session.py`
-  - `ExperimentSession`
-  - `SessionStore`
-  - 支持 session 创建、保存、加载、load_or_create。
-
-- `src/nonlinear_agent/trace.py`
-  - `TraceEvent`
-  - `TraceLogger`
-  - 输出 JSONL event trace。
-
-- `src/nonlinear_agent/runtime.py`
-  - `HarnessRequest`
-  - `ExperimentHarnessRuntime`
-  - async generator 形式执行步骤，流式产出 start/tool_start/tool_end/metric/error/complete 事件。
-
-新增测试：
-
-- `tests/test_harness_runtime.py`
-  - retry 成功路径。
-  - session 保存/加载。
-  - runtime 成功链路、hooks、trace。
-  - runtime 失败链路、error hook、failed session。
-
-新增文档：
-
-- `docs/superpowers/plans/2026-07-21-experiment-agent-harness-v0.1.md`
-- `docs/learning/experiment-agent-harness-v0.1.md`
-- `docs/resume/experiment-agent-harness-resume.md`
-- `docs/handoff/deepseek-continuation-plan.md`
-
-## 接手前必须运行
+## 3. 接手前必须运行
 
 ```powershell
 cd D:\FILEEEEEEEEEEE\projects\nonlinear-nn-agent
-python -m unittest discover -s tests -p "test_*.py" -v
+python -m unittest discover tests
+python agent.py benchmark
+python agent.py dashboard
 ```
 
-预期：所有测试通过。
+预期：测试通过，benchmark 生成 `benchmarks/` 产物，dashboard 生成 `docs/diagnostics/agent-runtime-dashboard.html`。
 
-## Git 操作规则
+## 4. Git 操作规则
 
 先检查：
 
@@ -84,700 +50,239 @@ git diff --stat
 
 不要覆盖用户未提交改动。提交前只 stage 本次相关文件。
 
+不要提交：
+
+- `.env.local`
+- `.claude/settings.local.json`
+- API key
+- 大量 `runs/`、`reports/`、`benchmarks/` 运行产物
+- `.pt`、`.pth`、`.xlsx`
+
 如果网络需要代理：
 
 ```powershell
 $env:HTTP_PROXY='http://127.0.0.1:7890'
 $env:HTTPS_PROXY='http://127.0.0.1:7890'
-```
-
-推送：
-
-```powershell
 git push origin main
 ```
 
-## v0.2 推荐目标
+## 5. 当前版本能力总览
 
-v0.2 不要继续只调 NMSE。优先把已有真实实验能力接入 harness。
+| 版本 | 能力 | 主要文件 |
+|---|---|---|
+| v0.1 | Harness Runtime | `runtime.py`, `tools.py`, `hooks.py`, `session.py`, `trace.py` |
+| v0.2 | 真实实验工具 | `experiment_tools.py`, `replay.py` |
+| v0.3 | FastAPI SSE 服务层 | `server.py` |
+| v0.4 | LLM Planner Loop | `llm.py`, `planner.py`, `loop.py` |
+| v0.5 | Planner Schema Guard | `planner_validation.py` |
+| v0.6 | Run Artifacts | `run_artifacts.py` |
+| v0.7 | Validation Guard 强化 | `planner_validation.py` |
+| v0.8 | Benchmark Evaluation | `benchmark.py`, `run_benchmark.py` |
+| v0.9 | Context / Memory Compression | `context_memory.py` |
+| v1.0 | Tool Registry / Skill 化 | `ToolSpec`, `describe_tools()` |
+| v1.1 | Reflection / Recovery Policy | `reflection.py` |
+| v1.2 | MCP Server / Tool Protocol | `mcp_server.py` |
+| v1.3 | Async Runtime Hardening | `runtime_errors.py`, `run_control.py` |
+| v1.4 | Diagnostics Dashboard | `diagnostics.py`, `dashboard.py` |
+| v1.5 | Unified CLI / Local Dashboard | `cli.py`, `agent.py` |
+| v1.6 | Onboarding / Demo UI | `web_ui.py`, docs |
+| v1.6.1 | 状态审查修复 | path guard, reflection history, 5-case benchmark |
+| v1.6.2 | 维护定版 | artifact path guard, reflection context, docs consolidation, dark UI |
 
-### 任务 1：真实工具封装
+## 6. 核心代码入口
 
-新增文件：
-
-`src/nonlinear_agent/experiment_tools.py`
-
-建议工具：
-
-- `generate_config_tool(base_config_path, experiment_id, overrides)`
-- `run_training_tool(config_path)`
-- `verify_artifacts_tool(output_dir, nmse_threshold_db)`
-- `write_report_tool(session_id, metrics, artifacts)`
-
-要求：
-
-- 所有工具返回 dict。
-- 返回中包含 `metrics` 或 `artifacts` 时 runtime 自动写入 session。
-- 训练命令必须捕获 stdout/stderr、returncode、elapsed time。
-- 失败时不要静默吞掉错误。
-
-### 任务 2：命令行 Demo
-
-新增文件：
-
-`examples/nonlinear_fit/run_harness.py`
-
-目标命令：
-
-```powershell
-python examples\nonlinear_fit\run_harness.py --experiment-id harness-demo-001 --base-config configs\model-search\lstsq-complexmp-o12-m150.yaml
+```text
+src/nonlinear_agent/tools.py              ToolCall / ToolResult / ToolRegistry / ToolSpec
+src/nonlinear_agent/runtime.py            HarnessRequest / ExperimentHarnessRuntime
+src/nonlinear_agent/experiment_tools.py   generate_config / run_training / verify_artifacts / write_report
+src/nonlinear_agent/planner.py            LLM plan JSON parser and prompt
+src/nonlinear_agent/planner_validation.py Planner output guard and parameter budget
+src/nonlinear_agent/loop.py               Planner -> Guard -> Runtime -> History -> Reflection
+src/nonlinear_agent/context_memory.py     history-summary + recent window
+src/nonlinear_agent/reflection.py         deterministic reflection policy
+src/nonlinear_agent/benchmark.py          benchmark metrics and artifacts
+src/nonlinear_agent/diagnostics.py        aggregate run/benchmark artifacts
+src/nonlinear_agent/server.py             FastAPI + SSE endpoints
+src/nonlinear_agent/web_ui.py             browser UI
+src/nonlinear_agent/mcp_server.py         MCP-compatible bridge
 ```
 
-输出：
+## 7. Web / CLI 功能
 
-- `sessions/harness-demo-001.json`
-- `traces/harness-demo-001.jsonl`
-- `reports/harness-demo-001/agent-summary.md`
+CLI：
 
-### 任务 3：Trace Replay 报告
+```powershell
+python agent.py run --provider fake
+python agent.py run --provider deepseek
+python agent.py benchmark
+python agent.py diagnostics
+python agent.py dashboard
+python agent.py serve --host 127.0.0.1 --port 8000
+```
 
-新增文件：
+Web UI：
 
-`src/nonlinear_agent/replay.py`
+```text
+GET  /                          首页
+GET  /health                    健康检查
+GET  /diagnostics/{name}        诊断文件
+POST /runs/{session_id}/events  Fixed Workflow SSE
+POST /agent/{session_id}/events LLM Planner Loop SSE
+POST /benchmark/events          Benchmark SSE
+```
 
-功能：
+## 8. DeepSeek self-correction case
 
-- 读取 JSONL trace。
-- 统计 tool latency、失败步骤、重试次数、metric events。
-- 生成 Markdown replay report。
+这个 case 用来回答：
 
-输出示例：
+- Agent loop 和固定 workflow 有什么区别？
+- 工具调用失败后怎么恢复？
+- LLM planner 怎么利用历史结果修正下一轮计划？
+- 怎么证明项目不是空壳 demo？
 
-`reports/harness-demo-001/replay.md`
+一句话：
 
-### 任务 4：FastAPI SSE
-
-新增文件：
-
-`src/nonlinear_agent/server.py`
+> 我让 DeepSeek 在 4000 参数约束下自动设计非线性拟合实验。Harness 把每个候选实验转成受控工具链执行，记录 schema rejection、runtime failure、NMSE、PSD 和 reflection。真实运行中 DeepSeek 曾输出错误参数类型，系统把错误写入 history，下一轮 planner 根据错误修正参数并继续探索，最终找到 202 参数、NMSE -36.0275 dB 的轻量候选。
 
 目标：
 
-- 提供 `/runs/{session_id}/events` SSE。
-- 把 runtime event 转成 Server-Sent Events。
-- 不需要前端，curl 能看到事件即可。
-
-### 任务 5：MCP Server
-
-新增文件：
-
-`src/nonlinear_agent/mcp_server.py`
-
-目标：
-
-- 暴露实验工具为 MCP tools。
-- 工具至少包括 `generate_config`、`run_training`、`evaluate_nmse`、`write_report`。
-- README 说明如何启动。
-
-## v0.3 推荐目标
-
-接 LangGraph，而不是替换现有 runtime：
-
-- 用 LangGraph 实现同样的实验流程。
-- 对比自研 runtime 与 LangGraph 的 checkpoint/resume/interrupt。
-- 写文档说明为什么生产中通常选成熟框架，但自研原型帮助理解底层机制。
-
-## 简历主线
-
-不要写成“我做了一个自动训练脚本”。应该写：
-
-> 设计并实现面向算法实验的轻量级 Agent Harness Runtime，将非线性神经网络拟合实验拆解为配置生成、训练执行、NMSE 评估、PSD 验证和报告生成等工具链，支持异步 Agentic Loop、工具注册、Hook、session 持久化、trace logging 和失败重试。
-
-## DeepSeek 接手注意事项
-
-- 不要删除已有 `reports/`，但默认 `.gitignore` 不上传 reports。
-- 不要把大模型权重、`.pt`、`.pth`、Excel 文件提交到 GitHub。
-- 不要重写 `experiment.py` 的训练逻辑，除非测试覆盖足够。
-- 新功能先写 `tests/test_*.py`，再实现。
-- 所有新增文档都要围绕求职证据：能力点、文件路径、测试命令、简历 bullet。
-
-## 2026-07-22 v0.2 已完成内容
-
-新增模块：
-
-- `src/nonlinear_agent/experiment_tools.py`
-  - `generate_config_tool`
-  - `run_training_tool`
-  - `verify_artifacts_tool`
-  - `write_report_tool`
-  - `build_experiment_tool_registry`
-
-- `src/nonlinear_agent/replay.py`
-  - `load_trace_events`
-  - `summarize_trace`
-  - `build_replay_markdown`
-  - `write_replay_report`
-
-- `examples/nonlinear_fit/run_harness.py`
-  - 端到端执行 generate_config -> run_training -> verify_artifacts -> write_report。
-
-新增测试：
-
-- `tests/test_experiment_tools.py`
-- `tests/test_replay.py`
-
-真实 demo 命令：
-
-```powershell
-python examples\nonlinear_fit\run_harness.py --experiment-id harness-demo-v02 --base-config configs\model-search\lstsq-complexmp-o12-m150.yaml --output-dir reports\harness-demo-v02 --epochs 0 --nmse-threshold-db -35 --timeout-seconds 120
+```text
+在 4000 参数以内，寻找低 NMSE 的非线性系统拟合模型，并输出 PSD 结果图。
 ```
 
-真实 demo 结果：
+真实 DeepSeek run 的强化目标：
 
 ```text
-NMSE: -37.4249 dB
-parameter_count: 3626
-model_type: complex_lstsq
-feature_mode: complex_mp
-mp_order_count: 12
+Target NMSE <= -41 dB under 4000 trainable parameters.
+最多 30 个实验，最长 3 小时，神经模型 epoch <= 50。
 ```
 
-v0.3 推荐目标调整：
+系统限制：
 
-1. 先做 FastAPI SSE，把 runtime event 变成在线流式接口。
-2. 再做 cancellation/interrupt，模拟长训练中断。
-3. 再做 MCP server，把 experiment tools 暴露成标准工具协议。
-4. 最后做 LangGraph 对照版，展示 checkpoint/resume/human interrupt。
+- LLM 不能直接执行 shell，只能返回 JSON plan。
+- 执行前经过 schema guard、参数预算估算、类型/值域检查、max experiments、timeout。
+- rejected/failed/succeeded 都写入 history。
+- reflection 现在也进入下一轮 planner prompt。
 
-接手注意：
+真实失败：
 
-- `reports/`、`sessions/`、`traces/` 是运行产物，不要提交。
-- `configs/harness-demo-v02.yaml` 是 demo 生成配置，除非要作为展示样例，否则不要提交。
-- 下一步优先补 `server.py` 和 `tests/test_server.py`，不要继续调模型效果。
+- DeepSeek 探索 `spline_mlp` 时输出过非法 `spline_range`。
+- Guard 或 runtime 将错误记录为 rejected/failed。
+- 下一轮 planner 根据 history 修正参数。
 
-## 2026-07-22 v0.3 已完成内容
+代表结果：
 
-新增模块：
+| Experiment | Model | Feature mode | Memory depth | MP order | Params | NMSE |
+|---|---|---|---:|---:|---:|---:|
+| exp016 | complex_lstsq | complex_mp | 220 | 9 | 3980 | -37.4875 dB |
+| exp_019 | complex_lstsq | complex_mp | 24 | 4 | 202 | -36.0275 dB |
 
-- `src/nonlinear_agent/server.py`
-  - `HarnessRunSpec`
-  - `build_harness_request`
-  - `encode_sse_event`
-  - `stream_sse_events`
-  - `build_runtime`
-  - `create_app`
-
-- `examples/nonlinear_fit/serve_harness.py`
-  - 启动 FastAPI/uvicorn 服务。
-
-新增测试：
-
-- `tests/test_server_streaming.py`
-
-新增学习文档：
-
-- `docs/learning/experiment-agent-harness-v0.3.md`
-- `docs/superpowers/plans/2026-07-22-experiment-agent-harness-v0.3.md`
-
-服务启动：
-
-```powershell
-python examples\nonlinear_fit\serve_harness.py --host 127.0.0.1 --port 8000
-```
-
-SSE 请求：
-
-```powershell
-curl -N -X POST http://127.0.0.1:8000/runs/server-demo/events -H "Content-Type: application/json" -d "{\"epochs\":0,\"nmse_threshold_db\":-35}"
-```
-
-v0.4 推荐目标：
-
-1. 做 cancellation/interrupt，不要先做复杂前端。
-2. 在 runtime 中加入 `CancellationToken` 或 `RunController`。
-3. 让 SSE 流遇到 cancel 时产出 `cancelled` event 并保存 failed/cancelled session。
-4. 再做 MCP server。
-5. 最后做 LangGraph 对照版。
-
-注意：FastAPI/uvicorn 已加入 `requirements.txt`，但 `server.py` 采用懒加载，未安装时核心测试仍可运行。
-
-## 2026-07-22 v0.4 已完成内容
-
-v0.4 修正项目定位：v0.1-v0.3 是可观测 workflow/harness 底座，v0.4 开始具备 LLM planner 和真正 plan-run-observe loop。
-
-新增模块：
-
-- `src/nonlinear_agent/llm.py`
-  - `LLMClient`
-  - `FakeLLMClient`
-  - `OpenAICompatibleClient.deepseek()`
-
-- `src/nonlinear_agent/planner.py`
-  - `ExperimentPlanner`
-  - `ExperimentPlan`
-  - `PlannedExperiment`
-
-- `src/nonlinear_agent/loop.py`
-  - `ExperimentPlannerLoop`
-  - `PlannerLoopResult`
-
-- `examples/nonlinear_fit/run_planner_loop.py`
-  - `--provider fake`
-  - `--provider deepseek`
-
-新增测试：
-
-- `tests/test_llm_planner.py`
-
-离线验证命令：
-
-```powershell
-python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --timeout-seconds 120
-```
-
-离线 demo 结果：
+结果图：
 
 ```text
-status: stopped
-rounds: 2
-experiment: planner-demo-001
-NMSE: -37.4249 dB
-parameter_count: 3626
+docs/assets/psd-exp016-best-41db-run.png
+docs/assets/psd-exp019-self-correction-run.png
 ```
 
-DeepSeek 使用方式：
+为什么没到 -41 dB 也有价值：
 
-```powershell
-$env:DEEPSEEK_API_KEY="你的 key"
-python examples\nonlinear_fit\run_planner_loop.py --provider deepseek --max-rounds 2 --timeout-seconds 120
-```
+- DeepSeek 能根据目标设计多组候选。
+- Harness 能把候选转为可执行工具链。
+- Schema guard 能拦截不可执行计划。
+- Runtime 能记录 metric、error、trace、session。
+- Reflection 能生成下一轮 recovery action。
+- Diagnostics 能聚合多轮结果和失败分布。
+- 结果说明当前 feature family 在 4000 参数约束下接近平台期，继续单纯加 memory/order 收益有限。
 
-注意：不要把 API key 写入代码、文档、session、trace 或 Git。
+## 9. Benchmark 维护说明
 
-v0.5 推荐目标：
+Benchmark 指标：
 
-1. 做参数预算预估器，planner 输出后先检查 `parameter_count <= 4000`。
-2. 做 Planner JSON schema 校验和自动修复。
-3. 做 cancel/interrupt。
-4. 做 MCP server。
+- `target_hit_rate` = 达标 case 数 / 总 case 数。
+- `rejected_rate` = rejected 记录数 / 全部实验记录。
+- `runtime_failure_rate` = failed 记录数 / 全部实验记录。
+- `average_experiments_used` = 消耗实验数 / case 数。
+- `best_nmse_db` = 全部 case 最优 NMSE，越小越好。
 
-## 2026-07-22 追加：Planner 设计空间增强
+当前覆盖 5 类 case：
 
-已新增：
+- target hit under budget
+- invalid planner output rejection
+- runtime failure handling
+- reflection-based recovery
+- experiment budget stop
 
-- `model_type="spline_mlp"`
-  - 一层 `Linear -> LearnableSplineActivation -> Linear`。
-  - `LearnableSplineActivation` 是每通道 learnable 1D LUT，默认 `spline_knots=16`，一阶线性插值。
-  - 适合表达用户提出的“1D LUT + 16 spline 激活函数，非线性层只用一层”的物理启发方案。
+3 个 case 只能算 smoke test。当前 5 个 case 可以支撑面试中的“我有评估体系”说法，但更强版本仍应加入多 seed、长上下文压缩、timeout/retry、真实 DeepSeek replay。
 
-已增强 planner prompt：
+## 10. 当前状态修复记录
 
-- 明确可执行 `model_type`: `complex_lstsq`, `linear`, `tiny_mlp`, `spline_mlp`。
-- 明确 `spline_mlp` 设计建议。
-- 明确参数预算和历史 baseline。
+### 根目录实验产物
 
-已跑多实验 fake planner demo：
+历史原因：`output_dir: exp_001` 这类裸路径会让 `train.py` 在项目根目录写产物。
 
-```text
-planner-lstsq-o10-m120: 2422 params, NMSE -37.3298 dB
-planner-spline-m48-h32: 3746 params, NMSE -3.5603 dB, failed threshold
-planner-tiny-silu-m48-h32: 3234 params, NMSE -1.4559 dB, failed threshold
-```
+当前修复：
 
-接手建议：
+- `artifact_paths.normalize_experiment_output_dir()` 统一路径策略。
+- planner guard 与 config generation 都会把裸实验目录改成 `reports/<name>`。
+- 已有根目录实验产物已移动到 `reports/relocated-root-artifacts/`。
+- `.gitignore` 防止未来误产物污染 git status。
 
-1. 对 `spline_mlp` 做更合理训练：更多 epoch、输入归一化、初始化、scheduler。
-2. 增加参数预算预估器，planner 输出后先 reject 超预算方案。
-3. 真实 DeepSeek 运行前先设置 `$env:DEEPSEEK_API_KEY`，不要把 key 写入命令历史或 Git。
+### Reflection 决策闭环
 
-## 2026-07-22 追加：v0.5 Planner Schema Guard
+旧问题：reflection 只落盘，不进入下一轮 history。
 
-新增文件：
+当前修复：
 
-- `src/nonlinear_agent/planner_validation.py`
-  - `normalize_planner_overrides`
-  - `validate_planned_overrides`
-  - `estimate_parameter_count`
+- reflection 以 `run_status: reflection` 写入 history。
+- 下一轮 planner prompt 能读到 `recovery_actions` 和 `avoid_next`。
+- benchmark/leaderboard 过滤 reflection/summary，不污染实验统计。
 
-新增测试：
+推荐设计：确定性 reflection 负责错误分类和恢复策略；LLM reflection 只适合做受控假设生成。
 
-- `tests/test_planner_validation.py`
+## 11. 文档维护规则
 
-行为：
+保留并维护：
 
-- `train_samples` 自动映射为 `max_train_samples`。
-- `rank` 等未支持字段会被拒绝。
-- 超过 `parameter_count_max` 的候选不会运行。
-- `ExperimentPlannerLoop` 会把拒绝项写入 history：`run_status: rejected`。
-
-下一步建议真实 DeepSeek 再跑一轮，观察第二轮非法字段是否变成 rejected history，而不是训练脚本报错。
-
-## 2026-07-22 追加：真实 DeepSeek 自我修正记录
-
-真实 DeepSeek run 已验证初步 plan-run-observe 自我修正：
-
-- 第一轮 spline_mlp 输出 `spline_range` 为 list，训练报错。
-- 错误进入 loop history。
-- 第二轮 DeepSeek 根据错误把 `spline_range` 修正为 scalar，并继续执行 spline_mlp。
-- 第三轮发现 `exp_019` 达到 NMSE `-36.0275 dB`，主动停止。
-
-最佳结果：
-
-```text
-exp_019
-model_type: complex_lstsq
-feature_mode: complex_mp
-memory_depth: 24
-mp_order_count: 4
-parameter_count: 202
-nmse_db: -36.0275 dB
-```
-
-这个记录可以作为面试中的“Agent loop 不是固定 workflow，而能根据错误和指标修正下一轮计划”的证据。
-
-## 2026-07-22 追加：v0.6 Run Artifacts
-
-本项目新增自动 run artifact 能力：
-
-- `src/nonlinear_agent/run_artifacts.py`
-- `ExperimentPlannerLoop(..., artifact_dir=...)`
-- CLI 参数：`--artifact-dir`
-
-每次 loop 会生成：
-
-```text
-runs/<timestamp-or-user-dir>/
-  plans/
-    round-001.json
-    round-002.json
-  result.json
-  leaderboard.csv
-  summary.md
-```
-
-验证命令：
-
-```powershell
-python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --max-experiments 1 --artifact-dir runs\fake-v06-check --goal "artifact smoke test"
-python -m unittest discover tests
-```
-
-注意：
-
-- `runs/` 已加入 `.gitignore`，默认不提交临时实验产物。
-- planner 自动生成的 `configs/exp*.yaml`、`configs/planner-*.yaml` 也已忽略。
-- 后续如果需要把某次重要实验放进 Git，建议手动整理成 `docs/experiments/*.md`，不要直接提交完整 `runs/`。
-
-## 2026-07-22 追加：v0.7 Validation Guard
-
-新增 planner 参数预检：
-
-- `src/nonlinear_agent/planner_validation.py`
-- 测试：`tests/test_planner_validation.py`
-
-已覆盖：
-
-- `spline_range=None` 或 list：reject，避免训练脚本 `float(None)` / `float(list)` 崩溃。
-- 神经模型显式 `epochs=0`：reject。
-- `complex_lstsq epochs=0`：allow。
-- 正整数参数和值类型参数预检。
-- loop 会把 validation error 写入 history：`run_status=rejected`，runtime 不会被调用。
-
-验证命令：
-
-```powershell
-python -m unittest tests.test_planner_validation tests.test_llm_planner tests.test_experiment_core
-python -m unittest discover tests
-```
-
-下一步建议：
-
-1. 把 rejected/succeeded/failed 统计写进 `summary.md`。
-2. 在 planner prompt 中明确“看到 rejected history 后必须解释修正策略”。
-3. 增加自动保存 raw LLM response，便于审计 planner 输出和 parser 行为。
-
-## 2026-07-22 追加：v0.8 Benchmark Evaluation
-
-新增：
-
-- `src/nonlinear_agent/benchmark.py`
-- `examples/nonlinear_fit/run_benchmark.py`
-- `tests/test_benchmark.py`
-- 最新主学习文档：`docs/learning/experiment-agent-harness-v0.8.md`
-- 唯一维护计划：`docs/superpowers/plans/experiment-agent-harness-plan.md`
-
-能力：
-
-- 固定 benchmark case。
-- 统计 `target_hit_rate`、`rejected_rate`、`runtime_failure_rate`、`average_experiments_used`、`best_nmse_db`。
-- 生成 `results.json`、`leaderboard.csv`、`summary.md`。
-
-验证命令：
-
-```powershell
-python examples\nonlinear_fit\run_benchmark.py --output-dir benchmarks\fake-v08-check
-python -m unittest tests.test_benchmark
-python -m unittest discover tests
-```
-
-下一步 v0.9：
-
-- 做 context/memory compression。
-- 给 planner history 加窗口、压缩摘要和预算控制。
-
-## 2026-07-22 追加：v0.9 Context / Memory Compression
-
-新增：
-
-- `src/nonlinear_agent/context_memory.py`
-- `tests/test_context_memory.py`
-- 最新主学习文档：`docs/learning/experiment-agent-harness-v0.9.md`
-
-行为：
-
-- `HistoryCompressor(recent_window=3)` 默认接入 `ExperimentPlannerLoop`。
-- 完整 history 仍保留在 loop result 和 run artifacts。
-- 发给 planner 的 history 会压缩为 `history-summary + 最近 N 条原始记录`。
-- `history-summary` 包含状态统计、最佳实验、最佳 NMSE、参数量和代表性错误。
-
-验证命令：
-
-```powershell
-python -m unittest tests.test_context_memory
-python -m unittest discover tests
-python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --max-experiments 1 --artifact-dir runs\fake-v09-check --goal "context memory smoke test"
-```
-
-下一步 v1.0：
-
-- 做 Tool Registry / Skill 化。
-- 明确工具 schema、allowed tools 渐进式披露和 tool error policy。
-
-## 2026-07-22 追加：v1.0 Tool Registry / Skill 化
-
-新增/更新：
-
-- `src/nonlinear_agent/tools.py`
-- `src/nonlinear_agent/experiment_tools.py`
-- `src/nonlinear_agent/planner.py`
-- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.0.md`
-
-能力：
-
-- `ToolSpec`
-- `ToolRegistry.describe_tools(category=...)`
-- 真实实验工具带 schema、category、error_policy
-- planner prompt 支持 ToolSpec 渐进式披露
-- unknown tool 可按 `unknown_tool_policy="return_error"` 返回结构化失败
-
-验证命令：
-
-```powershell
-python -m unittest tests.test_harness_runtime tests.test_experiment_tools tests.test_llm_planner
-python -m unittest discover tests
-```
-
-下一步 v1.1：
-
-- Reflection + Recovery Policy。
-- 每轮结束生成失败原因、修正策略、下一轮避免项。
-
-## 2026-07-22 追加：v1.1 Reflection / Recovery Policy
-
-新增：
-
-- `src/nonlinear_agent/reflection.py`
-- `tests/test_reflection.py`
-- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.1.md`
-- 结果图：`docs/assets/psd-exp016-best-41db-run.png`
-- 结果图：`docs/assets/psd-exp019-self-correction-run.png`
-
-能力：
-
-- 每轮执行后生成 reflection record。
-- 统计 `rejected`、`failed`、`succeeded`。
-- 记录 `failure_causes`、`recovery_actions`、`avoid_next`。
-- `RunArtifactWriter` 写入 `reflections/round-XXX.json`。
-- 最终 `result.json` 和 `summary.md` 包含 reflection 信息。
-
-验证命令：
-
-```powershell
-python -m unittest tests.test_reflection
-python -m unittest discover tests
-python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --max-experiments 1 --artifact-dir runs\fake-v11-check --goal "reflection smoke test"
-```
-
-下一步 v1.2：
-
-- MCP Server / Tool Protocol。
-- 把当前 `ToolSpec` 映射为标准 MCP tool schema。
-- 让项目能回答“MCP 是什么、写过哪些 MCP 工具、Skill 和 MCP 有什么区别”。
-
-## 2026-07-23 追加：v1.2 MCP Server / Tool Protocol
-
-新增：
-
-- `src/nonlinear_agent/mcp_server.py`
-- `examples/nonlinear_fit/serve_mcp_tools.py`
-- `tests/test_mcp_server.py`
-- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.2.md`
-
-能力：
-
-- `ToolSpec` 映射为 MCP-compatible tool schema。
-- `MCPToolBridge.list_tools()` 支持 `tools/list`。
-- `MCPToolBridge.call_tool()` 支持 `tools/call`。
-- `MCPToolBridge.handle_json_rpc()` 支持 JSON-RPC 2.0 请求/响应。
-- stdio JSON-lines mock server 可作为后续官方 MCP SDK 接入前的协议验证层。
-- 底层复用现有 `ToolRegistry`，LLM Planner 与 MCP Client 共享同一套实验工具能力。
-
-验证命令：
-
-```powershell
-python -m unittest tests.test_mcp_server
-python -m unittest discover tests
-```
-
-下一步 v1.3：
-
-- Async Runtime Hardening。
-- cancellation / interrupt。
-- per-tool timeout policy。
-- retry policy 分类。
-- structured error taxonomy。
-
-## 2026-07-23 追加：v1.3 Async Runtime Hardening
-
-新增：
-
-- `src/nonlinear_agent/runtime_errors.py`
-- `src/nonlinear_agent/run_control.py`
-- `tests/test_runtime_hardening.py`
-- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.3.md`
-
-能力：
-
-- `ErrorType`：`validation_error`、`timeout_error`、`tool_error`、`metric_threshold_error`、`cancelled`。
-- `RunController`：支持用户取消/中断。
-- `RetryPolicy`：`always`、`never`、`retry_timeout`。
-- `ToolResult` 增加 `error_type` 和 `retryable`。
-- `TraceEvent` 增加 `error_type`。
-- `ExperimentSession` 增加 `error_types` 和 `completed_steps`。
-- `HarnessRequest.resume_from_step` 支持 step-level resume。
-- `ReflectionPolicy` 增加 `error_type_counts`。
-
-验证命令：
-
-```powershell
-python -m unittest tests.test_runtime_hardening
-python -m unittest discover tests
-```
-
-下一步 v1.4：
-
-- Evaluation Dashboard / Runtime Diagnostics。
-- 对 benchmark 多次运行结果做汇总展示。
-- 统计 error_type 分布、target_hit_rate、runtime_failure_rate、best_nmse_db。
-
-## 2026-07-23 追加：v1.4 Evaluation Dashboard / Runtime Diagnostics
-
-新增：
-
-- `src/nonlinear_agent/diagnostics.py`
-- `examples/nonlinear_fit/write_diagnostics.py`
-- `tests/test_diagnostics.py`
-- `docs/learning/experiment-agent-harness-v1.4.md`
-- `docs/diagnostics/agent-runtime-dashboard.md`
-
-能力：
-
-- 读取 `benchmarks/*/results.json`。
-- 读取 `runs/*/result.json`。
-- 聚合 `target_hit_rate`、`rejected_rate`、`runtime_failure_rate`、`average_experiments_used`、`best_nmse_db`。
-- 统计 `run_status` 分布和 `error_type_counts`。
-- 输出 Markdown dashboard，便于 GitHub 展示和面试讲述。
-
-验证命令：
-
-```powershell
-python -m unittest tests.test_diagnostics
-python -m unittest discover tests
-python examples\nonlinear_fit\write_diagnostics.py
-```
-
-下一步 v1.5：
-
-- Unified CLI / Local Dashboard Client。
-- 把分散脚本收敛成 `python -m nonlinear_agent.cli ...` 和 `nonlinear-agent ...`。
-
-## 2026-07-23 追加：v1.5 Unified CLI / Local Dashboard Client
-
-新增：
-
-- `src/nonlinear_agent/cli.py`
-- `src/nonlinear_agent/dashboard.py`
-- `tests/test_cli.py`
-- `tests/test_dashboard.py`
-- `pyproject.toml`
-- `agent.py`
-- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.5.md`
-- HTML dashboard：`docs/diagnostics/agent-runtime-dashboard.html`
-
-能力：
-
-- `run`：统一执行 LLM planner loop。
-- `benchmark`：统一执行内置 benchmark。
-- `diagnostics`：生成 Markdown diagnostics dashboard。
-- `dashboard`：生成 standalone HTML dashboard。
-- `serve`：启动 FastAPI SSE harness 服务。
-- 安装后支持 `nonlinear-agent` console script。
-- 未安装时支持 `python agent.py ...`。
-
-验证命令：
-
-```powershell
-python -m unittest tests.test_cli tests.test_dashboard
-python -m unittest discover tests
-python -m nonlinear_agent.cli diagnostics
-python -m nonlinear_agent.cli dashboard
-```
-
-下一步 v1.6：
-
-- Final Docs / Onboarding / Demo UI。
-- 把项目收口为新人可上手、面试可讲、浏览器可展示的封版状态。
-
-## 2026-07-23 追加：v1.6 Final Docs / Onboarding / Demo UI
-
-新增：
-
+- `README.md`
 - `docs/onboarding/newcomer-guide.md`
-- `docs/case-studies/deepseek-planner-self-correction.md`
-- `docs/interview/agent-harness-qa.md`
-- `docs/learning/experiment-agent-harness-v1.6.md`
-- `src/nonlinear_agent/web_ui.py`
+- `docs/handoff/deepseek-continuation-plan.md`
+- `docs/resume/experiment-agent-harness-resume.md`
+- `docs/learning/experiment-agent-harness-v*.md`
+- `docs/diagnostics/agent-runtime-dashboard.md`
+- `docs/diagnostics/agent-runtime-dashboard.html`
+- `docs/experiments/*.md`
+- `docs/assets/*`
 
-能力：
+不要再新增零散“开心型”文档。新内容优先合并到：
 
-- `python agent.py serve --host 127.0.0.1 --port 8000` 启动 Web UI。
-- `GET /` 返回项目首页。
-- 首页能配置实验参数并通过 SSE endpoint 实时展示 runtime events。
-- 首页提供 Markdown/HTML diagnostics dashboard 快捷入口。
-- 新人 guide 指明读代码顺序、常用命令和注意事项。
-- case study 把 DeepSeek self-correction 写成面试故事。
-- Q&A 对齐面经高频 Agent Harness 问题。
+- 上手/当前状态：`docs/onboarding/newcomer-guide.md`
+- 交接/维护/版本计划：`docs/handoff/deepseek-continuation-plan.md`
+- 简历/面试表达：`docs/resume/experiment-agent-harness-resume.md`
+- 版本学习：`docs/learning/experiment-agent-harness-v*.md`
 
-验证命令：
+## 12. 后续边界
+
+本项目不继续无目标堆 v1.7/v1.8。后续修改以修 bug、更新面试 Q&A、更新 case study、稳定 UI 和测试为主。
+
+以下内容交给 Storm 或其他项目：
+
+- RAG 全流程
+- BM25 / vector hybrid search / rerank
+- Ragas 评测
+- GraphRAG
+- 长期语义记忆
+- 多 Agent 协作和并发
+
+## 13. 验证命令
 
 ```powershell
-python -m unittest tests.test_server_streaming
 python -m unittest discover tests
+python examples\nonlinear_fit\run_benchmark.py --output-dir benchmarks\fake-check
 python agent.py dashboard
 ```
 
-封版建议：
+v1.6.2 定版验证记录：
 
-- 本项目不继续堆功能。
-- 后续以维护文档、修 bug、演示稳定性为主。
-- RAG 全流程和 BM25/Rerank/Ragas 由 Storm 项目覆盖。
+- `python -m unittest discover tests`：95 tests OK。
+- Benchmark 当前为 5 case：target hit、非法计划拒绝、runtime failure、reflection recovery、budget stop。
+- Web UI 和 diagnostics dashboard 已统一为深色主题，并在页面说明 benchmark 指标口径。

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from nonlinear_agent.artifact_paths import normalize_experiment_output_dir
 from nonlinear_agent.experiment import ExperimentConfig
 
 
@@ -80,7 +81,10 @@ def normalize_planner_overrides(overrides: dict[str, Any]) -> dict[str, Any]:
     """
     normalized: dict[str, Any] = {}
     for key, value in overrides.items():
-        normalized[ALIAS_FIELDS.get(key, key)] = value
+        target_key = ALIAS_FIELDS.get(key, key)
+        if target_key == "output_dir":
+            value = normalize_experiment_output_dir(value)
+        normalized[target_key] = value
     return normalized
 
 

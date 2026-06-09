@@ -110,9 +110,7 @@ class ExperimentPlanner:
             constraints=constraints or {},
         )
         raw = self.llm_client.complete(prompt)     # 发 prompt，拿 JSON 字符串
-        payload = _parse_json_object(raw)           #
-        
-         解析 JSON（容错：处理 LLM 多输出文字的情况）
+        payload = _parse_json_object(raw)           # 解析 JSON（容错：处理 LLM 多输出文字的情况）
         return self._parse_plan(payload)            # 转成结构化的 ExperimentPlan
 
     # ── Prompt 构造 ──────────────────────────────────────

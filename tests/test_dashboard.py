@@ -35,6 +35,8 @@ class DashboardTest(unittest.TestCase):
         self.assertIn("Target Hit Rate", html)
         self.assertIn("exp016", html)
         self.assertIn("tool_error", html)
+        self.assertIn("target_hit_rate = hit cases / total cases", html)
+        self.assertIn("average_experiments_used = experiments used / case count", html)
 
     def test_write_dashboard_html_creates_parent_directories(self):
         with TemporaryDirectory() as tmpdir:

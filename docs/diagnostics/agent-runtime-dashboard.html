@@ -9,18 +9,9 @@
 <title>Agent Runtime Dashboard</title>
 <style>
 :root {
-  --bg: #060b14;
-  --surface: #0c1222;
-  --card: #111827;
-  --border: #1e2d3d;
-  --text: #e8ecf2;
-  --muted: #8896a9;
-  --accent: #38bdf8;
-  --accent2: #818cf8;
-  --green: #34d399;
-  --red: #f87171;
-  --amber: #fbbf24;
-  --radius: 14px;
+  --bg: #030712; --surface: #0a0f1c; --card: #111827; --border: #1f2937;
+  --text: #e5e7eb; --muted: #6b7280; --accent: #22d3ee; --accent2: #6366f1;
+  --green: #10b981; --red: #ef4444; --amber: #f59e0b; --radius: 8px;
 }
 * { box-sizing:border-box; margin:0; padding:0; }
 body {
@@ -29,91 +20,76 @@ body {
   min-height:100vh; line-height:1.6; font-size:16px;
   -webkit-font-smoothing: antialiased;
 }
-header {
-  background: linear-gradient(135deg, #070e1a 0%, #0f172a 60%, #151e33 100%);
-  border-bottom:1px solid var(--border); padding:28px 40px;
+body::before {
+  content:""; position:fixed; inset:0; z-index:0; opacity:.025;
+  background-image: radial-gradient(circle at 15% 40%, #22d3ee 1px, transparent 1px),
+                    radial-gradient(circle at 75% 60%, #6366f1 1px, transparent 1px);
+  background-size: 50px 50px, 70px 70px; pointer-events:none;
 }
-header h1 { font-size:26px; font-weight:700; letter-spacing:-0.5px; margin-bottom:6px; }
-header p  { color: var(--muted); font-size:15px; }
-main { padding:28px 40px 44px; display:grid; gap:24px; }
+header {
+  position:relative; z-index:1;
+  background: linear-gradient(135deg, rgba(15,23,42,.95) 0%, rgba(30,41,59,.9) 100%);
+  backdrop-filter:blur(20px); border-bottom:1px solid var(--border); padding:24px 40px;
+}
+header h1 { font-size:24px; font-weight:700; letter-spacing:-0.5px; margin-bottom:6px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+header p  { color: var(--muted); font-size:14px; -webkit-text-fill-color:var(--muted); }
+main { position:relative; z-index:1; padding:28px 40px 44px; display:grid; gap:24px; }
 
 section {
-  background:var(--card); border:1px solid var(--border);
-  border-radius:var(--radius); padding:24px;
-  box-shadow:0 2px 8px rgba(0,0,0,.3);
+  background:linear-gradient(135deg, rgba(17,24,39,.9), rgba(15,23,42,.8));
+  border:1px solid var(--border); border-radius:var(--radius); padding:24px;
+  box-shadow:0 4px 16px rgba(0,0,0,.4); backdrop-filter:blur(10px);
 }
-section h2 { font-size:18px; font-weight:650; margin-bottom:18px; letter-spacing:-0.3px; }
+section h2 { font-size:17px; font-weight:650; margin-bottom:16px; letter-spacing:-0.3px; }
+section p.desc { color:var(--muted); font-size:12px; margin-bottom:14px; line-height:1.5; }
+section p.desc code { font-family:"Cascadia Code",Consolas,monospace; font-size:12px; color:var(--accent); }
+.metric-notes { display:grid; gap:8px; margin-top:14px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+.metric-note { border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:rgba(15,23,42,.72); color:var(--muted); font-size:12px; }
+.metric-note code { color:var(--accent); font-weight:700; }
 
-table { width:100%; border-collapse:collapse; font-size:15px; }
-th, td {
-  border:1px solid var(--border); padding:12px 14px;
-  text-align:left; vertical-align:top;
-}
-th {
-  background:#0f1a2a; color:var(--muted); font-weight:650;
-  font-size:13px; text-transform:uppercase; letter-spacing:.5px;
-}
+table { width:100%; border-collapse:collapse; font-size:14px; }
+th, td { border:1px solid var(--border); padding:12px 14px; text-align:left; vertical-align:top; }
+th { background:rgba(15,23,42,.6); color:var(--muted); font-weight:650; font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
 td { color:var(--text); }
-td .good { color:var(--green); font-weight:700; }
-td .warn { color:var(--amber); }
-td .bad  { color:var(--red); font-weight:700; }
-code {
-  font-family:"Cascadia Code","Fira Code",Consolas,monospace;
-  font-size:14px; color:var(--accent);
-}
+td .good { color:var(--green); font-weight:700; } td .warn { color:var(--amber); } td .bad { color:var(--red); font-weight:700; }
+code { font-family:"Cascadia Code","Fira Code",Consolas,monospace; font-size:14px; color:var(--accent); }
 
-.metrics {
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap:16px;
-}
+.metrics { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; }
 .metric {
-  background: var(--card); border:1px solid var(--border);
-  border-radius: var(--radius); padding:22px 24px;
-  box-shadow:0 2px 8px rgba(0,0,0,.3);
+  background:linear-gradient(135deg, rgba(17,24,39,.9), rgba(15,23,42,.8));
+  border:1px solid var(--border); border-radius:var(--radius); padding:22px 24px;
+  box-shadow:0 4px 16px rgba(0,0,0,.4); backdrop-filter:blur(10px);
+  transition:border-color .2s;
 }
-.metric .label {
-  color:var(--muted); font-size:13px; font-weight:700;
-  text-transform:uppercase; letter-spacing:.7px; margin-bottom:10px;
-}
-.metric .value {
-  font-size:34px; font-weight:700; overflow-wrap:anywhere; color:var(--accent);
-}
-.metric .value.good { color: var(--green); }
-.metric .value.warn { color: var(--amber); }
-.metric .value.bad  { color: var(--red); }
+.metric:hover { border-color:var(--accent); }
+.metric .label { color:var(--muted); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.7px; margin-bottom:10px; }
+.metric .value { font-size:32px; font-weight:700; overflow-wrap:anywhere; color:var(--accent); }
+.metric .value.good { color: var(--green); } .metric .value.warn { color: var(--amber); } .metric .value.bad { color: var(--red); }
 
-.grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap:24px;
-}
+.grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:24px; }
 
 .run-card {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--radius); padding:16px 20px; margin-bottom:12px;
+  background:linear-gradient(135deg, rgba(10,15,28,.8), rgba(17,24,39,.6));
+  border:1px solid var(--border); border-radius:var(--radius);
+  padding:16px 20px; margin-bottom:12px;
   display:flex; flex-wrap:wrap; gap:14px 28px; align-items:center;
+  transition:border-color .2s;
 }
+.run-card:hover { border-color:var(--accent); }
 .run-card .dir { font-size:13px; color:var(--muted); min-width:180px; font-family:"Cascadia Code",Consolas,monospace; }
 .run-card .stat { font-size:15px; font-weight:650; }
-.run-card .stat.good { color:var(--green); }
-.run-card .stat.bad  { color:var(--red); }
-.run-card .stat.warn { color:var(--amber); }
-.run-card .tag {
-  display:inline-block; padding:3px 10px; border-radius:12px;
-  font-size:12px; font-weight:700;
-}
-.tag-ok  { background:rgba(52,211,153,.15); color:var(--green); }
-.tag-err { background:rgba(248,113,113,.15); color:var(--red); }
-.tag-run { background:rgba(56,189,248,.15); color:var(--accent); }
+.run-card .stat.good { color:var(--green); } .run-card .stat.bad { color:var(--red); } .run-card .stat.warn { color:var(--amber); }
+.run-card .tag { display:inline-block; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700; }
+.tag-ok { background:rgba(16,185,129,.12); color:var(--green); }
+.tag-err { background:rgba(239,68,68,.12); color:var(--red); }
+.tag-run { background:rgba(34,211,238,.12); color:var(--accent); }
 
-::-webkit-scrollbar { width:8px; height:8px; }
-::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:#2d3b52; border-radius:4px; }
+::-webkit-scrollbar { width:7px; height:7px; } ::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#1e293b; border-radius:4px; } ::-webkit-scrollbar-thumb:hover { background:#334155; }
 
-footer {
-  padding:0 40px 32px; font-size:14px; color:var(--muted);
-}
+footer { position:relative; z-index:1; padding:0 40px 32px; font-size:13px; color:var(--muted); }
 footer strong { color:var(--accent); }
 </style>
 </head>
@@ -121,40 +97,67 @@ footer strong { color:var(--accent); }
 
 <header>
   <h1>Agent Runtime Diagnostics</h1>
-  <p>51 planner runs, 4 benchmark runs &mdash; <strong>Last updated:</strong> 2026-07-25 09:42:55 UTC</p>
+  <p>59 planner runs, 7 benchmark runs &mdash; <strong>Last updated:</strong> 2026-07-26 05:24:04 UTC</p>
 </header>
 
 <main>
 
   <section>
     <h2>Recent Runs (newest first)</h2>
-    <div class="run-card"><div class="dir">runs/20260725-172317-planner-loop/result.json</div><div class="stat bad">NMSE -38.19 dB</div><div>Round 8</div><div><span class="tag tag-ok">15 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">2 Rej</span></div><span class="tag tag-err">planner_error</span></div>
-<div class="run-card"><div class="dir">runs/20260725-143359-planner-loop/result.json</div><div class="stat bad">NMSE -40.87 dB</div><div>Round 16</div><div><span class="tag tag-ok">30 OK</span> <span class="tag tag-err">2 Fail</span> <span class="tag tag-run">10 Rej</span></div><span class="tag tag-err">planner_error</span></div>
-<div class="run-card"><div class="dir">runs/20260725-161140-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
-<div class="run-card"><div class="dir">runs/20260725-161053-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
-<div class="run-card"><div class="dir">runs/20260725-161002-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
-<div class="run-card"><div class="dir">runs/20260724-221942-planner-loop/result.json</div><div class="stat bad">NMSE -37.56 dB</div><div>Round 29</div><div><span class="tag tag-ok">60 OK</span> <span class="tag tag-err">2 Fail</span> <span class="tag tag-run">11 Rej</span></div><span class="tag tag-err">planner_error</span></div>
-<div class="run-card"><div class="dir">runs/20260724-221845-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
-<div class="run-card"><div class="dir">runs/20260724-221814-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
-<div class="run-card"><div class="dir">runs/20260724-221743-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
-<div class="run-card"><div class="dir">runs/20260724-221449-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
-    <p style="color:var(--muted);margin-top:12px;font-size:14px;">Showing 10 of 51 total runs. Scroll down for full history.</p>
+    <div class="run-card"><div class="dir">runs/benchmark-budget-stop/result.json</div><div class="stat bad">NMSE -35.50 dB</div><div>Round 1</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-err">max_experiments_reached</span></div>
+<div class="run-card"><div class="dir">runs/benchmark-reflection-recovery/result.json</div><div class="stat warn">NMSE -36.50 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">1 Rej</span></div><span class="tag tag-run">max_rounds_reached</span></div>
+<div class="run-card"><div class="dir">runs/benchmark-runtime-failure/result.json</div><div class="stat warn">NMSE -20.00 dB</div><div>Round 1</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-run">max_rounds_reached</span></div>
+<div class="run-card"><div class="dir">runs/benchmark-invalid-plan/result.json</div><div class="stat warn">NMSE N/A</div><div>Round 1</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">1 Rej</span></div><span class="tag tag-run">max_rounds_reached</span></div>
+<div class="run-card"><div class="dir">runs/benchmark-target-hit/result.json</div><div class="stat good">NMSE -36.00 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260725-212356-planner-loop/result.json</div><div class="stat bad">NMSE -37.59 dB</div><div>Round 9</div><div><span class="tag tag-ok">29 OK</span> <span class="tag tag-err">2 Fail</span> <span class="tag tag-run">3 Rej</span></div><span class="tag tag-err">planner_error</span></div>
+<div class="run-card"><div class="dir">runs/20260725-202655-planner-loop/result.json</div><div class="stat bad">NMSE -37.59 dB</div><div>Round 9</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">41 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-err">planner_error</span></div>
+<div class="run-card"><div class="dir">runs/20260725-195714-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260725-191536-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">0 OK</span> <span class="tag tag-err">1 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+<div class="run-card"><div class="dir">runs/20260725-191503-planner-loop/result.json</div><div class="stat good">NMSE -37.42 dB</div><div>Round 2</div><div><span class="tag tag-ok">1 OK</span> <span class="tag tag-err">0 Fail</span> <span class="tag tag-run">0 Rej</span></div><span class="tag tag-ok">stopped</span></div>
+    <p style="color:var(--muted);margin-top:12px;font-size:14px;">Showing 10 of 59 total runs. Scroll down for full history.</p>
   </section>
 
   <section>
-    <h2>Aggregate Metrics</h2>
+    <h2>Agent Loop Metrics (59 runs)</h2>
+    <p class="desc">
+      数据来自 <code>runs/*/result.json</code>（目前 59 个文件）。每次 Agent Loop 结束时自动写入。
+      计算方法：扫描全部 runs 目录 → 解析每条实验记录的 run_status 和 nmse_db → 汇总统计。
+    </p>
     <div class="metrics">
-      <div class="metric"><div class="label">Total Runs</div><div class="value ">51</div></div>
-<div class="metric"><div class="label">Total Experiments</div><div class="value ">412</div></div>
-<div class="metric"><div class="label">Target Hit Rate</div><div class="value ">50.2%</div></div>
-<div class="metric"><div class="label">Rejected Rate</div><div class="value bad">26.5%</div></div>
-<div class="metric"><div class="label">Runtime Failures</div><div class="value bad">23.3%</div></div>
+      <div class="metric"><div class="label">Total Runs</div><div class="value ">59</div></div>
+<div class="metric"><div class="label">Total Experiments</div><div class="value ">494</div></div>
+<div class="metric"><div class="label">Target Hit Rate</div><div class="value ">48.8%</div></div>
+<div class="metric"><div class="label">Rejected Rate</div><div class="value bad">22.9%</div></div>
+<div class="metric"><div class="label">Runtime Failures</div><div class="value bad">28.3%</div></div>
 <div class="metric"><div class="label">Best NMSE (dB)</div><div class="value good">-40.87 dB</div></div>
     </div>
   </section>
 
   <section>
+    <h2>Benchmark Metrics (7 runs)</h2>
+    <p class="desc">
+      数据来自 <code>benchmarks/*/results.json</code>（目前 7 个文件）。
+      Benchmark 用 FakeLLM（固定 plan）+ 真 Runtime 执行，评估系统应对非法计划、失败处理等场景的能力。
+    </p>
+    <div class="metrics">
+      <div class="metric"><div class="label">Benchmark Cases</div><div class="value ">25</div></div>
+<div class="metric"><div class="label">Target Hit Rate</div><div class="value ">60.0%</div></div>
+<div class="metric"><div class="label">Rejected Rate</div><div class="value bad">17.3%</div></div>
+<div class="metric"><div class="label">Runtime Failures</div><div class="value bad">26.7%</div></div>
+<div class="metric"><div class="label">Best NMSE (dB)</div><div class="value good">-37.42 dB</div></div>
+    </div>
+    <div class="metric-notes">
+      <div class="metric-note">target_hit_rate = hit cases / total cases.</div>
+      <div class="metric-note">rejected_rate = rejected records / all experiment records.</div>
+      <div class="metric-note">runtime_failure_rate = failed records / all experiment records.</div>
+      <div class="metric-note">average_experiments_used = experiments used / case count.</div>
+      <div class="metric-note">best_nmse_db = best NMSE across all benchmark cases; lower is better.</div>
+    </div>
+  </section>
+
+  <section>
     <h2>Best Candidate</h2>
+    <p class="desc">来源：遍历全部 runs + benchmarks 中所有实验记录，选 NMSE 最低的一条。</p>
     <table><tr><th>id</th><td><code>exp-029</code></td></tr>
 <tr><th>nmse_db</th><td><code>-40.87 dB</code></td></tr>
 <tr><th>parameter_count</th><td><code>21122</code></td></tr>
@@ -164,20 +167,35 @@ footer strong { color:var(--accent); }
   <div class="grid">
     <section>
       <h2>Status Distribution</h2>
-      <table><tr><th>status</th><th>count</th></tr><tr><td>failed</td><td>96</td></tr>
-<tr><td>rejected</td><td>109</td></tr>
-<tr><td>succeeded</td><td>207</td></tr></table>
+      <p class="desc">来源：全部 runs 中每条实验记录的 run_status 字段计数。</p>
+      <table><tr><th>status</th><th>count</th></tr><tr><td>failed</td><td>140</td></tr>
+<tr><td>reflection</td><td>5</td></tr>
+<tr><td>rejected</td><td>113</td></tr>
+<tr><td>succeeded</td><td>241</td></tr></table>
     </section>
     <section>
       <h2>Error Types</h2>
-      <table><tr><th>error_type</th><th>count</th></tr><tr><td>metric_threshold_error</td><td>75</td></tr>
-<tr><td>tool_error</td><td>19</td></tr></table>
+      <p class="desc">来源：全部 runs 中每条实验记录的 error_type 字段 + reflection 中的 error_type_counts 汇总。</p>
+      <table><tr><th>error_type</th><th>count</th></tr><tr><td>metric_threshold_error</td><td>104</td></tr>
+<tr><td>tool_error</td><td>34</td></tr></table>
     </section>
   </div>
 
   <section>
     <h2>Full Run History</h2>
-    <table><tr><th>source</th><th>status</th><th>rounds</th><th>best_nmse_db</th><th>succeeded</th><th>failed</th><th>rejected</th></tr><tr><td><code>runs/20260725-172317-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>8</code></td><td><code>-38.19327323103806</code></td><td><code>15</code></td><td><code>1</code></td><td><code>2</code></td></tr>
+    <p class="desc">来源：遍历 <code>runs/*/result.json</code>，按文件修改时间倒序排列（最新的在最上面）。</p>
+    <table><tr><th>source</th><th>status</th><th>rounds</th><th>best_nmse_db</th><th>succeeded</th><th>failed</th><th>rejected</th></tr><tr><td><code>runs/benchmark-budget-stop/result.json</code></td><td><code>max_experiments_reached</code></td><td><code>1</code></td><td><code>-35.5</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/benchmark-reflection-recovery/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>2</code></td><td><code>-36.5</code></td><td><code>1</code></td><td><code>0</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/benchmark-runtime-failure/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>-20.0</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/benchmark-invalid-plan/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>0</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/benchmark-target-hit/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-36.0</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260725-212356-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>9</code></td><td><code>-37.585201109860336</code></td><td><code>29</code></td><td><code>2</code></td><td><code>3</code></td></tr>
+<tr><td><code>runs/20260725-202655-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>9</code></td><td><code>-37.585201109860336</code></td><td><code>0</code></td><td><code>41</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260725-195714-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260725-191536-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260725-191503-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260725-191433-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
+<tr><td><code>runs/20260725-172317-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>8</code></td><td><code>-38.19327323103806</code></td><td><code>15</code></td><td><code>1</code></td><td><code>2</code></td></tr>
 <tr><td><code>runs/20260725-143359-planner-loop/result.json</code></td><td><code>planner_error</code></td><td><code>16</code></td><td><code>-40.86985111609215</code></td><td><code>30</code></td><td><code>2</code></td><td><code>10</code></td></tr>
 <tr><td><code>runs/20260725-161140-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
 <tr><td><code>runs/20260725-161053-planner-loop/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
@@ -223,9 +241,6 @@ footer strong { color:var(--accent); }
 <tr><td><code>runs/fake-v13-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>None</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
 <tr><td><code>runs/fake-v11-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
 <tr><td><code>runs/fake-v09-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
-<tr><td><code>runs/benchmark-runtime-failure/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>-20.0</code></td><td><code>0</code></td><td><code>1</code></td><td><code>0</code></td></tr>
-<tr><td><code>runs/benchmark-invalid-plan/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>None</code></td><td><code>0</code></td><td><code>0</code></td><td><code>1</code></td></tr>
-<tr><td><code>runs/benchmark-target-hit/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-36.0</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
 <tr><td><code>runs/fake-v07-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr>
 <tr><td><code>runs/fake-v06-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>-37.42494350080102</code></td><td><code>1</code></td><td><code>0</code></td><td><code>0</code></td></tr></table>
   </section>
@@ -233,7 +248,7 @@ footer strong { color:var(--accent); }
 </main>
 
 <footer>
-  <strong>Last updated:</strong> 2026-07-25 09:42:55 UTC &mdash; Dashboard auto-refreshes after each Agent Loop. Ctrl+Shift+R if stale.
+  <strong>Last updated:</strong> 2026-07-26 05:24:04 UTC &mdash; Dashboard auto-refreshes after each Agent Loop. Ctrl+Shift+R if stale.
 </footer>
 </body>
 </html>
