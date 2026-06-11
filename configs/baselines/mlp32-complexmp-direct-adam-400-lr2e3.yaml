@@ -1,0 +1,19 @@
+data_path: examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat
+output_dir: reports/model-search/mlp32-complexmp-direct-adam-400-lr2e3
+memory_depth: 5
+max_train_samples:
+train_ratio: 1.0
+seed: 42
+epochs: 400
+batch_size: 256
+learning_rate: 0.002
+optimizer: adam
+scheduler_step_size: 1000
+scheduler_gamma: 1.0
+nfft: 1024
+sample_rate_hz: 491520000.0
+model_type: tiny_mlp
+hidden_units: 32
+activation: silu
+target_mode: direct
+feature_mode: complex_mp

@@ -50,7 +50,7 @@ class PlannerLoopResult:
     rounds     — 实际跑了几轮
     history    — 每轮每个实验的记录（含 rejected/failed/succeeded + NMSE 等）
     summaries  — 每轮 LLM 的策略概述
-    reflections — 每轮的复盘记录（failure_causes / recovery_actions / avoid_next）
+    reflections — 每轮的事实复盘记录（failure_causes / facts）
 
     这个对象会被 RunArtifactWriter 落盘为 result.json 和 leaderboard.csv。
     """
@@ -85,7 +85,7 @@ class ExperimentPlannerLoop:
         planner: ExperimentPlanner,
         workspace: Path | str,
         runtime_factory: RuntimeFactory | None = None,
-        base_config: str = "configs/model-search/lstsq-complexmp-o12-m150.yaml",
+        base_config: str = "configs/baselines/lstsq-complexmp-o12-m150.yaml",
         constraints: dict[str, Any] | None = None,
         timeout_seconds: float = 300.0,
         artifact_dir: Path | str | None = None,
@@ -298,6 +298,8 @@ class ExperimentPlannerLoop:
                 "summary": plan.summary,
                 "stop": plan.stop,
                 "experiment_count": len(plan.experiments),
+                "previous_reflection_facts": _latest_reflection_facts(history),
+                "previous_reflection_failure_causes": _latest_reflection_failure_causes(history),
                 "experiments": [
                     {"id": e.experiment_id, "reason": e.reason}
                     for e in plan.experiments
@@ -503,13 +505,28 @@ def _build_reflection_history_record(reflection: dict[str, Any]) -> dict[str, An
         "round": round_index,
         "status_counts": reflection.get("status_counts", {}),
         "failure_causes": reflection.get("failure_causes", []),
-        "recovery_actions": reflection.get("recovery_actions", []),
-        "avoid_next": reflection.get("avoid_next", []),
+        "facts": reflection.get("facts", []),
         "best_experiment_id": reflection.get("best_experiment_id", ""),
         "best_nmse_db": reflection.get("best_nmse_db"),
         "context_summary": (
             f"Reflection round {round_index}: "
-            f"recovery_actions={reflection.get('recovery_actions', [])}; "
-            f"avoid_next={reflection.get('avoid_next', [])}"
+            f"facts={reflection.get('facts', [])}; "
+            f"failure_causes={reflection.get('failure_causes', [])}"
         ),
     }
+
+
+def _latest_reflection_facts(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for record in reversed(history):
+        if record.get("run_status") == "reflection":
+            facts = record.get("facts", [])
+            return facts if isinstance(facts, list) else []
+    return []
+
+
+def _latest_reflection_failure_causes(history: list[dict[str, Any]]) -> list[str]:
+    for record in reversed(history):
+        if record.get("run_status") == "reflection":
+            causes = record.get("failure_causes", [])
+            return [str(cause) for cause in causes] if isinstance(causes, list) else []
+    return []

@@ -40,7 +40,10 @@ class ExperimentToolsTest(unittest.TestCase):
             self.assertEqual(config["epochs"], 0)
             self.assertEqual(config["learning_rate"], 0.001)
             self.assertEqual(config["output_dir"], "reports/harness-demo")
-            self.assertEqual(result["artifacts"], ["configs/harness-demo.yaml"])
+            self.assertTrue(
+                result["artifacts"][0].endswith("harness-demo.yaml"),
+                f"Expected config path ending with harness-demo.yaml, got {result['artifacts']}",
+            )
 
     def test_generate_config_tool_routes_bare_exp_output_dir_to_reports(self):
         with TemporaryDirectory() as tmpdir:

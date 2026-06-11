@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--workspace", default=str(PROJECT_ROOT))
     run.add_argument("--provider", choices=["fake", "deepseek"], default="fake")
     run.add_argument("--goal", default="Find a low-NMSE nonlinear model under 4000 parameters and produce PSD evidence.")
-    run.add_argument("--base-config", default="configs/model-search/lstsq-complexmp-o12-m150.yaml")
+    run.add_argument("--base-config", default="configs/baselines/lstsq-complexmp-o12-m150.yaml")
     run.add_argument("--parameter-count-max", type=int, default=4000)
     run.add_argument("--nmse-threshold-db", type=float, default=-35.0)
     run.add_argument("--max-rounds", type=int, default=2)

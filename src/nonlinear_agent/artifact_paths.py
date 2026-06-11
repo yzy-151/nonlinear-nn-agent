@@ -1,9 +1,24 @@
 from __future__ import annotations
 
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 
 EXPERIMENT_OUTPUT_ROOT = "reports"
+GENERATED_CONFIG_ROOT = "runs"
+
+
+def trial_config_path(
+    run_id: str, trial_id: str, workspace: Path | None = None
+) -> Path:
+    """Compute the canonical path for a generated trial config.
+
+    Generated configs live under runs/<run_id>/configs/<trial_id>.yaml
+    so they never pollute the hand-maintained configs/baselines/ directory.
+    """
+    relative = Path(GENERATED_CONFIG_ROOT) / run_id / "configs" / f"{trial_id}.yaml"
+    if workspace is not None:
+        return workspace / relative
+    return relative
 
 
 def normalize_experiment_output_dir(value: object) -> object:

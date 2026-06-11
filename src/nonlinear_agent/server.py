@@ -28,11 +28,15 @@ FastAPI SSE 服务层 ====================================================
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional
+
+# Per-session cancel events: set by POST /cancel/{session_id}, checked by streaming loops
+_cancel_events: dict[str, asyncio.Event] = {}
 
 
 # ============================================================
@@ -98,7 +102,7 @@ class HarnessRunSpec:
     """
     session_id: str
     goal: str = "Run nonlinear NN experiment through the Agent Harness streaming runtime."
-    base_config: str = "configs/model-search/lstsq-complexmp-o12-m150.yaml"
+    base_config: str = "configs/baselines/lstsq-complexmp-o12-m150.yaml"
     output_dir: str | None = None
     epochs: int = 0
     learning_rate: float = 0.0008
@@ -230,7 +234,7 @@ async def stream_agent_events(
     goal: str = "",
     max_rounds: int = 2,
     max_experiments: int | None = None,
-    base_config: str = "configs/model-search/lstsq-complexmp-o12-m150.yaml",
+    base_config: str = "configs/baselines/lstsq-complexmp-o12-m150.yaml",
     parameter_count_max: int = 4000,
     nmse_threshold_db: float = -35.0,
     timeout_seconds: float = 300.0,
@@ -257,6 +261,10 @@ async def stream_agent_events(
     root = Path(workspace)
     _load_dotenv(root)  # 加载 .env.local（DeepSeek API Key）
 
+    # ── 注册 cancel event ──
+    cancel_evt = asyncio.Event()
+    _cancel_events[session_id] = cancel_evt
+    cancelled = False
     try:
         # ── 创建 LLM Client ──
         if provider == "fake":
@@ -296,7 +304,6 @@ async def stream_agent_events(
             event_type = agent_event.get("type", "agent_event")
 
             if event_type == "runtime_event":
-                # Runtime 事件直接透传给前端（tool_start / tool_end / metric / error）
                 inner = agent_event.get("event", {})
                 trace_event = TraceEvent(
                     session_id=inner.get("session_id", session_id),
@@ -311,7 +318,6 @@ async def stream_agent_events(
                 )
                 yield encode_sse_event(trace_event)
             else:
-                # Agent 层事件包装为 TraceEvent
                 yield encode_sse_event(TraceEvent(
                     session_id=session_id,
                     event_type=event_type,
@@ -319,12 +325,24 @@ async def stream_agent_events(
                     payload=agent_event,
                 ))
 
+            # ── 检查取消 ──
+            if cancel_evt.is_set():
+                cancelled = True
+                break
+
+        if cancelled:
+            yield encode_sse_event(TraceEvent(
+                session_id=session_id, event_type="cancelled", status="cancelled",
+                payload={"message": "Run cancelled by user."},
+            ))
+
     except Exception as exc:
-        # 任何未捕获的异常 → SSE error event，不崩溃
         yield encode_sse_event(TraceEvent(
             session_id=session_id, event_type="error", status="failed",
             error=f"Agent loop crashed: {exc}",
         ))
+    finally:
+        _cancel_events.pop(session_id, None)
 
 
 # ============================================================
@@ -383,6 +401,36 @@ def create_app(workspace: Path | str):
             "Expires": "0",
         })
 
+    # ── GET /artifacts/{artifact_path} — 安全展示运行产物 ──
+    @app.get("/artifacts/{artifact_path:path}")
+    async def artifact_file(artifact_path: str):
+        """服务运行产物图片/文本，供 Web UI 展示 PSD、summary、metrics。
+
+        只允许访问项目内常见产物目录，且用 resolve() 防止 ../ 路径逃逸。
+        """
+        from fastapi import HTTPException
+
+        allowed_roots = [
+            (root / "reports").resolve(),
+            (root / "runs").resolve(),
+            (root / "benchmarks").resolve(),
+            (root / "docs" / "assets").resolve(),
+            (root / "docs" / "diagnostics").resolve(),
+        ]
+        candidate = (root / artifact_path).resolve()
+        if not candidate.exists() or not candidate.is_file():
+            raise HTTPException(status_code=404, detail="Artifact not found.")
+        if not any(candidate == base or base in candidate.parents for base in allowed_roots):
+            raise HTTPException(status_code=404, detail="Artifact not found.")
+        return FileResponse(
+            candidate,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+
     # ── POST /runs/{session_id}/events — Fixed Workflow ──
     @app.post("/runs/{session_id}/events")
     async def run_events(session_id: str, body: Optional[Dict[str, Any]] = None):
@@ -429,7 +477,7 @@ def create_app(workspace: Path | str):
             int(max_experiments_raw) if max_experiments_raw is not None else None
         )
         base_config = str(payload.get(
-            "base_config", "configs/model-search/lstsq-complexmp-o12-m150.yaml"
+            "base_config", "configs/baselines/lstsq-complexmp-o12-m150.yaml"
         ))
         parameter_count_max = int(payload.get("parameter_count_max", 4000))
         nmse_threshold_db = float(payload.get("nmse_threshold_db", -35.0))
@@ -486,6 +534,21 @@ def create_app(workspace: Path | str):
                 pass
 
         return StreamingResponse(bench_stream(), media_type="text/event-stream")
+
+    @app.post("/cancel/{session_id}")
+    async def cancel_run(session_id: str):
+        """Cancel a running session — set cancel flag + kill train.py subprocess."""
+        evt = _cancel_events.get(session_id)
+        if evt is not None:
+            evt.set()
+        # Kill train.py subprocess so cancel works even during long training
+        import subprocess as sp
+        try:
+            sp.run('wmic process where "commandline like \'%train.py%\' and not commandline like \'%wmic%\'" call terminate',
+                   shell=True, capture_output=True, timeout=10)
+        except Exception:
+            pass
+        return {"status": "cancelling", "session_id": session_id}
 
     return app
 
@@ -613,7 +676,7 @@ async def stream_benchmark_events(
         loop = ExperimentPlannerLoop(
             planner=ExperimentPlanner(llm_client=llm),
             workspace=root,
-            base_config="configs/model-search/lstsq-complexmp-o12-m150.yaml",
+            base_config="configs/baselines/lstsq-complexmp-o12-m150.yaml",
             constraints={
                 "parameter_count_max": case.constraints.get("parameter_count_max", 4000),
                 "metric": "nmse_db",

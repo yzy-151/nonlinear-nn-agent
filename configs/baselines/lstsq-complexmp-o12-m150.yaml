@@ -1,0 +1,21 @@
+data_path: examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat
+output_dir: reports/model-search/lstsq-complexmp-o12-m150
+memory_depth: 150
+max_train_samples:
+train_ratio: 1.0
+seed: 42
+epochs: 0
+batch_size: 512
+learning_rate: 0.0
+optimizer: adam
+scheduler_step_size: 1000
+scheduler_gamma: 1.0
+nfft: 1024
+sample_rate_hz: 491520000.0
+model_type: complex_lstsq
+hidden_units: 64
+activation: silu
+target_mode: direct
+feature_mode: complex_mp
+mp_order_count: 12
+plot_title: Complex MP LSTSQ

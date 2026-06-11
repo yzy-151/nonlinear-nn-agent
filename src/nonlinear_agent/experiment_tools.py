@@ -50,7 +50,10 @@ from typing import Any
 import yaml
 
 from nonlinear_agent.agent_workflow import parse_metrics_stdout
-from nonlinear_agent.artifact_paths import normalize_experiment_output_dir
+from nonlinear_agent.artifact_paths import (
+    normalize_experiment_output_dir,
+    trial_config_path,
+)
 from nonlinear_agent.tools import ToolRegistry, ToolSpec
 
 
@@ -119,9 +122,13 @@ def generate_config_tool(
     if "output_dir" in config:
         config["output_dir"] = normalize_experiment_output_dir(config["output_dir"])
 
-    config_dir = root / "configs"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    config_path = config_dir / f"{experiment_id}.yaml"
+    # Write generated config under runs/<run_id>/configs/ to avoid
+    # polluting the hand-maintained configs/baselines/ directory.
+    # The experiment_id encodes the run context (e.g. "smoke-001-trial-3").
+    config_path = trial_config_path(
+        experiment_id, experiment_id, workspace=root
+    )
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
     return {
@@ -185,13 +192,15 @@ def run_training_tool(
     )
     elapsed = time.perf_counter() - started
 
-    # 训练失败 → 抛异常，把 stdout/stderr 包含在错误信息里
-    # 外层 ToolRegistry 会捕获并包装成 ToolResult(status="failed")
+    # 训练失败 → 只保留关键错误信息（截断 stack trace，LLM 不需要完整回溯）
     if result.returncode != 0:
+        stderr_tail = result.stderr.strip().split("\n")[-3:]  # 最后 3 行
+        stdout_tail = (result.stdout or "").strip().split("\n")[-3:]
         raise RuntimeError(
             "Training command failed "
-            f"with return code {result.returncode}.\n"
-            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            f"with return code {result.returncode}. "
+            f"stderr_tail: {'; '.join(stderr_tail)}. "
+            f"stdout_tail: {'; '.join(stdout_tail)}"
         )
 
     # 训练成功 → 解析指标和产物

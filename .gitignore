@@ -12,8 +12,26 @@ reports/
 sessions/
 traces/
 .env.local
+# Generated experiment configs (not hand-maintained baselines)
+configs/[0-9]*.yaml
+configs/agent-*.yaml
+configs/baseline_*.yaml
+configs/bm*.yaml
+configs/complex_lstsq_*.yaml
+configs/spline_mlp_*.yaml
+configs/tiny_mlp_*.yaml
+configs/tiny_md*.yaml
+configs/linear_*.yaml
+configs/mlp*.yaml
+configs/planner-demo-*.yaml
+configs/exp-*.yaml
+configs/exp_*.yaml
 configs/exp*.yaml
 configs/planner-*.yaml
+# Keep baselines and examples tracked
+!configs/baselines/
+!configs/examples/
+!configs/model-search/
 exp[0-9]*/
 /exp*/
 /experiment*/
