@@ -20,10 +20,13 @@ LLM 输出不可信，必须过安检。本文件是 Agent 的"安全检查站"�
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from nonlinear_agent.artifact_paths import normalize_experiment_output_dir
 from nonlinear_agent.experiment import ExperimentConfig
+
+if TYPE_CHECKING:
+    from nonlinear_agent.domains.base import DomainPlugin
 
 
 # ============================================================
@@ -94,6 +97,7 @@ def normalize_planner_overrides(overrides: dict[str, Any]) -> dict[str, Any]:
 def validate_planned_overrides(
     overrides: dict[str, Any],
     parameter_count_max: int | None = None,
+    domain: DomainPlugin | None = None,
 ) -> dict[str, Any]:
     """对 LLM 输出的 overrides 做完整校验。
 
@@ -124,20 +128,25 @@ def validate_planned_overrides(
             f"Unsupported planner override fields: {', '.join(unsupported)}"
         )
 
-    # 第 4 步：值类型/范围检查
-    _validate_field_values(normalized)
-
-    # 第 5 步：参数预算检查
-    if parameter_count_max is not None:
-        parameter_count = estimate_parameter_count(normalized)
-        if parameter_count is not None and parameter_count > parameter_count_max:
-            raise ValueError(
-                f"Estimated parameter count {parameter_count} "
-                f"exceeds parameter budget {parameter_count_max}."
-            )
-        # 把预估值附带到结果里（供日志/调试用，最终返回前会移除）
-        if parameter_count is not None:
-            normalized["estimated_parameter_count"] = parameter_count
+    # 第 4 步：domain-specific 检查（若提供 domain 则委托）
+    if domain is not None:
+        domain_errors = domain.validate_candidate(
+            normalized, parameter_count_max or 4000
+        )
+        if domain_errors:
+            raise ValueError("; ".join(domain_errors))
+    else:
+        # 向后兼容：没有 domain 时使用内置检查
+        _validate_field_values(normalized)
+        if parameter_count_max is not None:
+            parameter_count = estimate_parameter_count(normalized)
+            if parameter_count is not None and parameter_count > parameter_count_max:
+                raise ValueError(
+                    f"Estimated parameter count {parameter_count} "
+                    f"exceeds parameter budget {parameter_count_max}."
+                )
+            if parameter_count is not None:
+                normalized["estimated_parameter_count"] = parameter_count
 
     # 移除非配置字段（estimated_parameter_count 是 Guard 内部使用的）
     return {
@@ -233,7 +242,7 @@ def _validate_field_values(overrides: dict[str, Any]) -> None:
             raise ValueError(f"{field} must be a positive integer.")
 
     # epochs 特殊处理：complex_lstsq 允许 0（闭式解不需要训练），
-    # 但神经模型必须 >= 1
+    # 但神经模型必须 >= 1。如果 LLM 没写 epochs 也给一个合理的默认值。
     if "epochs" in overrides:
         if (
             not isinstance(overrides["epochs"], int)
@@ -248,6 +257,9 @@ def _validate_field_values(overrides: dict[str, Any]) -> None:
             raise ValueError(
                 f"epochs must be >= 1 for neural model {model_type}."
             )
+    elif model_type in {"tiny_mlp", "spline_mlp", "linear", "complex_cnn"}:
+        # LLM forgot to set epochs → inject a safe default instead of crashing at train time
+        overrides["epochs"] = 200
 
     # 浮点数字段
     for field in ("learning_rate", "scheduler_gamma", "train_ratio"):

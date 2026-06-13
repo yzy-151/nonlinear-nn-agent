@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any, AsyncIterator, Callable, TYPE_CHECKING
 
 from nonlinear_agent.context_memory import HistoryCompressor
 from nonlinear_agent.planner import ExperimentPlanner
@@ -37,6 +37,9 @@ from nonlinear_agent.planner_validation import validate_planned_overrides
 from nonlinear_agent.reflection import ReflectionPolicy
 from nonlinear_agent.run_artifacts import RunArtifactWriter, default_run_dir
 from nonlinear_agent.server import HarnessRunSpec, build_harness_request, build_runtime
+
+if TYPE_CHECKING:
+    from nonlinear_agent.domains.base import DomainPlugin
 
 
 # ============================================================
@@ -85,26 +88,31 @@ class ExperimentPlannerLoop:
         planner: ExperimentPlanner,
         workspace: Path | str,
         runtime_factory: RuntimeFactory | None = None,
-        base_config: str = "configs/baselines/lstsq-complexmp-o12-m150.yaml",
+        base_config: str | None = None,
         constraints: dict[str, Any] | None = None,
         timeout_seconds: float = 300.0,
         artifact_dir: Path | str | None = None,
         history_compressor: HistoryCompressor | None = None,
         reflection_policy: ReflectionPolicy | None = None,
+        domain: DomainPlugin | None = None,
     ):
         self.planner = planner
         self.workspace = Path(workspace)
+        self.domain = domain
         # 如果没有传 runtime_factory，默认用 build_runtime 创建
         self.runtime_factory = runtime_factory or (
             lambda session_id: build_runtime(
                 self.workspace, session_id=session_id, timeout_seconds=timeout_seconds
             )
         )
-        self.base_config = base_config
-        self.constraints = constraints or {
-            "parameter_count_max": 4000,
-            "metric": "nmse_db",
-        }
+        self.base_config = base_config or (
+            domain.default_base_config() if domain is not None
+            else "configs/baselines/lstsq-complexmp-o12-m150.yaml"
+        )
+        self.constraints = constraints or (
+            domain.default_constraints() if domain is not None
+            else {"parameter_count_max": 4000, "metric": "nmse_db"}
+        )
         self.timeout_seconds = timeout_seconds
         self.artifact_writer = RunArtifactWriter(
             artifact_dir or default_run_dir(self.workspace)
@@ -178,6 +186,7 @@ class ExperimentPlannerLoop:
                     overrides = validate_planned_overrides(
                         experiment.overrides,
                         parameter_count_max=self.constraints.get("parameter_count_max"),
+                        domain=getattr(self, "domain", None),
                     )
                 except ValueError as exc:
                     history.append({
@@ -353,6 +362,7 @@ class ExperimentPlannerLoop:
                     overrides = validate_planned_overrides(
                         experiment.overrides,
                         parameter_count_max=self.constraints.get("parameter_count_max"),
+                        domain=getattr(self, "domain", None),
                     )
                 except ValueError as exc:
                     record = {

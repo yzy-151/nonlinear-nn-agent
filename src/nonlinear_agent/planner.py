@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field, is_dataclass
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from nonlinear_agent.llm import LLMClient
 from nonlinear_agent.planner_validation import normalize_planner_overrides
+
+if TYPE_CHECKING:
+    from nonlinear_agent.domains.base import DomainPlugin
 
 
 # ============================================================
@@ -78,9 +81,16 @@ class ExperimentPlanner:
         → plan() 构造 prompt → llm.complete(prompt) → 解析 JSON → ExperimentPlan
     """
 
-    def __init__(self, llm_client: LLMClient, allowed_tools: list[str] | None = None):
-        """allowed_tools 会嵌入 prompt，告诉 LLM 它能用哪些工具。"""
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        allowed_tools: list[str] | None = None,
+        domain: DomainPlugin | None = None,
+    ):
+        """allowed_tools 会嵌入 prompt，告诉 LLM 它能用哪些工具。
+        如果提供了 domain，指令和工具列表从 domain 获取。"""
         self.llm_client = llm_client
+        self.domain = domain
         self.allowed_tools = allowed_tools or [
             "generate_config", "run_training", "verify_artifacts", "write_report",
         ]
@@ -136,6 +146,41 @@ class ExperimentPlanner:
           不是为了"调参"，而是为了"让 LLM 在不写代码不调 shell 的情况下
           做出可执行的实验决策"。
         """
+        # Domain-specific instructions: from the plugin if available,
+        # otherwise use the built-in nonlinear modeling instructions.
+        if self.domain is not None:
+            domain_instructions = self.domain.planner_instructions()
+        else:
+            domain_instructions = (
+                "Executable design space:\n"
+                "- model_type: complex_lstsq, linear, tiny_mlp, spline_mlp.\n"
+                "- feature_mode: complex_mp is preferred for RF nonlinear memory "
+                "polynomial structure; legacy_abs is a baseline.\n"
+                "- complex_lstsq explores memory_depth and mp_order_count "
+                "with closed-form fitting.\n"
+                "- tiny_mlp explores hidden_units and activation in "
+                "relu/tanh/silu/gelu.\n"
+                "- spline_mlp is a physics-informed shallow nonlinear model: "
+                "one nonlinear layer with a learnable 1D LUT activation, "
+                "usually spline_knots=16 and first-order linear interpolation.\n"
+                "- Good spline_mlp candidates under 4000 params: "
+                "feature_mode=complex_mp, mp_order_count=1, "
+                "memory_depth in [24, 48, 72], hidden_units in [16, 32], "
+                "spline_knots=16.\n"
+                "- Keep parameter_count_max from constraints; prefer fewer "
+                "parameters when NMSE is similar.\n"
+                "- Compare model performance from history before designing new experiments. "
+                "If a model family consistently outperforms others with fewer parameters "
+                "and less training time, prefer it.\n"
+                "- spline_mlp/tiny_mlp require epochs >= 1. If you forget to set epochs "
+                "the runtime will inject epochs=200.\n"
+                "Use overrides for YAML config fields such as model_type, "
+                "feature_mode, memory_depth, mp_order_count, epochs, "
+                "learning_rate, optimizer, output_dir, hidden_units, "
+                "activation, spline_knots, spline_range. "
+                "Do not output shell commands. "
+            )
+
         return (
             "Design the next nonlinear-system modeling experiments.\n"
             f"Goal: {goal}\n"
@@ -144,31 +189,7 @@ class ExperimentPlanner:
             "Return JSON only with schema:\n"
             '{"summary": str, "stop": bool, "experiments": ['
             '{"id": str, "reason": str, "overrides": object}]}\n'
-            # ── 领域知识注入 ──
-            # 下面这块是物理/算法先验，不是通用能力
-            "Executable design space:\n"
-            "- model_type: complex_lstsq, linear, tiny_mlp, spline_mlp.\n"
-            "- feature_mode: complex_mp is preferred for RF nonlinear memory "
-            "polynomial structure; legacy_abs is a baseline.\n"
-            "- complex_lstsq explores memory_depth and mp_order_count "
-            "with closed-form fitting.\n"
-            "- tiny_mlp explores hidden_units and activation in "
-            "relu/tanh/silu/gelu.\n"
-            "- spline_mlp is a physics-informed shallow nonlinear model: "
-            "one nonlinear layer with a learnable 1D LUT activation, "
-            "usually spline_knots=16 and first-order linear interpolation.\n"
-            "- Good spline_mlp candidates under 4000 params: "
-            "feature_mode=complex_mp, mp_order_count=1, "
-            "memory_depth in [24, 48, 72], hidden_units in [16, 32], "
-            "spline_knots=16.\n"
-            "- Keep parameter_count_max from constraints; prefer fewer "
-            "parameters when NMSE is similar.\n"
-            "Use overrides for YAML config fields such as model_type, "
-            "feature_mode, memory_depth, mp_order_count, epochs, "
-            "learning_rate, optimizer, output_dir, hidden_units, "
-            "activation, spline_knots, spline_range. "
-            "Do not output shell commands. "
-            # ── 安全边界：告诉 LLM 能调哪些工具 ──
+            f"{domain_instructions}"
             f"The runtime will only use these tools: "
             f"{_format_allowed_tools(self.allowed_tools)}."
         )
