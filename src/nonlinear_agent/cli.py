@@ -63,6 +63,17 @@ def build_parser() -> argparse.ArgumentParser:
     dashboard.add_argument("--workspace", default=str(PROJECT_ROOT))
     dashboard.add_argument("--output")
 
+    compare = subparsers.add_parser("compare-search", help="Run multi-strategy search comparison.")
+    compare.add_argument("--workspace", default=str(PROJECT_ROOT))
+    compare.add_argument("--methods", default="random_search,optuna_tpe,llm_no_reflection,llm_with_reflection")
+    compare.add_argument("--seeds", default="7,17,29,43,61")
+    compare.add_argument("--trial-budget", type=int, default=10)
+    compare.add_argument("--parameter-count-max", type=int, default=4000)
+    compare.add_argument("--nmse-threshold-db", type=float, default=-35.0)
+    compare.add_argument("--output-dir", default="benchmarks/nonlinear-search-v1")
+    compare.add_argument("--smoke", action="store_true", help="Use reduced smoke budget (2 seeds x 3 trials)")
+    compare.add_argument("--dry-run", action="store_true", help="Print protocol and exit without running")
+
     serve = subparsers.add_parser("serve", help="Serve the SSE harness API.")
     serve.add_argument("--workspace", default=str(PROJECT_ROOT))
     serve.add_argument("--host", default="127.0.0.1")
@@ -77,6 +88,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return asyncio.run(_run_planner(args))
     if args.command == "benchmark":
         return _run_benchmark(args)
+    if args.command == "compare-search":
+        return _run_compare_search(args)
     if args.command == "diagnostics":
         return _write_diagnostics(args)
     if args.command == "dashboard":
@@ -118,6 +131,36 @@ async def _run_planner(args: argparse.Namespace) -> int:
     )
     result = await loop.run(goal=args.goal, max_rounds=args.max_rounds, max_experiments=args.max_experiments)
     print(json.dumps(result.__dict__, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _run_compare_search(args: argparse.Namespace) -> int:
+    from nonlinear_agent.evaluation_protocol import EvaluationProtocol
+
+    methods = [m.strip() for m in args.methods.split(",")]
+    seeds = [int(s.strip()) for s in args.seeds.split(",")]
+    if args.smoke:
+        seeds = seeds[:2]
+        args.trial_budget = 3
+
+    protocol = EvaluationProtocol(
+        methods=methods,
+        seeds=seeds,
+        trial_budget=args.trial_budget,
+        parameter_count_max=args.parameter_count_max,
+        nmse_threshold_db=args.nmse_threshold_db,
+    )
+
+    if args.dry_run:
+        import json
+        print(json.dumps(protocol.to_dict(), indent=2, ensure_ascii=False))
+        print(f"Output directory: {args.output_dir}")
+        return 0
+
+    print(f"Protocol: {protocol.estimate_total_trials()} total trials "
+          f"({len(methods)} methods x {len(seeds)} seeds x {args.trial_budget} trials)")
+    print(f"Output: {args.output_dir}")
+    print("(Full compare-search execution requires a running agent loop — use the Web UI or run subcommand.)")
     return 0
 
 
