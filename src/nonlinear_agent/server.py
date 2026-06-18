@@ -175,21 +175,29 @@ def build_harness_request(spec: HarnessRunSpec) -> HarnessRequest:
 # ============================================================
 # SSE 编码
 # ============================================================
-def encode_sse_event(event: TraceEvent) -> str:
-    """把一个 TraceEvent 编码为 SSE 格式的字符串。
+# Per-session monotonic event ID counter for SSE id: field
+_session_event_counters: dict[str, int] = {}
 
-    SSE 格式（Server-Sent Events）：
-      event: <event_type>\n
-      data: <json_payload>\n
-      \n
+def _next_event_id(session_id: str) -> int:
+    current = _session_event_counters.get(session_id, 0)
+    _session_event_counters[session_id] = current + 1
+    return current + 1
 
-    浏览器 EventSource API 能自动解析这个格式。
-    default=str 确保 datetime 等不可 JSON 序列化的类型不会导致崩溃。
-    """
-    return "event: {event_type}\ndata: {payload}\n\n".format(
-        event_type=event.event_type,
-        payload=json.dumps(event.to_dict(), ensure_ascii=False, default=str),
-    )
+HEARTBEAT_SSE = ": heartbeat\n\n"
+
+def encode_sse_event(
+    event: TraceEvent,
+    event_id: int | None = None,
+) -> str:
+    """Encode a TraceEvent as SSE with optional id: field (v2.0)."""
+    lines: list[str] = []
+    if event_id is not None:
+        lines.append(f"id: {event_id}")
+    lines.append(f"event: {event.event_type}")
+    lines.append(f"data: {json.dumps(event.to_dict(), ensure_ascii=False, default=str)}")
+    lines.append("")
+    lines.append("")  # trailing blank line per SSE spec
+    return "\n".join(lines)
 
 
 async def stream_sse_events(

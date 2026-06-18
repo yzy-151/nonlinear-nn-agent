@@ -19,6 +19,15 @@ class TraceEvent:
     payload: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
     error_type: str | None = None
+    # v2 fields: hierarchical tracing and cost observability
+    trace_id: str | None = None
+    span_id: str | None = None
+    parent_span_id: str | None = None
+    attempt: int | None = None
+    model: str | None = None
+    config_hash: str | None = None
+    token_count: int | None = None
+    cost_usd: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
