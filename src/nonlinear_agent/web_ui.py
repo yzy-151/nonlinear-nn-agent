@@ -114,6 +114,8 @@ select{cursor:pointer}
 }
 .btn-go:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 24px rgba(37,99,235,.22)}
 .btn-go:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:none;box-shadow:none}
+.btn-stop{background:linear-gradient(135deg,var(--red),#dc2626);color:#fff;box-shadow:0 2px 12px rgba(239,68,68,.18);display:none}
+.btn-stop:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(239,68,68,.3)}
 .btn-ghost{
   background:var(--panel);color:var(--text);border:1px solid var(--border);
 }
@@ -135,9 +137,15 @@ pre.ev{
   font:13.5px/1.7 "Cascadia Code","Fira Code",Consolas,monospace;
   white-space:pre-wrap;word-break:break-word;
 }
-.ev-start{color:#60a5fa}.ev-end{color:#86efac}.ev-error{color:#fca5a5}
-.ev-metric{color:#fbbf24}.ev-plan{color:#c4b5fd}.ev-reflect{color:#f9a8d4}
-.ev-round{color:#67e8f9}.ev-info{color:#94a3b8}
+.ev-running{color:#60a5fa}
+.ev-success{color:#86efac}
+.ev-failure{color:#fca5a5;font-weight:700}
+.ev-warning{color:#fb923c;font-weight:700}
+.ev-metric{color:#fbbf24}
+.ev-planner{color:#c4b5fd}
+.ev-reflection{color:#f9a8d4}
+.ev-benchmark{color:#67e8f9}
+.ev-info{color:#94a3b8}
 
 .note{
   margin-top:8px;padding:9px 13px;border-radius:10px;
@@ -151,6 +159,23 @@ pre.ev{
 .metric-list{display:grid;gap:8px;margin:12px 0 4px}
 .metric{padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:12px}
 .metric code{color:var(--blue);font-weight:700}
+.preview{
+  display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;background:#020617;
+}
+.preview.on{display:block}
+.preview-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:12px 14px;border-bottom:1px solid var(--border);background:#111827;
+}
+.preview-head h3{font-size:14px;margin:0}
+.preview-meta{font-size:12px;color:var(--muted)}
+.preview img{display:block;width:100%;height:auto;background:#f8fafc}
+.result-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px 14px}
+@media(max-width:900px){.result-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.result-chip{border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:8px 10px}
+.result-chip span{display:block;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.4px}
+.result-chip b{display:block;margin-top:2px;font-size:14px;color:var(--ink);font-weight:750}
 
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -172,6 +197,7 @@ pre.ev{
   <div class="tab active" data-tab="workflow">&#9881; Workflow</div>
   <div class="tab" data-tab="agent">&#10027; Agent Planner</div>
   <div class="tab" data-tab="benchmark">&#9733; Benchmark</div>
+  <div class="tab" data-tab="compare">&#9733; Strategy Comparison</div>
 </nav>
 
 <main>
@@ -223,7 +249,12 @@ pre.ev{
     </select>
     <div class="note on" id="noteFake">Preset demo plans. No API key needed.</div>
     <div class="note" id="noteDp">Reads <code>DEEPSEEK_API_KEY</code> from <code>.env.local</code></div>
-    <label for="agGoal">Goal</label>
+    <label for="agDom">Domain</label>
+      <select id="agDom">
+        <option value="">Nonlinear Modeling</option>
+        <option value="synthetic">Synthetic Regression</option>
+      </select>
+      <label for="agGoal">Goal</label>
     <textarea id="agGoal">Find a low-NMSE nonlinear model under 4000 parameters.</textarea>
     <div class="card-grid">
       <div><label for="agRnd">Max Rounds</label><input id="agRnd" type="number" min="1" max="20" value="2"></div>
@@ -235,6 +266,28 @@ pre.ev{
     </div>
     <label for="agTo">Timeout (seconds)</label><input id="agTo" type="number" min="1" value="300">
     <button type="button" class="btn btn-go" id="agBtn">&#10027; Start Agent Loop</button>
+  </div>
+
+  <!-- COMPARE -->
+  <div class="card" id="panel-compare" style="display:none">
+    <h2>&#9878; Strategy Comparison</h2>
+    <p class="hint">
+      <strong>4 methods x 5 seeds x 10 trials = 200 effective trials.</strong>
+      Random / Optuna TPE / LLM no-Reflection / LLM with Reflection.
+      All methods share the same data split, candidate space, and trial budget.
+    </p>
+    <div class="card-grid" style="grid-template-columns:1fr 1fr">
+      <div><label>Protocol</label><select id="cmpProto">
+        <option value="smoke">Smoke (2 seeds x 3 trials = 24)</option>
+        <option value="full" selected>Full (5 seeds x 10 trials = 200)</option>
+      </select></div>
+      <div><label>Workspace</label><input id="cmpWs" value="."></div>
+    </div>
+    <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:12px">&#9878; Run Strategy Comparison</button>
+    <div class="note on" style="margin-top:14px;display:block">
+      <strong>Demo data</strong> — 4 methods compared.
+      Real execution requires <code>python agent.py compare-search</code> in terminal.
+    </div>
   </div>
 
   <!-- BENCHMARK -->
@@ -262,7 +315,24 @@ pre.ev{
 <div class="card">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
     <h2 style="margin-bottom:0">Runtime Events</h2>
-    <span style="font-size:13px;color:var(--muted)">Events: <b style="color:var(--blue);font-size:20px" id="evCount">0</b></span>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button type="button" class="btn btn-stop" id="stopBtn" style="min-height:36px;padding:6px 16px;margin-top:0;width:auto;font-size:13px">&#9724; Stop</button>
+      <span style="font-size:13px;color:var(--muted)">Events: <b style="color:var(--blue);font-size:20px" id="evCount">0</b></span>
+    </div>
+  </div>
+  <div class="preview" id="resultPreview">
+    <div class="preview-head">
+      <h3>Result Preview</h3>
+      <a class="lnk" id="psdLink" href="#" target="_blank">Open PSD</a>
+    </div>
+    <img id="psdPreview" alt="PSD result preview">
+    <div class="result-grid">
+      <div class="result-chip"><span>current_nmse_db</span><b id="chipNmse">-</b></div>
+      <div class="result-chip"><span>baseline_nmse_db</span><b id="chipBase">-</b></div>
+      <div class="result-chip"><span>nmse_improvement_db</span><b id="chipGain">-</b></div>
+      <div class="result-chip"><span>parameter_count</span><b id="chipParams">-</b></div>
+    </div>
+    <div class="preview-meta" id="previewMeta" style="padding:0 14px 14px">Waiting for a run that returns psd.png.</div>
   </div>
   <pre class="ev" id="evBox">Ready &mdash; pick a tab, fill the form, press Start.</pre>
   <button type="button" class="btn btn-ghost" id="clearBtn" style="margin-top:14px;width:auto;min-height:38px;padding:8px 18px">Clear Log</button>
@@ -274,10 +344,14 @@ pre.ev{
 console.log("UI ready");
 
 var sd=document.getElementById("statusDot"),sl=document.getElementById("statusLabel"),
-eb=document.getElementById("evBox"),ec=document.getElementById("evCount"),c=0;
+eb=document.getElementById("evBox"),ec=document.getElementById("evCount"),c=0,
+rp=document.getElementById("resultPreview"),pi=document.getElementById("psdPreview"),
+pl=document.getElementById("psdLink"),pm=document.getElementById("previewMeta"),
+chipNmse=document.getElementById("chipNmse"),chipBase=document.getElementById("chipBase"),
+chipGain=document.getElementById("chipGain"),chipParams=document.getElementById("chipParams");
 function ss(s){sd.className="dot "+s;sl.textContent=s.charAt(0).toUpperCase()+s.slice(1)}
-function al(txt,cls){if(c===0)eb.textContent="";eb.textContent+=txt+"\n";c++;ec.textContent=c;eb.scrollTop=eb.scrollHeight}
-function ecs(t){if(t==="tool_start"||t==="start"||t==="agent_start")return"ev-start";if(t==="tool_end"||t==="complete"||t==="loop_complete"||t==="experiment_end")return"ev-end";if(t==="error"||t==="experiment_rejected")return"ev-error";if(t==="metric")return"ev-metric";if(t==="plan_generated")return"ev-plan";if(t==="reflection")return"ev-reflect";if(t==="round_start")return"ev-round";return"ev-info"}
+function al(txt,cls){if(c===0)eb.innerHTML="";eb.innerHTML+='<span class="'+cls+'">'+txt.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+'</span>\n';c++;ec.textContent=c;eb.scrollTop=eb.scrollHeight}
+function ecs(t,obj){if(t==="tool_start"||t==="start"||t==="agent_start"||t==="experiment_start"||t==="round_start")return"ev-running";if(t==="tool_end"||t==="complete"||t==="loop_complete"||t==="experiment_end")return"ev-success";if(t==="error"){var et=(obj||{}).error_type||((obj||{}).payload||{}).error_type||"";if(et==="metric_threshold_error")return"ev-warning";return"ev-failure"}if(t==="experiment_rejected"||t==="cancelled")return"ev-failure";if(t==="metric")return"ev-metric";if(t==="plan_generated")return"ev-planner";if(t==="reflection")return"ev-reflection";if(t==="benchmark_case_start"||t==="benchmark_case_end"||t==="benchmark_complete")return"ev-benchmark";return"ev-info"}
 
 document.querySelectorAll(".tab").forEach(function(t){t.addEventListener("click",function(){
   document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("active")});
@@ -285,6 +359,7 @@ document.querySelectorAll(".tab").forEach(function(t){t.addEventListener("click"
   document.getElementById("panel-workflow").style.display=(m==="workflow")?"":"none";
   document.getElementById("panel-agent").style.display=(m==="agent")?"":"none";
   document.getElementById("panel-benchmark").style.display=(m==="benchmark")?"":"none";
+  document.getElementById("panel-compare").style.display=(m==="compare")?"":"none";
 })});
 
 document.getElementById("agProv").addEventListener("change",function(){
@@ -294,35 +369,100 @@ document.getElementById("agProv").addEventListener("change",function(){
 document.getElementById("clearBtn").addEventListener("click",function(){eb.textContent="Ready.\n";c=0;ec.textContent="0"});
 
 function ts(s){return new Date(s*1000).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+function fmtNum(v,d){return typeof v==="number"?v.toFixed(d):"-"}
+function artifactUrl(p){return "/artifacts/"+String(p).replace(/\\/g,"/").split("/").map(encodeURIComponent).join("/")}
+function maybeShowPreview(metrics,artifacts,source){
+  metrics=metrics||{};artifacts=artifacts||[];
+  var psd=artifacts.find(function(a){return String(a).replace(/\\/g,"/").toLowerCase().endsWith("psd.png")});
+  if(!psd)return;
+  var url=artifactUrl(psd)+"?t="+Date.now();
+  pi.src=url;pl.href=url;rp.classList.add("on");
+  chipNmse.textContent=metrics.nmse_db!=null?fmtNum(Number(metrics.nmse_db),2)+" dB":"-";
+  chipBase.textContent=metrics.baseline_nmse_db!=null?fmtNum(Number(metrics.baseline_nmse_db),2)+" dB":"-";
+  chipGain.textContent=metrics.nmse_improvement_db!=null?fmtNum(Number(metrics.nmse_improvement_db),2)+" dB":"-";
+  chipParams.textContent=metrics.parameter_count!=null?String(metrics.parameter_count):"-";
+  pm.textContent="source="+source+" | artifact="+psd;
+}
+function appendMetrics(out,m,prefix){
+  if(!m)return;
+  var keys=["nmse_db","baseline_nmse_db","nmse_improvement_db","parameter_count","final_train_loss","model_type","feature_mode","target_mode","mp_order_count","samples","train_samples","epochs"];
+  var shown=[];
+  keys.forEach(function(k){if(m[k]!=null)shown.push(k+"="+(typeof m[k]==="number"?(k.indexOf("nmse")>=0||k==="final_train_loss"?Number(m[k]).toPrecision(5):m[k]):m[k]))});
+  Object.keys(m).sort().forEach(function(k){if(keys.indexOf(k)<0&&m[k]!=null)shown.push(k+"="+m[k])});
+  if(shown.length)out.push("  "+prefix+": "+shown.join(" | "));
+}
+function appendArtifacts(out,arts){
+  if(!arts||!arts.length)return;
+  out.push("  artifacts:");
+  arts.forEach(function(a){out.push("    - "+a)});
+}
 function fm(obj){
-  var t=obj.event_type||obj.type||"",h=obj.timestamp?"["+ts(obj.timestamp)+"] ":"";
-  h+=t;if(obj.tool)h+=" | "+obj.tool;if(obj.step)h+=" | "+obj.step;
-  if(obj.status&&t!=="metric")h+=" | "+obj.status;
-  if(obj.latency_ms!=null)h+=" | "+Math.round(obj.latency_ms)+"ms";
-  var p=obj.payload||{},out=[h];
-  if(p.summary)out.push("  plan: "+p.summary);
-  if(p.experiments&&p.experiments.length){p.experiments.forEach(function(e){out.push("  + "+e.id+(e.reason?" - "+e.reason:""));if(e.overrides){var o=e.overrides,os=[];if(o.model_type)os.push(o.model_type);if(o.memory_depth)os.push("mem="+o.memory_depth);if(o.mp_order_count)os.push("mp="+o.mp_order_count);if(o.hidden_units)os.push("h="+o.hidden_units);if(o.epochs!=null)os.push("ep="+o.epochs);if(os.length)out.push("    "+os.join(" "))}})}
-  if(p.id)out.push("  id: "+p.id);
-  if(p.round!=null)out.push("  round: "+p.round);
-  if(p.history_count!=null)out.push("  history: "+p.history_count);
-  if(p.reflection){var r=p.reflection,sc=r.status_counts||{};out.push("  round: "+r.round+" | OK:"+(sc.succeeded||0)+" FAIL:"+(sc.failed||0)+" REJ:"+(sc.rejected||0));if(r.best_nmse_db!=null)out.push("  best: "+Number(r.best_nmse_db).toFixed(2)+" dB");if(r.failure_causes)r.failure_causes.forEach(function(c){out.push("  cause: "+c)})}
-  if(p.output){if(p.output.context_summary)out.push("  "+p.output.context_summary);if(p.output.elapsed_seconds)out.push("  elapsed: "+Number(p.output.elapsed_seconds).toFixed(1)+"s");if(p.output.metrics){var om=p.output.metrics;if(om.nmse_db!=null)out.push("  NMSE: "+Number(om.nmse_db).toFixed(2)+" dB");if(om.parameter_count!=null)out.push("  params: "+om.parameter_count)}}
-  if(p.metrics){var m=p.metrics;if(m.run_status)out.push("  run: "+m.run_status);if(m.nmse_db!=null)out.push("  NMSE: "+Number(m.nmse_db).toFixed(2)+" dB")}
+  var root=obj||{},p=root.payload||{},t=root.event_type||root.type||p.type||"",h=root.timestamp?"["+ts(root.timestamp)+"] ":"";
+  h+=t+" | source="+(root.session_id||p.session_id||"unknown");if(root.step)h+=" | "+root.step;if(root.tool)h+=" | tool="+root.tool;
+  if(root.status&&t!=="metric")h+=" | "+root.status;
+  if(root.latency_ms!=null)h+=" | "+Math.round(root.latency_ms)+"ms";
+  var out=[h];
+  if(t==="start"&&p.goal){out.push("  goal: "+p.goal);out.push("  steps: "+p.step_count+" | resume_from_step="+p.resume_from_step)}
+  if(t==="tool_start"&&p.args){out.push("  input args: "+JSON.stringify(p.args))}
+  if(t==="plan_generated"){
+    var causes=p.previous_reflection_failure_causes||root.previous_reflection_failure_causes||[];
+    if(causes.length){
+      out.push("  previous error reasons:");
+      causes.forEach(function(cause){out.push("    - "+cause)})
+    }
+  }
+  if(t==="plan_generated"){
+    var facts=p.previous_reflection_facts||root.previous_reflection_facts||[];
+    if(facts.length){
+    out.push("  previous reflection facts:");
+    facts.forEach(function(f){
+      var row=[f.id||"unknown",f.status||f.run_status||""];
+      if(f.error)row.push("error="+f.error);
+      if(f.error_type)row.push("error_type="+f.error_type);
+      if(f.nmse_db!=null)row.push("nmse="+Number(f.nmse_db).toFixed(2)+" dB");
+      if(f.parameter_count!=null)row.push("params="+f.parameter_count);
+      out.push("    - "+row.filter(Boolean).join(" | "))
+    })
+    }
+  }
+  if(p.summary||root.summary)out.push((t==="plan_generated"?"  new plan: ":"  plan: ")+(p.summary||root.summary));
+  var experiments=p.experiments||root.experiments||[];
+  if(experiments.length){experiments.forEach(function(e){out.push("  + "+e.id+(e.reason?" - "+e.reason:""));if(e.overrides){var o=e.overrides,os=[];if(o.model_type)os.push(o.model_type);if(o.memory_depth)os.push("mem="+o.memory_depth);if(o.mp_order_count)os.push("mp="+o.mp_order_count);if(o.hidden_units)os.push("h="+o.hidden_units);if(o.epochs!=null)os.push("ep="+o.epochs);if(os.length)out.push("    "+os.join(" "))}})}
+  if(p.id||root.id)out.push("  id: "+(p.id||root.id));
+  if(p.round!=null||root.round!=null)out.push("  round: "+(p.round!=null?p.round:root.round));
+  if(p.history_count!=null||root.history_count!=null)out.push("  history: "+(p.history_count!=null?p.history_count:root.history_count));
+  if(p.reflection){var r=p.reflection,sc=r.status_counts||{};out.push("  facts extracted from round "+r.round+" | OK:"+(sc.succeeded||0)+" FAIL:"+(sc.failed||0)+" REJ:"+(sc.rejected||0));if(r.best_nmse_db!=null)out.push("  best: "+Number(r.best_nmse_db).toFixed(2)+" dB");if(r.failure_causes)r.failure_causes.forEach(function(c){out.push("  cause: "+c)});if(r.facts)r.facts.forEach(function(f){out.push("  fact: "+JSON.stringify(f))})}
+  if(p.output){if(p.output.context_summary)out.push("  summary: "+p.output.context_summary);if(p.output.elapsed_seconds)out.push("  elapsed: "+Number(p.output.elapsed_seconds).toFixed(1)+"s");appendMetrics(out,p.output.metrics,"tool metrics");appendArtifacts(out,p.output.artifacts);maybeShowPreview(p.output.metrics,p.output.artifacts,root.tool||t)}
+  if(p.metrics){appendMetrics(out,p.metrics,"session metrics");appendArtifacts(out,p.artifacts);maybeShowPreview(p.metrics,p.artifacts,"complete")}
   if(t==="metric"&&p.name&&p.value!=null){var v=p.value,nm=p.name;if(typeof v==="number"){if(nm==="nmse_db")v=Number(v).toFixed(2);else if(nm==="final_train_loss")v=Number(v).toExponential(3);else v=Number(v).toFixed(4)}out.push("  "+nm+" = "+v)}
-  if(obj.error)out.push("  ERR: "+obj.error.substring(0,200));
+  if(t==="benchmark_case_start")out.push("  case "+p.case_index+"/"+p.total_cases+": "+p.case_id+" | "+p.goal);
+  if(t==="benchmark_case_end")out.push("  case: "+p.case_id+" | hit="+p.target_hit+" | best_nmse="+p.best_nmse_db+" | ok="+p.succeeded+" fail="+p.failed+" rejected="+p.rejected);
+  if(t==="benchmark_complete"&&p.summary)appendMetrics(out,p.summary,"benchmark summary");
+  if(root.error)out.push("  ERR: "+root.error.substring(0,200));
   return out.join("\n")
 }
 
+var currentSid=null,stopBtn=document.getElementById("stopBtn");
+stopBtn.addEventListener("click",function(){
+  if(!currentSid)return;
+  fetch("/cancel/"+encodeURIComponent(currentSid),{method:"POST"}).catch(function(){});
+  stopBtn.style.display="none"
+});
+
 async function go(url,body,btn){
   btn.disabled=true;var orig=btn.textContent;btn.textContent="Running...";ss("running");eb.textContent="";c=0;ec.textContent="0";
+  // Extract session_id from URL for cancel
+  var m=url.match(/\/agent\/([^/]+)\/events|\/runs\/([^/]+)\/events/);
+  currentSid=m?(m[1]||m[2]):"benchmark";
+  stopBtn.style.display="inline-flex";
   try{
     var resp=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     if(!resp.ok)throw new Error("HTTP "+resp.status);
     var reader=resp.body.getReader(),decoder=new TextDecoder(),buf="";
-    while(true){var part=await reader.read();if(part.done)break;buf+=decoder.decode(part.value,{stream:true});var lines=buf.split("\n");buf=lines.pop()||"";for(var i=0;i<lines.length;i++){var line=lines[i];if(!line.trim())continue;if(line.indexOf("event:")===0)al("\n["+line.slice(6).trim()+"]",ecs(line.slice(6).trim()));else if(line.indexOf("data:")===0)try{al(fm(JSON.parse(line.slice(5).trim())),ecs((JSON.parse(line.slice(5).trim())).event_type||(JSON.parse(line.slice(5).trim())).type||""))}catch(_){al(line.slice(5).trim(),"ev-info")}}}
+    while(true){var part=await reader.read();if(part.done)break;buf+=decoder.decode(part.value,{stream:true});var lines=buf.split("\n");buf=lines.pop()||"";for(var i=0;i<lines.length;i++){var line=lines[i];if(!line.trim()||line.indexOf("event:")===0)continue;if(line.indexOf("data:")===0)try{var parsed=JSON.parse(line.slice(5).trim());al(fm(parsed),ecs(parsed.event_type||parsed.type||"",parsed))}catch(_){al(line.slice(5).trim(),"ev-info")}}}
     ss("done")
-  }catch(e){console.error(e);al("ERROR: "+String(e),"ev-error");ss("error")}
-  finally{btn.disabled=false;btn.textContent=orig}
+  }catch(e){console.error(e);al("ERROR: "+String(e),"ev-failure");ss("error")}
+  finally{btn.disabled=false;btn.textContent=orig;stopBtn.style.display="none";currentSid=null}
 }
 
 document.getElementById("wfBtn").addEventListener("click",function(){
@@ -331,12 +471,17 @@ document.getElementById("wfBtn").addEventListener("click",function(){
   go("/runs/"+encodeURIComponent(sid)+"/events",body,document.getElementById("wfBtn"))
 });
 document.getElementById("agBtn").addEventListener("click",function(){
-  var body={provider:document.getElementById("agProv").value,goal:document.getElementById("agGoal").value,max_rounds:Number(document.getElementById("agRnd").value),max_experiments:Number(document.getElementById("agExp").value),parameter_count_max:Number(document.getElementById("agPm").value),nmse_threshold_db:Number(document.getElementById("agThr").value),timeout_seconds:Number(document.getElementById("agTo").value),artifact_dir:null};
+  var body={provider:document.getElementById("agProv").value,goal:document.getElementById("agGoal").value,max_rounds:Number(document.getElementById("agRnd").value),max_experiments:Number(document.getElementById("agExp").value),parameter_count_max:Number(document.getElementById("agPm").value),nmse_threshold_db:Number(document.getElementById("agThr").value),timeout_seconds:Number(document.getElementById("agTo").value),artifact_dir:null,domain:document.getElementById("agDom").value};
   go("/agent/ui-agent-"+Date.now()+"/events",body,document.getElementById("agBtn"))
 });
 document.getElementById("bmBtn").addEventListener("click",function(){
   var body={timeout_seconds:Number(document.getElementById("bmTo").value),nmse_threshold_db:Number(document.getElementById("bmThr").value)};
   go("/benchmark/events",body,document.getElementById("bmBtn"))
+});
+document.getElementById("cmpBtn").addEventListener("click",function(){
+  var proto=document.getElementById("cmpProto").value;
+  var body={protocol:proto,workspace:document.getElementById("cmpWs").value};
+  go("/compare/events",body,document.getElementById("cmpBtn"))
 });
 console.log("UI ready")
 })();

@@ -1,11 +1,83 @@
 from __future__ import annotations
 
 import html
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from nonlinear_agent.diagnostics import collect_diagnostics
+
+
+def _load_search_summary(workspace: Path) -> dict[str, Any] | None:
+    """Try to load search comparison summary if it exists."""
+    candidates = [
+        workspace / "benchmarks" / "nonlinear-search-v1" / "summary.json",
+        workspace / "benchmarks" / "search-smoke" / "summary.json",
+    ]
+    for path in candidates:
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+    return None
+
+
+def _render_compare_section(summary: dict[str, Any]) -> str:
+    """Render a Strategy Comparison section from summary.json data."""
+    per_method = summary.get("per_method", {})
+    paired = summary.get("paired_comparisons", {})
+    rows_html: list[str] = []
+
+    # Per-method table
+    header = "<tr><th>Method</th><th>Seeds</th><th>Effective Trials</th><th>Best NMSE (mean)</th><th>Best NMSE (95% CI)</th><th>Target Hit Rate</th><th>Rejected Rate</th><th>Runtime Failure Rate</th></tr>"
+    for method, stats in sorted(per_method.items()):
+        best_mean = stats.get("best_nmse_db_mean")
+        best_lo = stats.get("best_nmse_db_ci_95_low")
+        best_hi = stats.get("best_nmse_db_ci_95_high")
+        nmse_str = f"{best_mean:.1f} dB" if isinstance(best_mean, (int, float)) else "-"
+        ci_str = f"[{best_lo:.1f}, {best_hi:.1f}]" if isinstance(best_lo, (int, float)) and isinstance(best_hi, (int, float)) else "-"
+        hit = stats.get("target_hit_rate_mean")
+        hit_str = f"{float(hit)*100:.0f}%" if isinstance(hit, (int, float)) else "-"
+        rej = stats.get("rejected_rate_mean")
+        rej_str = f"{float(rej)*100:.0f}%" if isinstance(rej, (int, float)) else "-"
+        fail = stats.get("runtime_failure_rate_mean")
+        fail_str = f"{float(fail)*100:.0f}%" if isinstance(fail, (int, float)) else "-"
+        rows_html.append(
+            f"<tr><td><code>{method}</code></td>"
+            f"<td>{stats.get('n_seeds', '-')}</td>"
+            f"<td>{stats.get('n_effective_trials', '-')}</td>"
+            f"<td class='good'>{nmse_str}</td><td>{ci_str}</td>"
+            f"<td>{hit_str}</td><td>{rej_str}</td><td>{fail_str}</td></tr>"
+        )
+
+    # Paired comparisons
+    paired_html = ""
+    for name, delta in paired.items():
+        n = delta.get("paired_seed_count", 0)
+        mean_d = delta.get("nmse_delta_mean_db")
+        lo_d = delta.get("nmse_delta_ci_95_low")
+        hi_d = delta.get("nmse_delta_ci_95_high")
+        sig = delta.get("significant", False)
+        paired_html += (
+            f'<div class="metric-note">'
+            f"<strong>{name}:</strong> paired {n} seeds, "
+            f"mean delta = {mean_d:.1f} dB "
+            f"95% CI [{lo_d:.1f}, {hi_d:.1f}] — "
+            f"{'&#10003; significant' if sig else '&#9888; no observed stable advantage'}"
+            f"</div>"
+        )
+
+    return f"""
+    <section>
+      <h2>Strategy Comparison</h2>
+      <p class="desc">
+        4 methods x {summary.get('bootstrap_seed', '-')} bootstrap seed,
+        {summary.get('bootstrap_samples', '-')} resamples,
+        {summary.get('confidence_level', 0.95)*100:.0f}% confidence.
+        Data from <code>benchmarks/*/summary.json</code>.
+      </p>
+      <table>{header}{''.join(rows_html)}</table>
+      <div class="metric-notes">{paired_html}</div>
+    </section>"""
 
 
 def render_dashboard_html(diagnostics: dict[str, Any]) -> str:
@@ -27,6 +99,7 @@ def render_dashboard_html(diagnostics: dict[str, Any]) -> str:
     updated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     total_runs = diagnostics.get("run_count", 0)
     total_bench = diagnostics.get("benchmark_count", 0)
+    search_summary = _load_search_summary(Path(diagnostics.get("workspace", ".")))
 
     return f"""<!doctype html>
 <html lang="en">
@@ -184,6 +257,8 @@ footer strong {{ color:var(--accent); }}
     <p class="desc">来源：遍历全部 runs + benchmarks 中所有实验记录，选 NMSE 最低的一条。</p>
     {_render_key_value_table(best)}
   </section>
+
+  {"<!-- No search comparison data -->" if not search_summary else _render_compare_section(search_summary)}
 
   <div class="grid">
     <section>

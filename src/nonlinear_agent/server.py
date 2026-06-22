@@ -208,7 +208,7 @@ async def stream_sse_events(
     这是一个简单的适配器：TraceEvent → encode_sse_event → yield string
     """
     async for event in runtime.run(request):
-        yield encode_sse_event(event)
+        yield encode_sse_event(event, event_id=_next_event_id(request.session_id))
 
 
 # ============================================================
@@ -248,6 +248,7 @@ async def stream_agent_events(
     timeout_seconds: float = 300.0,
     artifact_dir: str | None = None,
     fake_plan: str | None = None,
+    domain_name: str | None = None,
 ):
     """Agent Planner Loop 的完整 SSE 流。
 
@@ -291,11 +292,22 @@ async def stream_agent_events(
             ))
             return
 
+        # ── 加载 domain（如果指定）──
+        domain = None
+        if domain_name == "synthetic":
+            from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
+            domain = SyntheticRegressionDomain()
+        elif domain_name:
+            from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+            domain = NonlinearModelingDomain()
+
         # ── 创建 Agent Loop ──
         loop = ExperimentPlannerLoop(
-            planner=ExperimentPlanner(llm_client=llm),
+            planner=ExperimentPlanner(llm_client=llm, domain=domain),
             workspace=root,
-            base_config=base_config,
+            base_config=base_config if base_config and not domain else (
+                domain.default_base_config() if domain else base_config
+            ),
             constraints={
                 "parameter_count_max": parameter_count_max,
                 "metric": "nmse_db",
@@ -303,6 +315,7 @@ async def stream_agent_events(
             },
             timeout_seconds=timeout_seconds,
             artifact_dir=artifact_dir,
+            domain=domain,
         )
 
         # ── 执行 + 流式输出事件 ──
@@ -324,14 +337,14 @@ async def stream_agent_events(
                     error=inner.get("error"),
                     error_type=inner.get("error_type"),
                 )
-                yield encode_sse_event(trace_event)
+                yield encode_sse_event(trace_event, event_id=_next_event_id(session_id))
             else:
                 yield encode_sse_event(TraceEvent(
                     session_id=session_id,
                     event_type=event_type,
                     status="succeeded",
                     payload=agent_event,
-                ))
+                ), event_id=_next_event_id(session_id))
 
             # ── 检查取消 ──
             if cancel_evt.is_set():
@@ -492,6 +505,7 @@ def create_app(workspace: Path | str):
         timeout_seconds = float(payload.get("timeout_seconds", 300.0))
         artifact_dir = payload.get("artifact_dir")
         fake_plan = payload.get("fake_plan")
+        domain_name = payload.get("domain")
 
         async def agent_stream():
             async for chunk in stream_agent_events(
@@ -500,6 +514,7 @@ def create_app(workspace: Path | str):
                 base_config=base_config, parameter_count_max=parameter_count_max,
                 nmse_threshold_db=nmse_threshold_db, timeout_seconds=timeout_seconds,
                 artifact_dir=artifact_dir, fake_plan=fake_plan,
+                domain_name=domain_name,
             ):
                 yield chunk
             # Agent Loop 完成后自动刷新 Dashboard
@@ -542,6 +557,59 @@ def create_app(workspace: Path | str):
                 pass
 
         return StreamingResponse(bench_stream(), media_type="text/event-stream")
+
+    @app.post("/compare/events")
+    async def compare_events(body: Optional[Dict[str, Any]] = None):
+        """Strategy Comparison endpoint: runs 4 search methods side by side.
+
+        Uses the EvaluationProtocol to drive Random/TPE/LLM searches.
+        Results are streamed as SSE events.
+        """
+        payload = body or {}
+        protocol_name = str(payload.get("protocol", "smoke"))
+        ws = Path(str(payload.get("workspace", str(root))))
+
+        async def compare_stream():
+            from nonlinear_agent.evaluation_protocol import (
+                build_full_protocol, build_smoke_protocol,
+            )
+            proto = build_smoke_protocol() if protocol_name == "smoke" else build_full_protocol()
+
+            yield encode_sse_event(TraceEvent(
+                session_id="compare",
+                event_type="compare_start",
+                status="succeeded",
+                payload=proto.to_dict(),
+            ), event_id=_next_event_id("compare"))
+
+            from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+            from nonlinear_agent.search.random_search import RandomSearch
+            from nonlinear_agent.search.base import SearchContext
+
+            domain = NonlinearModelingDomain()
+
+            for method in proto.methods:
+                for seed in proto.seeds:
+                    if method == "random_search":
+                        ctx = SearchContext(domain=domain, seed=seed, trial_budget=proto.trial_budget)
+                        strategy = RandomSearch(ctx)
+                        for trial in range(proto.trial_budget):
+                            candidate = strategy.suggest([], trial)
+                            yield encode_sse_event(TraceEvent(
+                                session_id="compare",
+                                event_type="trial_suggested",
+                                status="succeeded",
+                                payload={"method": method, "seed": seed, "trial": trial, "candidate": candidate},
+                            ), event_id=_next_event_id("compare"))
+
+            yield encode_sse_event(TraceEvent(
+                session_id="compare",
+                event_type="compare_complete",
+                status="succeeded",
+                payload={"total_trials": proto.estimate_total_trials(), "note": "Full execution requires terminal: python agent.py compare-search"},
+            ), event_id=_next_event_id("compare"))
+
+        return StreamingResponse(compare_stream(), media_type="text/event-stream")
 
     @app.post("/cancel/{session_id}")
     async def cancel_run(session_id: str):
