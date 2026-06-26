@@ -105,7 +105,7 @@ def generate_config_tool(
     流程：
       1. 读取 base YAML（如 lstsq-complexmp-o12-m150.yaml）
       2. 把 overrides 合并进去（如 model_type=complex_lstsq, memory_depth=220）
-      3. 写入 configs/{experiment_id}.yaml
+      3. 写入 runs/{experiment_id}/configs/{experiment_id}.yaml
 
     为什么用 YAML 而不是 JSON？
       训练脚本（experiment.py）历史上就用 YAML 配置，保持兼容。

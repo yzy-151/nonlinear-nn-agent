@@ -64,7 +64,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--provider", choices=["fake", "deepseek"], default="fake")
     parser.add_argument("--goal", default="Find a low-NMSE nonlinear model under 4000 parameters and produce PSD evidence.")
-    parser.add_argument("--base-config", default="configs/model-search/lstsq-complexmp-o12-m150.yaml")
+    parser.add_argument("--base-config", default="configs/baselines/lstsq-complexmp-o12-m150.yaml")
     parser.add_argument("--parameter-count-max", type=int, default=4000)
     parser.add_argument("--nmse-threshold-db", type=float, default=-35.0)
     parser.add_argument("--max-rounds", type=int, default=2)

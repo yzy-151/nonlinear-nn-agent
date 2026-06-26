@@ -28,10 +28,11 @@ configs/exp-*.yaml
 configs/exp_*.yaml
 configs/exp*.yaml
 configs/planner-*.yaml
+configs/spline_*.yaml
+configs/lstsq_*.yaml
 # Keep baselines and examples tracked
 !configs/baselines/
 !configs/examples/
-!configs/model-search/
 exp[0-9]*/
 /exp*/
 /experiment*/

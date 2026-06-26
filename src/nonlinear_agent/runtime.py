@@ -24,12 +24,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import AsyncIterator
 
+from nonlinear_agent.control_plane import RuntimeControlPlane
 from nonlinear_agent.hooks import HookManager
 from nonlinear_agent.run_control import RunController
 from nonlinear_agent.runtime_errors import ErrorType
 from nonlinear_agent.session import SessionStore
 from nonlinear_agent.tools import ToolCall, ToolRegistry
 from nonlinear_agent.trace import TraceEvent, TraceLogger
+
+
+DISPLAY_METRIC_NAMES = {
+    "nmse_db",
+    "baseline_nmse_db",
+    "nmse_improvement_db",
+    "parameter_count",
+    "final_train_loss",
+}
 
 
 # ============================================================
@@ -73,12 +83,14 @@ class ExperimentHarnessRuntime:
         trace_logger: TraceLogger,
         hooks: HookManager | None = None,
         controller: RunController | None = None,
+        control_plane: RuntimeControlPlane | None = None,
     ):
         self.tool_registry = tool_registry
         self.session_store = session_store
         self.trace_logger = trace_logger
         self.hooks = hooks or HookManager()
         self.controller = controller or RunController()
+        self.control_plane = control_plane
 
     # ── 核心执行方法 ──────────────────────────────────────
     async def run(self, request: HarnessRequest) -> AsyncIterator[TraceEvent]:
@@ -206,8 +218,12 @@ class ExperimentHarnessRuntime:
             self.session_store.save(session)
             yield end_event
 
-            # 3g. 如果工具输出里有 metrics，逐个发出 metric event
+            # 3g. 如果工具输出里有 metrics，只把关键指标单独发成 metric event。
+            # 完整 metrics 仍保留在 tool_end.output 和 complete.metrics 中，前端可完整展示；
+            # 这里过滤是为了避免 status/samples/model_type 等描述字段刷屏。
             for metric_name, metric_value in result.output.get("metrics", {}).items():
+                if metric_name not in DISPLAY_METRIC_NAMES:
+                    continue
                 metric_event = TraceEvent(
                     session_id=request.session_id,
                     event_type="metric",
@@ -238,13 +254,21 @@ class ExperimentHarnessRuntime:
     # ── 内部方法 ─────────────────────────────────────────
 
     def _record(self, session, event: TraceEvent) -> None:
-        """把事件同时写入两处：
+        """把事件同时写入三处：
           1. session.history（内存中，当前会话内快速查阅）
           2. trace JSONL 文件（磁盘上，永久归档和审计）
+          3. control_plane events 表（SQLite，用于 SSE replay）
         """
         event_dict = event.to_dict()
         session.history.append(event_dict)
         self.trace_logger.log(event)
+        if self.control_plane is not None:
+            import json as _json
+            self.control_plane.record_event(
+                event.session_id,
+                event.event_type,
+                _json.dumps(event_dict, ensure_ascii=False, default=str),
+            )
 
     def _apply_tool_output(self, session, output: dict) -> None:
         """把工具输出合并到 session。

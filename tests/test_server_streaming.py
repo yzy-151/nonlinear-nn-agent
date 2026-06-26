@@ -53,7 +53,7 @@ class ServerStreamingTest(unittest.TestCase):
         request = build_harness_request(
             HarnessRunSpec(
                 session_id="server-demo",
-                base_config="configs/model-search/lstsq-complexmp-o12-m150.yaml",
+                base_config="configs/baselines/lstsq-complexmp-o12-m150.yaml",
                 output_dir="reports/server-demo",
                 epochs=0,
                 nmse_threshold_db=-35.0,
@@ -101,10 +101,31 @@ class ServerStreamingTest(unittest.TestCase):
         self.assertIn("/runs/", response.text)
         self.assertIn("agent-runtime-dashboard.html", response.text)
 
+    def test_create_app_serves_safe_artifact_images(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("FastAPI test client is not installed")
+        from tempfile import TemporaryDirectory
+        from nonlinear_agent.server import create_app
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            image_path = root / "reports" / "demo" / "psd.png"
+            image_path.parent.mkdir(parents=True)
+            image_path.write_bytes(b"fake png")
+            client = TestClient(create_app(root))
+
+            ok = client.get("/artifacts/reports/demo/psd.png")
+            blocked = client.get("/artifacts/../secret.txt")
+
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.content, b"fake png")
+        self.assertEqual(blocked.status_code, 404)
+
 async def _collect(stream):
     return [chunk async for chunk in stream]
 
 
 if __name__ == "__main__":
     unittest.main()
-

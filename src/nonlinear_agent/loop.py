@@ -389,9 +389,9 @@ class ExperimentPlannerLoop:
                     session_id=experiment.experiment_id,
                     base_config=self.base_config,
                     output_dir=output_dir,
-                    epochs=int(overrides.get("epochs", 0)),
-                    learning_rate=float(overrides.get("learning_rate", 0.0008)),
-                    optimizer=str(overrides.get("optimizer", "adam")),
+                    epochs=int(overrides.get("epochs", getattr(getattr(self, "domain", None), "default_epochs", lambda: 0)())),  # noqa: E501
+                    learning_rate=float(overrides.get("learning_rate", getattr(getattr(self, "domain", None), "default_learning_rate", lambda: 0.0008)())),  # noqa: E501
+                    optimizer=str(overrides.get("optimizer", getattr(getattr(self, "domain", None), "default_optimizer", lambda: "adam")())),  # noqa: E501
                     nmse_threshold_db=float(
                         overrides.get(
                             "nmse_threshold_db",

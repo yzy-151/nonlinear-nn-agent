@@ -64,6 +64,7 @@ def _load_dotenv(workspace: Path) -> None:
             os.environ[key] = value
 
 
+from nonlinear_agent.artifact_paths import trial_config_path
 from nonlinear_agent.experiment_tools import build_experiment_tool_registry
 from nonlinear_agent.replay import write_replay_report
 from nonlinear_agent.runtime import ExperimentHarnessRuntime, HarnessRequest
@@ -153,7 +154,7 @@ def build_harness_request(spec: HarnessRunSpec) -> HarnessRequest:
             ToolCall(
                 name="run_training",
                 args={
-                    "config_path": f"configs/{spec.session_id}.yaml",
+                    "config_path": str(trial_config_path(spec.session_id, spec.session_id)),
                     "timeout_seconds": spec.timeout_seconds,
                 },
                 timeout_seconds=spec.timeout_seconds + 5,
@@ -184,6 +185,61 @@ def _next_event_id(session_id: str) -> int:
     return current + 1
 
 HEARTBEAT_SSE = ": heartbeat\n\n"
+
+
+async def _heartbeat_producer(
+    interval_seconds: float = 15.0,
+) -> AsyncIterator[str]:
+    """Yield SSE heartbeat comments at regular intervals.
+
+    Used as a background task alongside the main event stream so
+    the client knows the connection is still alive during long
+    training runs.
+    """
+    while True:
+        await asyncio.sleep(interval_seconds)
+        yield HEARTBEAT_SSE
+
+
+async def _merge_with_heartbeat(
+    main_stream: AsyncIterator[str],
+    interval_seconds: float = 15.0,
+) -> AsyncIterator[str]:
+    """Merge a main SSE stream with periodic heartbeats.
+
+    Heartbeats are only sent when no main event has been yielded
+    for `interval_seconds`. The heartbeat task is cancelled when
+    the main stream ends.
+    """
+    import asyncio
+    last_event_time = asyncio.get_event_loop().time()
+    heartbeat_task: asyncio.Task | None = None
+
+    async def heartbeat_loop(queue: asyncio.Queue) -> None:
+        while True:
+            await asyncio.sleep(interval_seconds)
+            await queue.put(HEARTBEAT_SSE)
+
+    queue: asyncio.Queue = asyncio.Queue()
+    heartbeat_task = asyncio.ensure_future(heartbeat_loop(queue))
+
+    try:
+        async for chunk in main_stream:
+            last_event_time = asyncio.get_event_loop().time()
+            # Drain any pending heartbeats
+            while not queue.empty():
+                try:
+                    queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+            yield chunk
+        # Drain one final heartbeat if needed, then cancel
+    finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
 
 def encode_sse_event(
     event: TraceEvent,
@@ -779,7 +835,7 @@ async def stream_benchmark_events(
                 "total_cases": len(cases),
                 "goal": case.goal,
             },
-        ))
+        ), event_id=_next_event_id("benchmark"))
 
         try:
             loop_result = await _run_one(case)
@@ -806,7 +862,7 @@ async def stream_benchmark_events(
                 "failed": result.failed_count,
                 "succeeded": result.succeeded_count,
             },
-        ))
+        ), event_id=_next_event_id("benchmark"))
 
     # 汇总 + 落盘
     summary = build_benchmark_summary(results)
@@ -818,7 +874,7 @@ async def stream_benchmark_events(
         event_type="benchmark_complete",
         status="succeeded",
         payload={"summary": summary, "output_dir": output_dir},
-    ))
+    ), event_id=_next_event_id("benchmark"))
 
 
 def app_factory(workspace: Path | str = "."):

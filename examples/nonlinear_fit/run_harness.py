@@ -68,7 +68,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment-id", required=True)
     parser.add_argument("--goal", default="Run nonlinear NN experiment through the Agent Harness runtime.")
-    parser.add_argument("--base-config", default="configs/model-search/lstsq-complexmp-o12-m150.yaml")
+    parser.add_argument("--base-config", default="configs/baselines/lstsq-complexmp-o12-m150.yaml")
     parser.add_argument("--output-dir")
     parser.add_argument("--epochs", type=int, default=0)
     parser.add_argument("--learning-rate", type=float, default=0.0008)
