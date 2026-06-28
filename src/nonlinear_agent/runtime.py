@@ -84,6 +84,7 @@ class ExperimentHarnessRuntime:
         hooks: HookManager | None = None,
         controller: RunController | None = None,
         control_plane: RuntimeControlPlane | None = None,
+        display_metric_names: set[str] | None = None,
     ):
         self.tool_registry = tool_registry
         self.session_store = session_store
@@ -91,6 +92,7 @@ class ExperimentHarnessRuntime:
         self.hooks = hooks or HookManager()
         self.controller = controller or RunController()
         self.control_plane = control_plane
+        self.display_metric_names = display_metric_names or DISPLAY_METRIC_NAMES
 
     # ── 核心执行方法 ──────────────────────────────────────
     async def run(self, request: HarnessRequest) -> AsyncIterator[TraceEvent]:
@@ -222,7 +224,7 @@ class ExperimentHarnessRuntime:
             # 完整 metrics 仍保留在 tool_end.output 和 complete.metrics 中，前端可完整展示；
             # 这里过滤是为了避免 status/samples/model_type 等描述字段刷屏。
             for metric_name, metric_value in result.output.get("metrics", {}).items():
-                if metric_name not in DISPLAY_METRIC_NAMES:
+                if metric_name not in self.display_metric_names:
                     continue
                 metric_event = TraceEvent(
                     session_id=request.session_id,

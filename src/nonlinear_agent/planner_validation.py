@@ -118,11 +118,14 @@ def validate_planned_overrides(
     normalized = normalize_planner_overrides(overrides)
 
     # 第 2 + 3 步：白名单 + 黑名单检查
-    allowed = allowed_override_fields()
-    unsupported = sorted(
-        (set(normalized) - allowed)           # 不在白名单的
-        | (set(overrides) & UNSUPPORTED_FIELDS)  # 在黑名单的
-    )
+    if domain is not None:
+        allowed = domain.allowed_override_fields()
+    else:
+        allowed = allowed_override_fields()
+    blacklist_hits = set(overrides) & UNSUPPORTED_FIELDS
+    if domain is not None:
+        blacklist_hits = blacklist_hits - allowed
+    unsupported = sorted((set(normalized) - allowed) | blacklist_hits)
     if unsupported:
         raise ValueError(
             f"Unsupported planner override fields: {', '.join(unsupported)}"

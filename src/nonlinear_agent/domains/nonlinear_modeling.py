@@ -199,6 +199,80 @@ class NonlinearModelingDomain:
     def default_optimizer(self) -> str:
         return "adam"
 
+    # ── v2.1: Execution workflow ────────────────────────────────
+    def build_harness_spec(
+        self, session_id: str, base_config: str, overrides: dict,
+        constraints: dict, timeout_seconds: float,
+    ):
+        from nonlinear_agent.server import HarnessRunSpec
+        output_dir = str(overrides.get("output_dir", f"reports/{session_id}"))
+        return HarnessRunSpec(
+            session_id=session_id,
+            base_config=base_config,
+            output_dir=output_dir,
+            epochs=int(overrides.get("epochs", self.default_epochs())),
+            learning_rate=float(overrides.get("learning_rate", self.default_learning_rate())),
+            optimizer=str(overrides.get("optimizer", self.default_optimizer())),
+            nmse_threshold_db=float(overrides.get(
+                "nmse_threshold_db",
+                constraints.get("nmse_threshold_db", DEFAULT_NMSE_THRESHOLD_DB),
+            )),
+            timeout_seconds=timeout_seconds,
+            overrides=overrides,
+        )
+
+    def build_harness_steps(self, spec, workspace):
+        from pathlib import Path as _Path
+        from nonlinear_agent.tools import ToolCall
+        from nonlinear_agent.artifact_paths import trial_config_path
+        root = _Path(workspace) if not isinstance(workspace, _Path) else workspace
+        output_dir = spec.output_dir or f"reports/{spec.session_id}"
+        merged_overrides = {
+            "output_dir": output_dir,
+            "epochs": spec.epochs,
+            "learning_rate": spec.learning_rate,
+            "optimizer": spec.optimizer,
+        }
+        merged_overrides.update(spec.overrides)
+        merged_overrides["output_dir"] = output_dir
+        return [
+            ToolCall(name="generate_config", args={
+                "base_config_path": spec.base_config,
+                "experiment_id": spec.session_id,
+                "overrides": merged_overrides,
+            }),
+            ToolCall(name="run_training", args={
+                "config_path": str(trial_config_path(spec.session_id, spec.session_id)),
+                "timeout_seconds": spec.timeout_seconds,
+            }, timeout_seconds=spec.timeout_seconds + 5),
+            ToolCall(name="verify_artifacts", args={
+                "output_dir": output_dir,
+                "nmse_threshold_db": spec.nmse_threshold_db,
+            }),
+            ToolCall(name="write_report", args={"session_id": spec.session_id}),
+        ]
+
+    # ── v2.1: Display configuration ─────────────────────────────
+    def display_metric_names(self) -> set[str]:
+        return {"nmse_db", "baseline_nmse_db", "nmse_improvement_db", "parameter_count", "final_train_loss"}
+
+    def display_metric_unit(self) -> str:
+        return "dB"
+
+    def display_metric_lower_is_better(self) -> bool:
+        return True
+
+    def artifact_preview_patterns(self) -> list[str]:
+        return ["psd.png"]
+
+    # ── v2.1: Guard / Planner config ────────────────────────────
+    def allowed_override_fields(self) -> set[str]:
+        from nonlinear_agent.experiment import ExperimentConfig
+        return set(ExperimentConfig.__dataclass_fields__)
+
+    def planner_allowed_tools(self) -> list[str]:
+        return ["generate_config", "run_training", "verify_artifacts", "write_report"]
+
 
 # ── Migrated from planner_validation.py ────────────────────────────
 

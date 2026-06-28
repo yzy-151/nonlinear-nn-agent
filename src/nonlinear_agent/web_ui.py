@@ -343,6 +343,15 @@ pre.ev{
 (function(){"use strict";
 console.log("UI ready");
 
+// Domain display config — updated from agent_start event, defaults to nonlinear
+var _domainConfig = {
+    metricUnit: "dB",
+    metricLowerIsBetter: true,
+    artifactPatterns: ["psd.png"],
+    displayMetricNames: ["nmse_db","baseline_nmse_db","nmse_improvement_db","parameter_count","final_train_loss"],
+    primaryMetric: "nmse_db"
+};
+
 var sd=document.getElementById("statusDot"),sl=document.getElementById("statusLabel"),
 eb=document.getElementById("evBox"),ec=document.getElementById("evCount"),c=0,
 rp=document.getElementById("resultPreview"),pi=document.getElementById("psdPreview"),
@@ -402,6 +411,18 @@ function fm(obj){
   if(root.status&&t!=="metric")h+=" | "+root.status;
   if(root.latency_ms!=null)h+=" | "+Math.round(root.latency_ms)+"ms";
   var out=[h];
+  // Update domain config from agent_start event
+  if(t==="agent_start"||(t==="start"&&p.display_metric_unit!==undefined)){
+    if(p.display_metric_unit!==undefined){
+      _domainConfig = {
+        metricUnit: p.display_metric_unit || "dB",
+        metricLowerIsBetter: p.display_metric_lower_is_better !== false,
+        artifactPatterns: p.artifact_preview_patterns || ["psd.png"],
+        displayMetricNames: p.display_metric_names || ["nmse_db","baseline_nmse_db","nmse_improvement_db","parameter_count","final_train_loss"],
+        primaryMetric: p.primary_metric || "nmse_db"
+      };
+    }
+  }
   if(t==="start"&&p.goal){out.push("  goal: "+p.goal);out.push("  steps: "+p.step_count+" | resume_from_step="+p.resume_from_step)}
   if(t==="tool_start"&&p.args){out.push("  input args: "+JSON.stringify(p.args))}
   if(t==="plan_generated"){

@@ -36,6 +36,7 @@ from nonlinear_agent.planner import ExperimentPlanner
 from nonlinear_agent.planner_validation import validate_planned_overrides
 from nonlinear_agent.reflection import ReflectionPolicy
 from nonlinear_agent.run_artifacts import RunArtifactWriter, default_run_dir
+from nonlinear_agent.runtime import HarnessRequest
 from nonlinear_agent.server import HarnessRunSpec, build_harness_request, build_runtime
 
 if TYPE_CHECKING:
@@ -216,7 +217,9 @@ class ExperimentPlannerLoop:
             # 本轮至少有一个实验被处理过（rejected 也算），生成 reflection
             if round_records:
                 reflection = self.reflection_policy.reflect(
-                    round_index=rounds, round_records=round_records
+                    round_index=rounds, round_records=round_records,
+                    primary_metric=self.domain.primary_metric() if self.domain else "nmse_db",
+                    lower_is_better=self.domain.display_metric_lower_is_better() if self.domain else True,
                 )
                 reflections.append(reflection)
                 history.append(_build_reflection_history_record(reflection))
@@ -260,11 +263,22 @@ class ExperimentPlannerLoop:
         rounds = 0
         executed = 0
 
+        domain_config: dict[str, Any] = {}
+        if self.domain is not None:
+            domain_config = {
+                "display_metric_unit": self.domain.display_metric_unit(),
+                "display_metric_lower_is_better": self.domain.display_metric_lower_is_better(),
+                "artifact_preview_patterns": self.domain.artifact_preview_patterns(),
+                "display_metric_names": list(self.domain.display_metric_names()),
+                "primary_metric": self.domain.primary_metric(),
+            }
+
         yield {
             "type": "agent_start",
             "goal": goal,
             "max_rounds": max_rounds,
             "max_experiments": max_experiments or "unlimited",
+            **domain_config,
         }
 
         for _ in range(max_rounds):
@@ -385,23 +399,37 @@ class ExperimentPlannerLoop:
                 output_dir = str(
                     overrides.get("output_dir", f"reports/{experiment.experiment_id}")
                 )
-                spec = HarnessRunSpec(
-                    session_id=experiment.experiment_id,
-                    base_config=self.base_config,
-                    output_dir=output_dir,
-                    epochs=int(overrides.get("epochs", getattr(getattr(self, "domain", None), "default_epochs", lambda: 0)())),  # noqa: E501
-                    learning_rate=float(overrides.get("learning_rate", getattr(getattr(self, "domain", None), "default_learning_rate", lambda: 0.0008)())),  # noqa: E501
-                    optimizer=str(overrides.get("optimizer", getattr(getattr(self, "domain", None), "default_optimizer", lambda: "adam")())),  # noqa: E501
-                    nmse_threshold_db=float(
-                        overrides.get(
-                            "nmse_threshold_db",
-                            self.constraints.get("nmse_threshold_db", -35.0),
-                        )
-                    ),
-                    timeout_seconds=self.timeout_seconds,
-                    overrides=overrides,
-                )
-                request = build_harness_request(spec)
+                if self.domain is not None:
+                    spec = self.domain.build_harness_spec(
+                        session_id=experiment.experiment_id,
+                        base_config=self.base_config,
+                        overrides=overrides,
+                        constraints=self.constraints,
+                        timeout_seconds=self.timeout_seconds,
+                    )
+                    request = HarnessRequest(
+                        session_id=experiment.experiment_id,
+                        goal=f"Run experiment {experiment.experiment_id}",
+                        steps=self.domain.build_harness_steps(spec, self.workspace),
+                    )
+                else:
+                    spec = HarnessRunSpec(
+                        session_id=experiment.experiment_id,
+                        base_config=self.base_config,
+                        output_dir=output_dir,
+                        epochs=int(overrides.get("epochs", 0)),
+                        learning_rate=float(overrides.get("learning_rate", 0.0008)),
+                        optimizer=str(overrides.get("optimizer", "adam")),
+                        nmse_threshold_db=float(
+                            overrides.get(
+                                "nmse_threshold_db",
+                                self.constraints.get("nmse_threshold_db", -35.0),
+                            )
+                        ),
+                        timeout_seconds=self.timeout_seconds,
+                        overrides=overrides,
+                    )
+                    request = build_harness_request(spec)
                 runtime = self.runtime_factory(experiment.experiment_id)
 
                 # 把 Runtime 的每个事件直接推给前端
@@ -433,7 +461,9 @@ class ExperimentPlannerLoop:
             # ── 复盘 ──
             if round_records:
                 reflection = self.reflection_policy.reflect(
-                    round_index=rounds, round_records=round_records
+                    round_index=rounds, round_records=round_records,
+                    primary_metric=self.domain.primary_metric() if self.domain else "nmse_db",
+                    lower_is_better=self.domain.display_metric_lower_is_better() if self.domain else True,
                 )
                 reflections.append(reflection)
                 history.append(_build_reflection_history_record(reflection))
@@ -471,26 +501,38 @@ class ExperimentPlannerLoop:
         run() 用这个方法，run_streaming() 内联了相同的逻辑
         （因为 streaming 需要 yield 中间事件，不能直接 return）。
         """
-        output_dir = str(
-            overrides.get("output_dir", f"reports/{experiment_id}")
-        )
-        spec = HarnessRunSpec(
-            session_id=experiment_id,
-            base_config=self.base_config,
-            output_dir=output_dir,
-            epochs=int(overrides.get("epochs", 0)),
-            learning_rate=float(overrides.get("learning_rate", 0.0008)),
-            optimizer=str(overrides.get("optimizer", "adam")),
-            nmse_threshold_db=float(
-                overrides.get(
-                    "nmse_threshold_db",
-                    self.constraints.get("nmse_threshold_db", -35.0),
-                )
-            ),
-            timeout_seconds=self.timeout_seconds,
-            overrides=overrides,
-        )
-        request = build_harness_request(spec)
+        output_dir = str(overrides.get("output_dir", f"reports/{experiment_id}"))
+        if self.domain is not None:
+            spec = self.domain.build_harness_spec(
+                session_id=experiment_id,
+                base_config=self.base_config,
+                overrides=overrides,
+                constraints=self.constraints,
+                timeout_seconds=self.timeout_seconds,
+            )
+            request = HarnessRequest(
+                session_id=experiment_id,
+                goal=f"Run experiment {experiment_id}",
+                steps=self.domain.build_harness_steps(spec, self.workspace),
+            )
+        else:
+            spec = HarnessRunSpec(
+                session_id=experiment_id,
+                base_config=self.base_config,
+                output_dir=output_dir,
+                epochs=int(overrides.get("epochs", 0)),
+                learning_rate=float(overrides.get("learning_rate", 0.0008)),
+                optimizer=str(overrides.get("optimizer", "adam")),
+                nmse_threshold_db=float(
+                    overrides.get(
+                        "nmse_threshold_db",
+                        self.constraints.get("nmse_threshold_db", -35.0),
+                    )
+                ),
+                timeout_seconds=self.timeout_seconds,
+                overrides=overrides,
+            )
+            request = build_harness_request(spec)
         runtime = self.runtime_factory(experiment_id)
 
         metrics: dict[str, Any] = {"run_status": "succeeded"}
@@ -509,6 +551,13 @@ class ExperimentPlannerLoop:
 
 def _build_reflection_history_record(reflection: dict[str, Any]) -> dict[str, Any]:
     round_index = int(reflection.get("round", 0))
+    # Find the dynamic best_* key (e.g. best_nmse_db, best_val_mse)
+    best_value = None
+    for key in reflection:
+        if key.startswith("best_") and key not in ("best_experiment_id",):
+            best_value = reflection.get(key)
+            break
+
     return {
         "id": f"reflection-round-{round_index:03d}",
         "run_status": "reflection",
@@ -517,7 +566,7 @@ def _build_reflection_history_record(reflection: dict[str, Any]) -> dict[str, An
         "failure_causes": reflection.get("failure_causes", []),
         "facts": reflection.get("facts", []),
         "best_experiment_id": reflection.get("best_experiment_id", ""),
-        "best_nmse_db": reflection.get("best_nmse_db"),
+        "best_nmse_db": best_value,  # kept for backward compat; key is dynamic in reflection
         "context_summary": (
             f"Reflection round {round_index}: "
             f"facts={reflection.get('facts', [])}; "

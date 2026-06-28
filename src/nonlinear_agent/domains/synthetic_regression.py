@@ -103,6 +103,55 @@ class SyntheticRegressionDomain:
     def default_constraints(self) -> dict:
         return {"parameter_count_max": 100, "metric": "val_mse"}
 
+    # ── v2.1: Execution workflow ────────────────────────────────
+    def build_harness_spec(
+        self, session_id: str, base_config: str, overrides: dict,
+        constraints: dict, timeout_seconds: float,
+    ):
+        from nonlinear_agent.server import HarnessRunSpec
+        output_dir = str(overrides.get("output_dir", f"reports/{session_id}"))
+        return HarnessRunSpec(
+            session_id=session_id,
+            base_config=base_config,
+            output_dir=output_dir,
+            epochs=0, learning_rate=0.0, optimizer="",
+            nmse_threshold_db=0.0,
+            timeout_seconds=timeout_seconds,
+            overrides=overrides,
+        )
+
+    def build_harness_steps(self, spec, workspace):
+        from nonlinear_agent.tools import ToolCall
+        output_dir = spec.output_dir or f"reports/{spec.session_id}"
+        overrides = {"output_dir": output_dir, **spec.overrides}
+        return [
+            ToolCall(name="fit_candidate", args={
+                "degree": int(overrides.get("degree", 2)),
+                "reg_strength": float(overrides.get("reg_strength", 0.001)),
+            }),
+            ToolCall(name="evaluate_candidate", args={}),
+        ]
+
+    # ── v2.1: Display configuration ─────────────────────────────
+    def display_metric_names(self) -> set[str]:
+        return {"val_mse", "train_mse", "degree", "reg_strength"}
+
+    def display_metric_unit(self) -> str:
+        return ""
+
+    def display_metric_lower_is_better(self) -> bool:
+        return True
+
+    def artifact_preview_patterns(self) -> list[str]:
+        return []
+
+    # ── v2.1: Guard / Planner config ────────────────────────────
+    def allowed_override_fields(self) -> set[str]:
+        return {"degree", "reg_strength", "output_dir"}
+
+    def planner_allowed_tools(self) -> list[str]:
+        return ["fit_candidate", "evaluate_candidate"]
+
 
 # ── Tool implementations ────────────────────────────────────────────
 
@@ -138,9 +187,15 @@ def _fit_candidate_tool(
 
 
 def _evaluate_candidate_tool(
-    model_state: dict[str, Any], **_kw: Any
+    model_state: dict[str, Any] | None = None, **_kw: Any
 ) -> dict[str, Any]:
-    """Evaluate the fitted model on validation data."""
+    """Evaluate the fitted model on validation data.
+
+    Falls back to _GLOBAL_MODEL when model_state is empty or missing keys,
+    so build_harness_steps can call this with {} after fit_candidate.
+    """
+    if not model_state or "coeffs" not in model_state:
+        model_state = _GLOBAL_MODEL
     rng = np.random.default_rng(99)
     n_samples = 100
     x_val = np.linspace(-3.5, 3.5, n_samples)

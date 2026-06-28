@@ -91,9 +91,14 @@ class ExperimentPlanner:
         如果提供了 domain，指令和工具列表从 domain 获取。"""
         self.llm_client = llm_client
         self.domain = domain
-        self.allowed_tools = allowed_tools or [
-            "generate_config", "run_training", "verify_artifacts", "write_report",
-        ]
+        if allowed_tools:
+            self.allowed_tools = allowed_tools
+        elif domain is not None:
+            self.allowed_tools = domain.planner_allowed_tools()
+        else:
+            self.allowed_tools = [
+                "generate_config", "run_training", "verify_artifacts", "write_report",
+            ]
 
     # ── 公共入口 ──────────────────────────────────────────
     def plan(

@@ -271,20 +271,28 @@ async def stream_sse_events(
 # build_runtime — 创建 Runtime 实例
 # ============================================================
 def build_runtime(
-    workspace: Path | str, session_id: str, timeout_seconds: float = 300.0
+    workspace: Path | str,
+    session_id: str,
+    timeout_seconds: float = 300.0,
+    domain: DomainPlugin | None = None,
 ) -> ExperimentHarnessRuntime:
     """装配一个完整的 Runtime 实例（ToolRegistry + SessionStore + TraceLogger）。
 
     每次 Agent Loop 的实验都会创建一个新的 Runtime 实例（新的 trace 文件），
-    但共享同一个工具注册中心（工具实现不变）。
+    如果提供了 domain，使用 domain 的工具注册中心和显示指标名。
     """
     root = Path(workspace)
+    if domain is not None:
+        tool_registry = domain.build_tool_registry(root, default_timeout_seconds=timeout_seconds)
+        display_names = domain.display_metric_names()
+    else:
+        tool_registry = build_experiment_tool_registry(root, default_timeout_seconds=timeout_seconds)
+        display_names = None
     return ExperimentHarnessRuntime(
-        tool_registry=build_experiment_tool_registry(
-            root, default_timeout_seconds=timeout_seconds
-        ),
+        tool_registry=tool_registry,
         session_store=SessionStore(root / "sessions"),
         trace_logger=TraceLogger(root / "traces" / f"{session_id}.jsonl"),
+        display_metric_names=display_names,
     )
 
 
@@ -358,17 +366,22 @@ async def stream_agent_events(
             domain = NonlinearModelingDomain()
 
         # ── 创建 Agent Loop ──
+        constraints = {"parameter_count_max": parameter_count_max}
+        if domain is not None:
+            constraints.update(domain.default_constraints())
+            constraints["parameter_count_max"] = parameter_count_max
+        else:
+            constraints.update({
+                "metric": "nmse_db",
+                "nmse_threshold_db": nmse_threshold_db,
+            })
         loop = ExperimentPlannerLoop(
             planner=ExperimentPlanner(llm_client=llm, domain=domain),
             workspace=root,
             base_config=base_config if base_config and not domain else (
                 domain.default_base_config() if domain else base_config
             ),
-            constraints={
-                "parameter_count_max": parameter_count_max,
-                "metric": "nmse_db",
-                "nmse_threshold_db": nmse_threshold_db,
-            },
+            constraints=constraints,
             timeout_seconds=timeout_seconds,
             artifact_dir=artifact_dir,
             domain=domain,
@@ -642,7 +655,12 @@ def create_app(workspace: Path | str):
             from nonlinear_agent.search.random_search import RandomSearch
             from nonlinear_agent.search.base import SearchContext
 
-            domain = NonlinearModelingDomain()
+            domain_name = payload.get("domain", "")
+            if domain_name == "synthetic":
+                from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
+                domain = SyntheticRegressionDomain()
+            else:
+                domain = NonlinearModelingDomain()
 
             for method in proto.methods:
                 for seed in proto.seeds:
