@@ -531,10 +531,29 @@ def create_app(workspace: Path | str):
         """
         payload = body or {}
         spec = HarnessRunSpec(session_id=session_id, **payload)
+
+        # 加载 domain（如果指定）
+        domain = None
+        domain_name = payload.get("domain")
+        if domain_name == "synthetic":
+            from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
+            domain = SyntheticRegressionDomain()
+        elif domain_name:
+            from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+            domain = NonlinearModelingDomain()
+
         runtime = build_runtime(
-            root, session_id=session_id, timeout_seconds=spec.timeout_seconds
+            root, session_id=session_id, timeout_seconds=spec.timeout_seconds,
+            domain=domain,
         )
-        request = build_harness_request(spec)
+        if domain is not None:
+            request = HarnessRequest(
+                session_id=session_id,
+                goal=spec.goal,
+                steps=domain.build_harness_steps(spec, root),
+            )
+        else:
+            request = build_harness_request(spec)
         trace_path = root / "traces" / f"{session_id}.jsonl"
         output_dir = spec.output_dir or f"reports/{session_id}"
 

@@ -103,7 +103,8 @@ class ExperimentPlannerLoop:
         # 如果没有传 runtime_factory，默认用 build_runtime 创建
         self.runtime_factory = runtime_factory or (
             lambda session_id: build_runtime(
-                self.workspace, session_id=session_id, timeout_seconds=timeout_seconds
+                self.workspace, session_id=session_id, timeout_seconds=timeout_seconds,
+                domain=domain,
             )
         )
         self.base_config = base_config or (
