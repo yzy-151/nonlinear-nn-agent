@@ -650,57 +650,50 @@ def create_app(workspace: Path | str):
     async def compare_events(body: Optional[Dict[str, Any]] = None):
         """Strategy Comparison endpoint: runs 4 search methods side by side.
 
-        Uses the EvaluationProtocol to drive Random/TPE/LLM searches.
-        Results are streamed as SSE events.
+        Uses the EvaluationProtocol to drive Random/TPE/LLM searches and
+        REAL execution through the domain's tool chain. Results are streamed
+        as SSE events and written to benchmarks/compare-<ts>/.
         """
         payload = body or {}
         protocol_name = str(payload.get("protocol", "smoke"))
         ws = Path(str(payload.get("workspace", str(root))))
+        domain_name = payload.get("domain", "synthetic")
+        timeout_seconds = float(payload.get("timeout_seconds", 60.0))
+
+        from nonlinear_agent.evaluation_protocol import build_full_protocol, build_smoke_protocol
+        proto = build_smoke_protocol() if protocol_name == "smoke" else build_full_protocol()
+
+        if domain_name == "synthetic":
+            from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
+            domain = SyntheticRegressionDomain()
+        else:
+            from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+            domain = NonlinearModelingDomain()
+
+        output_dir = root / "benchmarks" / f"compare-{_short_ts()}"
+        from nonlinear_agent.compare_runner import stream_compare_events
 
         async def compare_stream():
-            from nonlinear_agent.evaluation_protocol import (
-                build_full_protocol, build_smoke_protocol,
-            )
-            proto = build_smoke_protocol() if protocol_name == "smoke" else build_full_protocol()
-
-            yield encode_sse_event(TraceEvent(
-                session_id="compare",
-                event_type="compare_start",
-                status="succeeded",
-                payload=proto.to_dict(),
-            ), event_id=_next_event_id("compare"))
-
-            from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
-            from nonlinear_agent.search.random_search import RandomSearch
-            from nonlinear_agent.search.base import SearchContext
-
-            domain_name = payload.get("domain", "")
-            if domain_name == "synthetic":
-                from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
-                domain = SyntheticRegressionDomain()
-            else:
-                domain = NonlinearModelingDomain()
-
-            for method in proto.methods:
-                for seed in proto.seeds:
-                    if method == "random_search":
-                        ctx = SearchContext(domain=domain, seed=seed, trial_budget=proto.trial_budget)
-                        strategy = RandomSearch(ctx)
-                        for trial in range(proto.trial_budget):
-                            candidate = strategy.suggest([], trial)
-                            yield encode_sse_event(TraceEvent(
-                                session_id="compare",
-                                event_type="trial_suggested",
-                                status="succeeded",
-                                payload={"method": method, "seed": seed, "trial": trial, "candidate": candidate},
-                            ), event_id=_next_event_id("compare"))
-
-            yield encode_sse_event(TraceEvent(
-                session_id="compare",
-                event_type="compare_complete",
-                status="succeeded",
-                payload={"total_trials": proto.estimate_total_trials(), "note": "Full execution requires terminal: python agent.py compare-search"},
-            ), event_id=_next_event_id("compare"))
+            async for event in stream_compare_events(
+                proto, domain, ws, output_dir=output_dir, timeout_seconds=timeout_seconds,
+            ):
+                etype = event.get("type", "compare_event")
+                payload = dict(event)
+                payload.pop("type", None)
+                yield encode_sse_event(TraceEvent(
+                    session_id="compare",
+                    event_type=etype,
+                    status="succeeded",
+                    payload=payload,
+                ), event_id=_next_event_id("compare"))
+            # 完成后刷新 Dashboard
+            try:
+                from nonlinear_agent.diagnostics import write_diagnostics_report
+                from nonlinear_agent.dashboard import write_dashboard_html
+                write_diagnostics_report(root)
+                write_dashboard_html(root)
+            except Exception:
+                pass
 
         return StreamingResponse(compare_stream(), media_type="text/event-stream")
 

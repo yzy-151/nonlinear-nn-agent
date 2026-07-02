@@ -77,6 +77,17 @@ class TestPairedDelta(unittest.TestCase):
         self.assertEqual(summary["paired_seed_count"], 5)
         self.assertIn("nmse_delta_mean_db", summary)
 
+    def test_paired_delta_dynamic_metric_key(self):
+        rows = [
+            build_trial_record("r1", "method_a", 7, 0, metric_name="val_mse", metric_value=0.1),
+            build_trial_record("r2", "method_b", 7, 0, metric_name="val_mse", metric_value=0.2),
+            build_trial_record("r1", "method_a", 17, 0, metric_name="val_mse", metric_value=0.3),
+            build_trial_record("r2", "method_b", 17, 0, metric_name="val_mse", metric_value=0.4),
+        ]
+        summary = paired_method_delta(rows, "method_a", "method_b", metric="val_mse")
+        self.assertEqual(summary["paired_seed_count"], 2)
+        self.assertIn("val_mse_delta_mean", summary)
+
     def test_paired_delta_is_zero_for_identical_methods(self):
         rows = _fake_rows_for_methods_and_seeds()
         summary = paired_method_delta(rows, "llm_with_reflection", "llm_with_reflection")

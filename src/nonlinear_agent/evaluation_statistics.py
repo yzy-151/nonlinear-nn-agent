@@ -57,6 +57,7 @@ def paired_method_delta(
     method_a: str,
     method_b: str,
     metric: str = "nmse_db",
+    lower_is_better: bool = True,
 ) -> dict[str, Any]:
     """Compute paired per-seed delta between two methods.
 
@@ -64,8 +65,9 @@ def paired_method_delta(
     Then bootstrap the paired deltas across seeds.
 
     Returns a dict with mean, median, std, 95% CI, and per-seed deltas.
+    Keys use the dynamic metric name (e.g. nmse_delta_* or val_mse_delta_*).
     """
-    # Group by seed, get best metric per seed per method
+    prefix = f"{metric}_delta"
     seed_best: dict[int, dict[str, float]] = {}
     for row in trial_rows:
         seed = row.get("seed")
@@ -81,11 +83,11 @@ def paired_method_delta(
         if method not in seed_best[seed]:
             seed_best[seed][method] = val
         else:
-            # For nmse_db, lower is better; for metrics where higher is better,
-            # we use a generic "best" that treats "closer to target" as better.
-            seed_best[seed][method] = min(seed_best[seed][method], val)
+            if lower_is_better:
+                seed_best[seed][method] = min(seed_best[seed][method], val)
+            else:
+                seed_best[seed][method] = max(seed_best[seed][method], val)
 
-    # Compute paired deltas: only seeds with both methods
     deltas: list[float] = []
     per_seed: dict[int, float] = {}
     for seed in sorted(seed_best):
@@ -97,35 +99,43 @@ def paired_method_delta(
     if not deltas:
         return {
             "paired_seed_count": 0,
-            "nmse_delta_mean_db": None,
+            f"{prefix}_mean": None,
             "message": "No seeds with both methods found.",
         }
 
     mean_val, ci_low, ci_high = bootstrap_confidence_interval(deltas)
     arr = np.array(deltas)
 
-    return {
+    result = {
         "paired_seed_count": len(deltas),
-        "nmse_delta_mean_db": float(np.mean(arr)),
-        "nmse_delta_median_db": float(np.median(arr)),
-        "nmse_delta_std_db": float(np.std(arr, ddof=1)) if len(deltas) > 1 else 0.0,
-        "nmse_delta_ci_95_low": ci_low,
-        "nmse_delta_ci_95_high": ci_high,
+        f"{prefix}_mean": float(np.mean(arr)),
+        f"{prefix}_median": float(np.median(arr)),
+        f"{prefix}_std": float(np.std(arr, ddof=1)) if len(deltas) > 1 else 0.0,
+        f"{prefix}_ci_95_low": ci_low,
+        f"{prefix}_ci_95_high": ci_high,
         "per_seed_deltas": per_seed,
         "significant": ci_low > 0 or ci_high < 0,  # CI does not cross zero
     }
+    # Backward-compat aliases for the historical nmse_delta_mean_db key
+    if metric == "nmse_db":
+        result["nmse_delta_mean_db"] = result["nmse_db_delta_mean"]
+        result["nmse_delta_median_db"] = result["nmse_db_delta_median"]
+        result["nmse_delta_std_db"] = result["nmse_db_delta_std"]
+        result["nmse_delta_ci_95_low"] = result["nmse_db_delta_ci_95_low"]
+        result["nmse_delta_ci_95_high"] = result["nmse_db_delta_ci_95_high"]
+    return result
 
 
 def compute_method_statistics(
     trial_rows: list[dict[str, Any]],
     method: str,
     metric: str = "nmse_db",
+    lower_is_better: bool = True,
 ) -> dict[str, Any]:
     """Compute per-method aggregate statistics across all seeds.
 
-    Returns: best NMSE stats, target hit rate, rejected rate, failure rate,
-    duplicate rate, planner latency, training time, token/cost estimates.
-    All stats are reported as mean +/- 95% CI computed across seeds.
+    Returns: best metric stats (dynamic key), target hit rate, rejected rate,
+    failure rate. All stats are reported as mean +/- 95% CI computed across seeds.
     """
     method_rows = [r for r in trial_rows if r.get("method") == method]
     if not method_rows:
@@ -133,7 +143,6 @@ def compute_method_statistics(
 
     seeds = sorted(set(r["seed"] for r in method_rows))
 
-    # Per-seed best NMSE
     per_seed_best: list[float] = []
     per_seed_hit_rate: list[float] = []
     per_seed_rejected_rate: list[float] = []
@@ -144,39 +153,40 @@ def compute_method_statistics(
         effective = [r for r in seed_rows if not r.get("rejected")]
         failed = [r for r in seed_rows if r.get("runtime_failed")]
 
-        # Best NMSE
-        nmse_vals = [float(r[metric]) for r in effective if metric in r and not r.get("runtime_failed")]
-        if nmse_vals:
-            per_seed_best.append(min(nmse_vals))
+        metric_vals = [float(r[metric]) for r in effective if metric in r and not r.get("runtime_failed")]
+        if metric_vals:
+            if lower_is_better:
+                per_seed_best.append(min(metric_vals))
+            else:
+                per_seed_best.append(max(metric_vals))
 
-        # Target hit rate
         if effective:
             hit_count = sum(1 for r in effective if r.get("target_hit"))
             per_seed_hit_rate.append(hit_count / len(effective))
 
-        # Rejected rate
         if seed_rows:
             rejected_count = sum(1 for r in seed_rows if r.get("rejected"))
             per_seed_rejected_rate.append(rejected_count / len(seed_rows))
 
-        # Runtime failure rate
         if effective:
             per_seed_failure_rate.append(len(failed) / len(effective))
 
     stats: dict[str, Any] = {
         "method": method,
+        "metric_name": metric,
         "n_seeds": len(seeds),
         "n_total_trials": len(method_rows),
         "n_effective_trials": sum(1 for r in method_rows if not r.get("rejected")),
     }
 
+    best_prefix = f"best_{metric}"
     if per_seed_best:
         m, lo, hi = bootstrap_confidence_interval(per_seed_best)
-        stats["best_nmse_db_mean"] = m
-        stats["best_nmse_db_ci_95_low"] = lo
-        stats["best_nmse_db_ci_95_high"] = hi
-        stats["best_nmse_db_median"] = float(np.median(per_seed_best))
-        stats["best_nmse_db_std"] = float(np.std(per_seed_best, ddof=1)) if len(per_seed_best) > 1 else 0.0
+        stats[f"{best_prefix}_mean"] = m
+        stats[f"{best_prefix}_ci_95_low"] = lo
+        stats[f"{best_prefix}_ci_95_high"] = hi
+        stats[f"{best_prefix}_median"] = float(np.median(per_seed_best))
+        stats[f"{best_prefix}_std"] = float(np.std(per_seed_best, ddof=1)) if len(per_seed_best) > 1 else 0.0
 
     if per_seed_hit_rate:
         m, lo, hi = bootstrap_confidence_interval(per_seed_hit_rate)
@@ -205,14 +215,25 @@ def write_summary_json(
     output_path: Path,
 ) -> dict[str, Any]:
     """Write full summary.json with per-method stats and paired comparisons."""
+    # Detect primary metric from first non-rejected row
+    metric = "nmse_db"
+    lower_is_better = True
+    for row in trial_rows:
+        if row.get("metric_name"):
+            metric = row["metric_name"]
+            break
+
     per_method = {}
     for method in methods:
-        per_method[method] = compute_method_statistics(trial_rows, method)
+        per_method[method] = compute_method_statistics(
+            trial_rows, method, metric=metric, lower_is_better=lower_is_better
+        )
 
     paired: dict[str, Any] = {}
     if "llm_with_reflection" in methods and "llm_no_reflection" in methods:
         paired["reflection_vs_no_reflection"] = paired_method_delta(
-            trial_rows, "llm_with_reflection", "llm_no_reflection"
+            trial_rows, "llm_with_reflection", "llm_no_reflection",
+            metric=metric, lower_is_better=lower_is_better,
         )
 
     summary = {
@@ -237,9 +258,18 @@ def write_summary_csv(
 ) -> None:
     """Write a machine-readable CSV summary."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Determine metric name from first method stats
+    metric = "nmse_db"
+    for stats in summary.get("per_method", {}).values():
+        if stats.get("metric_name"):
+            metric = stats["metric_name"]
+            break
+    best_key = f"best_{metric}_mean"
+    best_median_key = f"best_{metric}_median"
+
     lines = [
         "method,n_seeds,n_total_trials,n_effective_trials,"
-        "best_nmse_db_mean,best_nmse_db_median,"
+        f"best_{metric}_mean,best_{metric}_median,"
         "target_hit_rate_mean,rejected_rate_mean,runtime_failure_rate_mean"
     ]
     for method_name, stats in summary.get("per_method", {}).items():
@@ -248,8 +278,8 @@ def write_summary_csv(
             f"{stats.get('n_seeds', '')},"
             f"{stats.get('n_total_trials', '')},"
             f"{stats.get('n_effective_trials', '')},"
-            f"{stats.get('best_nmse_db_mean', '')},"
-            f"{stats.get('best_nmse_db_median', '')},"
+            f"{stats.get(best_key, '')},"
+            f"{stats.get(best_median_key, '')},"
             f"{stats.get('target_hit_rate_mean', '')},"
             f"{stats.get('rejected_rate_mean', '')},"
             f"{stats.get('runtime_failure_rate_mean', '')}"

@@ -272,21 +272,30 @@ pre.ev{
   <div class="card" id="panel-compare" style="display:none">
     <h2>&#9878; Strategy Comparison</h2>
     <p class="hint">
-      <strong>4 methods x 5 seeds x 10 trials = 200 effective trials.</strong>
+      <strong>真实执行 4 种搜索策略对照。</strong>
       Random / Optuna TPE / LLM no-Reflection / LLM with Reflection.
-      All methods share the same data split, candidate space, and trial budget.
+      Synthetic domain 用真实工具链（fit + evaluate）逐 trial 执行，
+      结果写入 <code>benchmarks/compare-&lt;ts&gt;/</code>。
     </p>
     <div class="card-grid" style="grid-template-columns:1fr 1fr">
-      <div><label>Protocol</label><select id="cmpProto">
-        <option value="smoke">Smoke (2 seeds x 3 trials = 24)</option>
-        <option value="full" selected>Full (5 seeds x 10 trials = 200)</option>
+      <div><label>Domain</label><select id="cmpDom">
+        <option value="synthetic" selected>Synthetic Regression</option>
+        <option value="nonlinear">Nonlinear Modeling</option>
       </select></div>
+      <div><label>Protocol</label><select id="cmpProto">
+        <option value="smoke" selected>Smoke (2 seeds x 3 trials = 24)</option>
+        <option value="full">Full (5 seeds x 10 trials = 200)</option>
+      </select></div>
+    </div>
+    <div class="card-grid" style="grid-template-columns:1fr 1fr">
+      <div><label>Timeout (sec/trial)</label><input id="cmpTo" type="number" min="1" value="60"></div>
       <div><label>Workspace</label><input id="cmpWs" value="."></div>
     </div>
     <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:12px">&#9878; Run Strategy Comparison</button>
-    <div class="note on" style="margin-top:14px;display:block">
-      <strong>Demo data</strong> — 4 methods compared.
-      Real execution requires <code>python agent.py compare-search</code> in terminal.
+    <div id="cmpResults" style="margin-top:18px;display:none">
+      <h3 style="font-size:14px;margin-bottom:10px">&#9878; Comparison Results</h3>
+      <div id="cmpTableWrap" style="overflow-x:auto"></div>
+      <div id="cmpPaired" style="margin-top:12px;font-size:13px;color:var(--muted)"></div>
     </div>
   </div>
 
@@ -459,6 +468,11 @@ function fm(obj){
   if(t==="benchmark_case_start")out.push("  case "+p.case_index+"/"+p.total_cases+": "+p.case_id+" | "+p.goal);
   if(t==="benchmark_case_end")out.push("  case: "+p.case_id+" | hit="+p.target_hit+" | best_nmse="+p.best_nmse_db+" | ok="+p.succeeded+" fail="+p.failed+" rejected="+p.rejected);
   if(t==="benchmark_complete"&&p.summary)appendMetrics(out,p.summary,"benchmark summary");
+  if(t==="compare_start"){out.push("  protocol: "+p.payload.methods.join(", ")+" | "+p.payload.seeds.length+" seeds x "+p.payload.trial_budget+" trials = "+p.payload.estimated_total_trials)}
+  if(t==="strategy_start")out.push("  strategy: "+p.method+" | seed="+p.seed+" | budget="+p.trial_budget+" trials");
+  if(t==="trial_done"){out.push("  trial "+p.trial_index+" | "+p.method+" | metric="+(p.metric_value!=null?Number(p.metric_value).toPrecision(4):"n/a")+(p.runtime_failed?" | FAILED":"")+(p.rejected?" | rejected":""))}
+  if(t==="trial_rejected")out.push("  trial "+p.trial_index+" | "+p.method+" | REJECTED: "+p.error);
+  if(t==="compare_complete"&&p.summary){out.push("  comparison complete: "+p.n_trials+" trials");try{renderCompareSummary(p.summary)}catch(_){}}
   if(root.error)out.push("  ERR: "+root.error.substring(0,200));
   return out.join("\n")
 }
@@ -501,9 +515,47 @@ document.getElementById("bmBtn").addEventListener("click",function(){
 });
 document.getElementById("cmpBtn").addEventListener("click",function(){
   var proto=document.getElementById("cmpProto").value;
-  var body={protocol:proto,workspace:document.getElementById("cmpWs").value};
+  document.getElementById("cmpResults").style.display="none";
+  var body={protocol:proto,workspace:document.getElementById("cmpWs").value,domain:document.getElementById("cmpDom").value,timeout_seconds:Number(document.getElementById("cmpTo").value)};
   go("/compare/events",body,document.getElementById("cmpBtn"))
 });
+
+// Render strategy comparison summary into the compare panel
+function renderCompareSummary(summary){
+  var wrap=document.getElementById("cmpTableWrap"),pairedEl=document.getElementById("cmpPaired");
+  var pm=summary.per_method||{}, rows=[];
+  rows.push("<table style='font-size:13px'><tr><th>Method</th><th>Best Metric (mean)</th><th>95% CI</th><th>Hit Rate</th><th>Rejected</th><th>Failed</th></tr>");
+  var metric=""; var m=Object.keys(pm); if(m.length)metric=(pm[m[0]].metric_name||"metric");
+  var sorted=Object.keys(pm).sort(function(a,b){
+    var va=pm[a]["best_"+metric+"_mean"],vb=pm[b]["best_"+metric+"_mean"];
+    return (va==null?1e9:va)-(vb==null?1e9:vb);
+  });
+  sorted.forEach(function(name){
+    var s=pm[name],best=s["best_"+metric+"_mean"],lo=s["best_"+metric+"_ci_95_low"],hi=s["best_"+metric+"_ci_95_high"];
+    var hit=s.target_hit_rate_mean!=null?(Number(s.target_hit_rate_mean)*100).toFixed(0)+"%":"-";
+    var rej=s.rejected_rate_mean!=null?(Number(s.rejected_rate_mean)*100).toFixed(0)+"%":"-";
+    var fail=s.runtime_failure_rate_mean!=null?(Number(s.runtime_failure_rate_mean)*100).toFixed(0)+"%":"-";
+    var bStr=best!=null?Number(best).toPrecision(4):"-";
+    var ciStr=(lo!=null&&hi!=null)?"["+Number(lo).toPrecision(3)+", "+Number(hi).toPrecision(3)+"]":"-";
+    var css=name==="llm_with_reflection"?"style='color:#34d399;font-weight:700'":"";
+    rows.push("<tr><td "+css+">"+name+"</td><td>"+bStr+"</td><td>"+ciStr+"</td><td>"+hit+"</td><td>"+rej+"</td><td>"+fail+"</td></tr>");
+  });
+  rows.push("</table>");
+  wrap.innerHTML=rows.join("");
+  var paired="";
+  var pc=summary.paired_comparisons||{};
+  Object.keys(pc).forEach(function(k){
+    var d=pc[k];
+    if(d.paired_seed_count>0){
+      var dm=d[metric+"_delta_mean"];var dl=d[metric+"_delta_ci_95_low"],dh=d[metric+"_delta_ci_95_high"];
+      paired+=k+": paired "+d.paired_seed_count+" seeds, delta="+(dm!=null?Number(dm).toPrecision(3):"-")+
+        (dl!=null?" 95%CI ["+Number(dl).toPrecision(3)+", "+Number(dh).toPrecision(3)+"]":"")+
+        " — "+(d.significant?"<b style='color:#34d399'>significant</b>":"<span style='color:#fbbf24'>no stable advantage</span>")+"<br>";
+    }
+  });
+  pairedEl.innerHTML=paired;
+  document.getElementById("cmpResults").style.display="block";
+}
 console.log("UI ready")
 })();
 </script>

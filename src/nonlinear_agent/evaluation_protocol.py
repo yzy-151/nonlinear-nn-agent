@@ -103,8 +103,16 @@ def build_trial_record(
     rejected: bool = False,
     runtime_failed: bool = False,
     reflection_used: bool = False,
+    metric_name: str = "nmse_db",
+    metric_value: float | None = None,
 ) -> dict[str, Any]:
-    return {
+    """Build a trial record.
+
+    For non-NMSE domains, pass metric_name + metric_value (e.g.
+    metric_name="val_mse", metric_value=0.19). The metric value is also
+    stored under the dynamic key {metric_name} for statistics functions.
+    """
+    record = {
         "run_id": run_id,
         "method": method,
         "seed": seed,
@@ -124,4 +132,11 @@ def build_trial_record(
         "rejected": rejected,
         "runtime_failed": runtime_failed,
         "reflection_used": reflection_used,
+        "metric_name": metric_name,
     }
+    if metric_value is not None:
+        record[metric_name] = metric_value
+        record["metric_value"] = metric_value
+        if metric_name == "nmse_db":
+            record["nmse_db"] = metric_value
+    return record
