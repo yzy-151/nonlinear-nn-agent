@@ -16,7 +16,7 @@ from nonlinear_agent.trace import TraceEvent
 
 
 class ReflectionTest(unittest.TestCase):
-    def test_reflection_policy_summarizes_failures_and_recovery_actions(self):
+    def test_reflection_policy_extracts_facts_without_strategy_outputs(self):
         history = [
             {"id": "bad-rank", "run_status": "rejected", "error": "Unsupported planner override fields: rank"},
             {"id": "weak", "run_status": "failed", "error": "NMSE threshold failed", "nmse_db": -20.0},
@@ -30,8 +30,15 @@ class ReflectionTest(unittest.TestCase):
         self.assertEqual(reflection["status_counts"]["failed"], 1)
         self.assertEqual(reflection["status_counts"]["succeeded"], 1)
         self.assertIn("schema", " ".join(reflection["failure_causes"]).lower())
-        self.assertIn("unsupported fields", " ".join(reflection["recovery_actions"]).lower())
-        self.assertIn("avoid", " ".join(reflection["avoid_next"]).lower())
+        self.assertNotIn("recovery_actions", reflection)
+        self.assertNotIn("avoid_next", reflection)
+        self.assertEqual(reflection["facts"][0]["id"], "bad-rank")
+        self.assertEqual(reflection["facts"][0]["status"], "rejected")
+        self.assertEqual(reflection["facts"][0]["error"], "Unsupported planner override fields: rank")
+        self.assertEqual(reflection["facts"][1]["id"], "weak")
+        self.assertEqual(reflection["facts"][1]["nmse_db"], -20.0)
+        self.assertEqual(reflection["facts"][2]["id"], "good")
+        self.assertEqual(reflection["facts"][2]["parameter_count"], 128)
 
     def test_planner_loop_records_reflections_and_writes_artifacts(self):
         llm = FakeLLMClient(
@@ -90,7 +97,9 @@ class ReflectionTest(unittest.TestCase):
 
         self.assertTrue(any(record.get("run_status") == "reflection" for record in result.history))
         self.assertIn("reflection-round-001", llm.last_prompt)
-        self.assertIn("recovery_actions", llm.last_prompt)
+        self.assertIn("facts", llm.last_prompt)
+        self.assertNotIn("recovery_actions", llm.last_prompt)
+        self.assertNotIn("avoid_next", llm.last_prompt)
 
 
 if __name__ == "__main__":

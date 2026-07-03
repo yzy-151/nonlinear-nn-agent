@@ -292,18 +292,130 @@ def make_optimizer(name: str, parameters, learning_rate: float):
     raise ValueError(f"Unsupported optimizer: {name}")
 
 
-def plot_psd(x: np.ndarray, target: np.ndarray, error: np.ndarray, config: ExperimentConfig, output_path: Path) -> None:
-    plt.figure(figsize=(8, 5))
-    plt.psd(x, config.nfft, config.sample_rate_hz, label="x")
-    plt.psd(target, config.nfft, config.sample_rate_hz, label="d")
-    plt.psd(error, config.nfft, config.sample_rate_hz, label="with MPDPD")
-    plt.title(config.plot_title)
-    plt.xlabel("Hz")
-    plt.ylabel("dB")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=160)
-    plt.close()
+def build_psd_figure_metadata(config: ExperimentConfig, metrics: dict[str, Any]) -> dict[str, str]:
+    """Build compact labels for the PSD figure."""
+    model = str(metrics.get("model_type", config.model_type))
+    params = metrics.get("parameter_count", "unknown")
+    current_nmse = _format_db(metrics.get("nmse_db"))
+    baseline_nmse = _format_db(metrics.get("baseline_nmse_db"))
+    gain = _format_db(metrics.get("nmse_improvement_db"))
+    epochs = metrics.get("epochs", config.epochs)
+    feature = str(metrics.get("feature_mode", config.feature_mode))
+    mp_order = metrics.get("mp_order_count", config.mp_order_count)
+    title = f"{config.plot_title} | {model} | params={params}"
+    subtitle = (
+        f"current NMSE={current_nmse} dB | "
+        f"baseline NMSE={baseline_nmse} dB | gain={gain} dB"
+    )
+    config_text = (
+        f"feature={feature}, memory={config.memory_depth}, mp_order={mp_order}, "
+        f"target={config.target_mode}\n"
+        f"optimizer={config.optimizer}, lr={config.learning_rate:g}, epochs={epochs}, "
+        f"StepLR({config.scheduler_step_size}, gamma={config.scheduler_gamma:g})"
+    )
+    return {"title": title, "subtitle": subtitle, "config_text": config_text}
+
+
+def _format_db(value: Any) -> str:
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return "n/a"
+
+
+def add_baseline_metrics(metrics: dict[str, Any], x: np.ndarray, target: np.ndarray) -> dict[str, Any]:
+    baseline_nmse = nmse_db(target, x)
+    current_nmse = float(metrics["nmse_db"])
+    enriched = dict(metrics)
+    enriched["baseline_name"] = "No-DPD input x"
+    enriched["baseline_nmse_db"] = float(baseline_nmse)
+    enriched["nmse_improvement_db"] = float(baseline_nmse - current_nmse)
+    return enriched
+
+
+def plot_psd(
+    x: np.ndarray,
+    target: np.ndarray,
+    corrected_signal: np.ndarray,
+    config: ExperimentConfig,
+    output_path: Path,
+    metrics: dict[str, Any] | None = None,
+) -> None:
+    metrics = metrics or {}
+    metadata = build_psd_figure_metadata(config, metrics)
+    baseline_nmse = _format_db(metrics.get("baseline_nmse_db"))
+    current_nmse = _format_db(metrics.get("nmse_db"))
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(10.5, 6.2))
+    ax.psd(
+        x,
+        config.nfft,
+        config.sample_rate_hz,
+        label=f"Baseline: input x (NMSE {baseline_nmse} dB)",
+        color="#2563eb",
+        linewidth=1.45,
+    )
+    ax.psd(
+        target,
+        config.nfft,
+        config.sample_rate_hz,
+        label="Target: d",
+        color="#f97316",
+        linewidth=1.55,
+    )
+    ax.psd(
+        corrected_signal,
+        config.nfft,
+        config.sample_rate_hz,
+        label=f"Current: with MPDPD (NMSE {current_nmse} dB)",
+        color="#16a34a",
+        linewidth=1.75,
+    )
+    ax.set_title(f"{metadata['title']}\n{metadata['subtitle']}", fontsize=12.5, fontweight="semibold", pad=14)
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Power Spectral Density (dB/Hz)")
+    ax.grid(True, which="major", color="#cbd5e1", linewidth=0.85, alpha=0.9)
+    ax.grid(True, which="minor", color="#e5e7eb", linewidth=0.45, alpha=0.7)
+    ax.minorticks_on()
+    ax.legend(loc="upper right", frameon=True, framealpha=0.94, fontsize=9)
+    ax.text(
+        0.015,
+        0.02,
+        metadata["config_text"],
+        transform=ax.transAxes,
+        fontsize=8.8,
+        va="bottom",
+        ha="left",
+        bbox={"boxstyle": "round,pad=0.45", "facecolor": "white", "edgecolor": "#cbd5e1", "alpha": 0.92},
+    )
+    ax.text(
+        0.985,
+        0.19,
+        f"Current\n{current_nmse} dB",
+        transform=ax.transAxes,
+        fontsize=10,
+        fontweight="semibold",
+        va="bottom",
+        ha="right",
+        color="#166534",
+        bbox={"boxstyle": "round,pad=0.45", "facecolor": "#ecfdf5", "edgecolor": "#86efac", "alpha": 0.94},
+    )
+    ax.text(
+        0.985,
+        0.06,
+        f"Baseline\n{baseline_nmse} dB",
+        transform=ax.transAxes,
+        fontsize=10,
+        fontweight="semibold",
+        va="bottom",
+        ha="right",
+        color="#1d4ed8",
+        bbox={"boxstyle": "round,pad=0.45", "facecolor": "#eff6ff", "edgecolor": "#93c5fd", "alpha": 0.94},
+    )
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=220)
+    plt.close(fig)
 
 
 def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
@@ -382,6 +494,7 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
         "feature_mode": config.feature_mode,
         "mp_order_count": int(config.mp_order_count),
     }
+    metrics = add_baseline_metrics(metrics, x, target)
 
     metrics_path = output_dir / "metrics.json"
     psd_path = output_dir / "psd.png"
@@ -392,7 +505,7 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
     metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     config_path.write_text(yaml.safe_dump(asdict(config), sort_keys=False), encoding="utf-8")
     torch.save(model.state_dict(), model_path)
-    plot_psd(x, d, error, config, psd_path)
+    plot_psd(x, d, error, config, psd_path, metrics)
 
     plt.figure(figsize=(7, 4))
     plt.plot(range(1, len(losses) + 1), losses)
@@ -408,7 +521,12 @@ def run_experiment(config: ExperimentConfig) -> dict[str, Any]:
         "# Experiment Summary\n\n"
         f"- Status: {metrics['status']}\n"
         f"- NMSE: {metrics['nmse_db']:.4f} dB\n"
+        f"- Baseline NMSE: {metrics['baseline_nmse_db']:.4f} dB ({metrics['baseline_name']})\n"
+        f"- NMSE improvement: {metrics['nmse_improvement_db']:.4f} dB\n"
         f"- Final train loss: {metrics['final_train_loss']:.6g}\n"
+        f"- Parameters: {metrics['parameter_count']}\n"
+        f"- Model: {config.model_type}, feature={config.feature_mode}, memory={config.memory_depth}, mp_order={config.mp_order_count}\n"
+        f"- Optimizer: {config.optimizer}, lr={config.learning_rate:g}, scheduler=StepLR({config.scheduler_step_size}, gamma={config.scheduler_gamma:g})\n"
         f"- Samples: {metrics['samples']}\n"
         f"- PSD: {psd_path.as_posix()}\n"
         f"- Metrics: {metrics_path.as_posix()}\n"
@@ -450,6 +568,7 @@ def run_complex_lstsq_experiment(
         "mp_order_count": int(config.mp_order_count),
         "rank": int(rank),
     }
+    metrics = add_baseline_metrics(metrics, x, d)
     metrics_path = output_dir / "metrics.json"
     psd_path = output_dir / "psd.png"
     config_path = output_dir / "resolved_config.yaml"
@@ -457,14 +576,17 @@ def run_complex_lstsq_experiment(
     metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     config_path.write_text(yaml.safe_dump(asdict(config), sort_keys=False), encoding="utf-8")
     np.savez(weights_path, weights=weights)
-    plot_psd(x, d, error, config, psd_path)
+    plot_psd(x, d, error, config, psd_path, metrics)
     summary = (
         "# Experiment Summary\n\n"
         f"- Status: {metrics['status']}\n"
         f"- NMSE: {metrics['nmse_db']:.4f} dB\n"
+        f"- Baseline NMSE: {metrics['baseline_nmse_db']:.4f} dB ({metrics['baseline_name']})\n"
+        f"- NMSE improvement: {metrics['nmse_improvement_db']:.4f} dB\n"
         f"- Parameters: {metrics['parameter_count']}\n"
         f"- Feature mode: {config.feature_mode}\n"
         f"- MP order count: {config.mp_order_count}\n"
+        f"- Optimizer: {config.optimizer}, lr={config.learning_rate:g}, scheduler=StepLR({config.scheduler_step_size}, gamma={config.scheduler_gamma:g})\n"
         f"- PSD: {psd_path.as_posix()}\n"
         f"- Metrics: {metrics_path.as_posix()}\n"
     )

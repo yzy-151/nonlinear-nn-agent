@@ -11,6 +11,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from nonlinear_agent.experiment import (
+    add_baseline_metrics,
+    build_psd_figure_metadata,
     build_model,
     count_trainable_parameters,
     ExperimentConfig,
@@ -155,6 +157,50 @@ class ExperimentCoreTest(unittest.TestCase):
         output = model(torch.from_numpy(real), torch.from_numpy(imag))
 
         self.assertEqual(tuple(output.shape), (3, 2))
+
+    def test_psd_figure_metadata_contains_baseline_current_and_config(self):
+        config = ExperimentConfig(
+            model_type="spline_mlp",
+            feature_mode="complex_mp",
+            memory_depth=48,
+            mp_order_count=1,
+            hidden_units=32,
+            optimizer="adamw",
+            learning_rate=5e-4,
+            scheduler_step_size=25,
+            scheduler_gamma=0.7,
+            epochs=50,
+            activation="silu",
+            spline_knots=16,
+        )
+        metrics = {
+            "nmse_db": -37.42,
+            "baseline_nmse_db": -24.8,
+            "nmse_improvement_db": 12.62,
+            "parameter_count": 3980,
+        }
+
+        metadata = build_psd_figure_metadata(config, metrics)
+
+        self.assertIn("spline_mlp", metadata["title"])
+        self.assertIn("params=3980", metadata["title"])
+        self.assertIn("current NMSE=-37.42 dB", metadata["subtitle"])
+        self.assertIn("baseline NMSE=-24.80 dB", metadata["subtitle"])
+        self.assertIn("gain=12.62 dB", metadata["subtitle"])
+        self.assertIn("adamw", metadata["config_text"])
+        self.assertIn("lr=0.0005", metadata["config_text"])
+        self.assertIn("StepLR(25, gamma=0.7)", metadata["config_text"])
+
+    def test_add_baseline_metrics_compares_no_dpd_input_against_current(self):
+        target = np.array([1 + 0j, -1 + 0j])
+        x = np.array([0.5 + 0j, -0.5 + 0j])
+        metrics = {"nmse_db": -20.0}
+
+        enriched = add_baseline_metrics(metrics, x, target)
+
+        self.assertEqual(enriched["baseline_name"], "No-DPD input x")
+        self.assertAlmostEqual(enriched["baseline_nmse_db"], -6.020599913279624)
+        self.assertAlmostEqual(enriched["nmse_improvement_db"], 13.979400086720375)
 
 if __name__ == "__main__":
     unittest.main()

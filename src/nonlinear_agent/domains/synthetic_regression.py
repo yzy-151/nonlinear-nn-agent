@@ -41,7 +41,7 @@ class SyntheticRegressionDomain:
     def design_space(self) -> dict[str, list[object]]:
         return {
             "degree": [1, 2, 3, 4, 5],
-            "reg_strength": [1e-4, 1e-3, 1e-2, 1e-1],
+            "reg_strength": [1e-4, 0.001, 0.01, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0],
         }
 
     def validate_candidate(
@@ -54,8 +54,8 @@ class SyntheticRegressionDomain:
         reg = overrides.get("reg_strength", 1e-3)
         if not isinstance(reg, (int, float)) or isinstance(reg, bool):
             errors.append("reg_strength must be a number.")
-        elif float(reg) < 1e-4 or float(reg) > 1e-1:
-            errors.append("reg_strength must be in [1e-4, 1e-1].")
+        elif float(reg) < 1e-4 or float(reg) > 100:
+            errors.append("reg_strength must be in [1e-4, 100].")
         return errors
 
     def build_tool_registry(
@@ -158,18 +158,34 @@ class SyntheticRegressionDomain:
 _GLOBAL_MODEL: dict[str, Any] = {}  # Simple in-memory store for demo
 
 
+def _generate_data(seed: int = 42):
+    """Generate consistent train+val data from a seed."""
+    rng = np.random.default_rng(seed)
+    # True function: degree-5 polynomial with decaying coefficients
+    # degree=5 → perfect; degree<5 → underfit; reg too high → bias
+    TRUE_COEFFS = np.array([0.5, -1.8, 2.1, -0.9, 0.3, -0.05])  # degree 5
+
+    # Train set
+    x_train = np.linspace(-3, 3, 200)
+    y_true_train = np.polyval(TRUE_COEFFS[::-1], x_train)
+    y_train = y_true_train + rng.normal(0, 0.8, 200)
+
+    # Validation set — different noise, wider range (tests extrapolation)
+    x_val = np.linspace(-3.5, 3.5, 100)
+    y_true_val = np.polyval(TRUE_COEFFS[::-1], x_val)
+    y_val = y_true_val + rng.normal(0, 0.8, 100)
+
+    return x_train, y_train, x_val, y_val
+
+
 def _fit_candidate_tool(
     degree: int, reg_strength: float = 1e-3, **_kw: Any
 ) -> dict[str, Any]:
     """Fit a polynomial of given degree with L2 regularization."""
-    rng = np.random.default_rng(42)
-    n_samples = 200
-    x = np.linspace(-3, 3, n_samples)
-    true_coeffs = np.array([0.5, -1.5, 0.8, 0.0, 0.0, 0.0][: degree + 1])
-    y_true = np.polyval(true_coeffs[::-1], x)
-    y = y_true + rng.normal(0, 0.5, n_samples)
+    x, y, _, _ = _generate_data()
 
     A = np.vander(x, degree + 1, increasing=True)
+    # Regularize all coefficients (including bias for simplicity)
     I = np.eye(degree + 1)
     I[0, 0] = 0  # Don't regularize the bias
     coeffs = np.linalg.solve(A.T @ A + reg_strength * I, A.T @ y)
@@ -189,23 +205,23 @@ def _fit_candidate_tool(
 def _evaluate_candidate_tool(
     model_state: dict[str, Any] | None = None, **_kw: Any
 ) -> dict[str, Any]:
-    """Evaluate the fitted model on validation data.
+    """Evaluate the fitted model on validation data against the true function.
 
     Falls back to _GLOBAL_MODEL when model_state is empty or missing keys,
     so build_harness_steps can call this with {} after fit_candidate.
+
+    Uses the true degree-5 polynomial (no noise) to compute generalization MSE,
+    so underfitted models (degree < 5) get clearly worse scores.
     """
     if not model_state or "coeffs" not in model_state:
         model_state = _GLOBAL_MODEL
-    rng = np.random.default_rng(99)
-    n_samples = 100
-    x_val = np.linspace(-3.5, 3.5, n_samples)
-    true_coeffs = np.array([0.5, -1.5, 0.8, 0.0, 0.0, 0.0][: model_state["degree"] + 1])
-    y_true = np.polyval(true_coeffs[::-1], x_val)
-    y_val = y_true + rng.normal(0, 0.5, n_samples)
+    TRUE_COEFFS = np.array([0.5, -1.8, 2.1, -0.9, 0.3, -0.05])
+    _, _, x_val, _ = _generate_data()
+    y_true = np.polyval(TRUE_COEFFS[::-1], x_val)
 
     coeffs = np.array(model_state["coeffs"])
     y_pred = np.polyval(coeffs[::-1], x_val)
-    val_mse = float(np.mean((y_val - y_pred) ** 2))
+    val_mse = float(np.mean((y_true - y_pred) ** 2))
 
     return {
         "val_mse": val_mse,

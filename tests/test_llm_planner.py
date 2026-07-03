@@ -249,5 +249,33 @@ class LLMPlannerTest(unittest.TestCase):
         self.assertIn("candidate-002", summary)
         self.assertIn("-39.25", summary)
 
+    def test_streaming_plan_event_includes_previous_reflection_facts_after_reflection(self):
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"bad plan", "stop": false, "experiments": ['
+                '{"id":"bad-rank", "reason":"schema test", "overrides":{"rank":100}}]}',
+                '{"summary":"new plan after reading facts", "stop": true, "experiments": []}',
+            ]
+        )
+        planner = ExperimentPlanner(llm_client=llm)
+
+        async def collect_events(loop):
+            events = []
+            async for event in loop.run_streaming(goal="show facts before next plan", max_rounds=2):
+                events.append(event)
+            return events
+
+        with TemporaryDirectory() as tmpdir:
+            loop = ExperimentPlannerLoop(planner=planner, workspace=Path(tmpdir))
+            events = asyncio.run(collect_events(loop))
+
+        plan_events = [event for event in events if event["type"] == "plan_generated"]
+        self.assertEqual(plan_events[1]["round"], 2)
+        self.assertEqual(plan_events[1]["previous_reflection_facts"][0]["id"], "bad-rank")
+        self.assertEqual(plan_events[1]["previous_reflection_facts"][0]["status"], "rejected")
+        self.assertIn("Unsupported planner override fields", plan_events[1]["previous_reflection_facts"][0]["error"])
+        self.assertIn("Schema/preflight rejection", plan_events[1]["previous_reflection_failure_causes"][0])
+        self.assertEqual(plan_events[1]["summary"], "new plan after reading facts")
+
 if __name__ == "__main__":
     unittest.main()

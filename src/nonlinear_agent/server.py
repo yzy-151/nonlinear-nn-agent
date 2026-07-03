@@ -697,6 +697,21 @@ def create_app(workspace: Path | str):
 
         return StreamingResponse(compare_stream(), media_type="text/event-stream")
 
+    @app.get("/compare/summary")
+    async def compare_summary():
+        """Return the most recent comparison summary.json for loading saved results."""
+        import glob as _glob
+        candidates = sorted(_glob.glob(str(root / "benchmarks" / "compare-*" / "summary.json")))
+        candidates += sorted(_glob.glob(str(root / "benchmarks" / "search-smoke" / "summary.json")))
+        if candidates:
+            path = Path(candidates[-1])
+            return Response(
+                content=path.read_bytes(),
+                media_type="application/json",
+                headers={"Cache-Control": "no-cache"},
+            )
+        return {"error": "No comparison results found. Run compare-search first."}
+
     @app.post("/cancel/{session_id}")
     async def cancel_run(session_id: str):
         """Cancel a running session — set cancel flag + kill train.py subprocess."""

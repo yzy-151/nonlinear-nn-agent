@@ -291,7 +291,8 @@ pre.ev{
       <div><label>Timeout (sec/trial)</label><input id="cmpTo" type="number" min="1" value="60"></div>
       <div><label>Workspace</label><input id="cmpWs" value="."></div>
     </div>
-    <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:12px">&#9878; Run Strategy Comparison</button>
+    <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:12px">&#9878; Run Comparison (Synthetic)</button>
+    <button type="button" class="btn btn-ghost" id="cmpLoadBtn" style="margin-top:8px;width:100%;min-height:38px">&#128194; Load Saved Results (Nonlinear)</button>
     <div id="cmpResults" style="margin-top:18px;display:none">
       <h3 style="font-size:14px;margin-bottom:10px">&#9878; Comparison Results</h3>
       <div id="cmpTableWrap" style="overflow-x:auto"></div>
@@ -513,6 +514,16 @@ document.getElementById("bmBtn").addEventListener("click",function(){
   var body={timeout_seconds:Number(document.getElementById("bmTo").value),nmse_threshold_db:Number(document.getElementById("bmThr").value)};
   go("/benchmark/events",body,document.getElementById("bmBtn"))
 });
+// Load saved comparison results
+document.getElementById("cmpLoadBtn").addEventListener("click",function(){
+  document.getElementById("cmpResults").style.display="none";
+  fetch("/compare/summary").then(function(r){return r.json()}).then(function(data){
+    if(data.error){al("ERROR: "+data.error,"ev-failure");return}
+    renderCompareSummary(data);
+    al("Loaded saved results — "+Object.keys(data.per_method||{}).length+" methods","ev-success");
+  }).catch(function(e){al("ERROR: "+String(e),"ev-failure")});
+});
+
 document.getElementById("cmpBtn").addEventListener("click",function(){
   var proto=document.getElementById("cmpProto").value;
   document.getElementById("cmpResults").style.display="none";

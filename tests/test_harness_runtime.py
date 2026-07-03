@@ -173,6 +173,51 @@ class HarnessRuntimeTest(unittest.TestCase):
             self.assertIn("bad config", loaded_session.errors[0])
             self.assertEqual(seen_errors, ["bad config"])
 
+    def test_runtime_metric_events_only_include_display_worthy_metrics(self):
+        with TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            registry = ToolRegistry(default_timeout_seconds=1.0)
+
+            def train_tool():
+                return {
+                    "metrics": {
+                        "status": "succeeded",
+                        "samples": 100,
+                        "model_type": "complex_lstsq",
+                        "nmse_db": -37.2,
+                        "baseline_nmse_db": -22.0,
+                        "nmse_improvement_db": 15.2,
+                        "parameter_count": 3980,
+                        "final_train_loss": 0.001,
+                    }
+                }
+
+            registry.register("train", train_tool)
+            runtime = ExperimentHarnessRuntime(
+                tool_registry=registry,
+                session_store=SessionStore(workspace / "sessions"),
+                trace_logger=TraceLogger(workspace / "traces" / "session-metrics.jsonl"),
+            )
+
+            events = asyncio.run(_collect(runtime.run(HarnessRequest(
+                session_id="session-metrics",
+                goal="keep event stream readable",
+                steps=[ToolCall(name="train", args={})],
+            ))))
+
+        metric_names = [
+            event.payload["name"]
+            for event in events
+            if event.event_type == "metric"
+        ]
+        self.assertEqual(metric_names, [
+            "nmse_db",
+            "baseline_nmse_db",
+            "nmse_improvement_db",
+            "parameter_count",
+            "final_train_loss",
+        ])
+
 
 async def _collect(stream):
     return [event async for event in stream]

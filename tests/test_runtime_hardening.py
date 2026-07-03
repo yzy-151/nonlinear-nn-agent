@@ -152,7 +152,7 @@ class RuntimeHardeningTest(unittest.TestCase):
         self.assertEqual(session.completed_steps, [2])
         self.assertEqual(session.metrics["second_done"], 1)
 
-    def test_reflection_summarizes_error_types_for_recovery_analysis(self):
+    def test_reflection_extracts_error_type_facts_for_planner_reasoning(self):
         reflection = ReflectionPolicy().reflect(round_index=1, round_records=[
             {
                 "id": "timeout",
@@ -172,7 +172,11 @@ class RuntimeHardeningTest(unittest.TestCase):
             ErrorType.TIMEOUT_ERROR.value: 1,
             ErrorType.VALIDATION_ERROR.value: 1,
         })
-        self.assertIn("timeout", " ".join(reflection["recovery_actions"]).lower())
+        self.assertNotIn("recovery_actions", reflection)
+        self.assertEqual(reflection["facts"][0]["id"], "timeout")
+        self.assertEqual(reflection["facts"][0]["error_type"], ErrorType.TIMEOUT_ERROR.value)
+        self.assertEqual(reflection["facts"][1]["id"], "bad-schema")
+        self.assertEqual(reflection["facts"][1]["error_type"], ErrorType.VALIDATION_ERROR.value)
 
     def test_planner_loop_carries_runtime_error_type_into_history_and_reflection(self):
         llm = FakeLLMClient(responses=[
