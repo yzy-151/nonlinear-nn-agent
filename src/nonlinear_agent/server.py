@@ -650,18 +650,32 @@ def create_app(workspace: Path | str):
     async def compare_events(body: Optional[Dict[str, Any]] = None):
         """Strategy Comparison endpoint: runs 4 search methods side by side.
 
-        Uses the EvaluationProtocol to drive Random/TPE/LLM searches and
-        REAL execution through the domain's tool chain. Results are streamed
-        as SSE events and written to benchmarks/compare-<ts>/.
+        Accepts custom parameters from the Web UI:
+          - domain: "synthetic" or "nonlinear"
+          - methods: list of method names
+          - seeds: list of seed integers
+          - trial_budget: trials per seed per method
+          - parameter_count_max: param budget
+          - nmse_threshold_db: target threshold
+          - timeout_seconds: per-trial timeout
         """
         payload = body or {}
-        protocol_name = str(payload.get("protocol", "smoke"))
         ws = Path(str(payload.get("workspace", str(root))))
         domain_name = payload.get("domain", "synthetic")
         timeout_seconds = float(payload.get("timeout_seconds", 60.0))
 
-        from nonlinear_agent.evaluation_protocol import build_full_protocol, build_smoke_protocol
-        proto = build_smoke_protocol() if protocol_name == "smoke" else build_full_protocol()
+        from nonlinear_agent.evaluation_protocol import EvaluationProtocol
+
+        methods = payload.get("methods", ["random_search", "optuna_tpe", "llm_no_reflection", "llm_with_reflection"])
+        seeds = payload.get("seeds", [7, 17])
+        trial_budget = int(payload.get("trial_budget", 3))
+        param_count_max = int(payload.get("parameter_count_max", 15000))
+        nmse_threshold = float(payload.get("nmse_threshold_db", -39.0))
+
+        proto = EvaluationProtocol(
+            methods=methods, seeds=seeds, trial_budget=trial_budget,
+            parameter_count_max=param_count_max, nmse_threshold_db=nmse_threshold,
+        )
 
         if domain_name == "synthetic":
             from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
@@ -700,9 +714,11 @@ def create_app(workspace: Path | str):
     @app.get("/compare/summary")
     async def compare_summary():
         """Return the most recent comparison summary.json for loading saved results."""
+        from fastapi.responses import Response
         import glob as _glob
         candidates = sorted(_glob.glob(str(root / "benchmarks" / "compare-*" / "summary.json")))
         candidates += sorted(_glob.glob(str(root / "benchmarks" / "search-smoke" / "summary.json")))
+        candidates += sorted(_glob.glob(str(root / "benchmarks" / "nonlinear-real-v*" / "summary.json")))
         if candidates:
             path = Path(candidates[-1])
             return Response(

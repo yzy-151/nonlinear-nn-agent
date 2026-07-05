@@ -273,26 +273,24 @@ pre.ev{
     <h2>&#9878; Strategy Comparison</h2>
     <p class="hint">
       <strong>真实执行 4 种搜索策略对照。</strong>
-      Random / Optuna TPE / LLM no-Reflection / LLM with Reflection.
-      Synthetic domain 用真实工具链（fit + evaluate）逐 trial 执行，
-      结果写入 <code>benchmarks/compare-&lt;ts&gt;/</code>。
+      可调所有参数反复跑，对比 Random/TPE/LLM 在不同预算下的表现。
     </p>
-    <div class="card-grid" style="grid-template-columns:1fr 1fr">
+    <div class="card-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
       <div><label>Domain</label><select id="cmpDom">
         <option value="synthetic" selected>Synthetic Regression</option>
         <option value="nonlinear">Nonlinear Modeling</option>
       </select></div>
-      <div><label>Protocol</label><select id="cmpProto">
-        <option value="smoke" selected>Smoke (2 seeds x 3 trials = 24)</option>
-        <option value="full">Full (5 seeds x 10 trials = 200)</option>
-      </select></div>
+      <div><label>Param Count Max</label><input id="cmpPm" type="number" value="15000" style="text-align:right"></div>
+      <div><label>Target (dB)</label><input id="cmpThr" type="number" step="0.5" value="-39" style="text-align:right"></div>
+      <div><label>Seeds</label><input id="cmpSeeds" type="number" min="1" max="10" value="3" style="text-align:right"></div>
     </div>
-    <div class="card-grid" style="grid-template-columns:1fr 1fr">
-      <div><label>Timeout (sec/trial)</label><input id="cmpTo" type="number" min="1" value="60"></div>
+    <div class="card-grid" style="grid-template-columns:1fr 1fr 1fr">
+      <div><label>Trials per Seed</label><input id="cmpBudget" type="number" min="1" max="20" value="5" style="text-align:right"></div>
+      <div><label>Timeout (sec/trial)</label><input id="cmpTo" type="number" min="1" value="600" style="text-align:right"></div>
       <div><label>Workspace</label><input id="cmpWs" value="."></div>
     </div>
-    <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:12px">&#9878; Run Comparison (Synthetic)</button>
-    <button type="button" class="btn btn-ghost" id="cmpLoadBtn" style="margin-top:8px;width:100%;min-height:38px">&#128194; Load Saved Results (Nonlinear)</button>
+    <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:12px">&#9878; Run Comparison</button>
+    <button type="button" class="btn btn-ghost" id="cmpLoadBtn" style="margin-top:8px;width:100%;min-height:38px">&#128194; Load Saved Results</button>
     <div id="cmpResults" style="margin-top:18px;display:none">
       <h3 style="font-size:14px;margin-bottom:10px">&#9878; Comparison Results</h3>
       <div id="cmpTableWrap" style="overflow-x:auto"></div>
@@ -525,9 +523,18 @@ document.getElementById("cmpLoadBtn").addEventListener("click",function(){
 });
 
 document.getElementById("cmpBtn").addEventListener("click",function(){
-  var proto=document.getElementById("cmpProto").value;
   document.getElementById("cmpResults").style.display="none";
-  var body={protocol:proto,workspace:document.getElementById("cmpWs").value,domain:document.getElementById("cmpDom").value,timeout_seconds:Number(document.getElementById("cmpTo").value)};
+  var seeds_count=Number(document.getElementById("cmpSeeds").value);
+  var body={
+    domain:document.getElementById("cmpDom").value,
+    workspace:document.getElementById("cmpWs").value,
+    timeout_seconds:Number(document.getElementById("cmpTo").value),
+    parameter_count_max:Number(document.getElementById("cmpPm").value),
+    nmse_threshold_db:Number(document.getElementById("cmpThr").value),
+    seeds: Array.from({length:seeds_count},function(_,i){return [7,17,29,43,61][i]||(7+i*10)}),
+    trial_budget:Number(document.getElementById("cmpBudget").value),
+    methods:["random_search","optuna_tpe","llm_no_reflection","llm_with_reflection"]
+  };
   go("/compare/events",body,document.getElementById("cmpBtn"))
 });
 
