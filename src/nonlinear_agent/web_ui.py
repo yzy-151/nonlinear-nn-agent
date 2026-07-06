@@ -289,6 +289,8 @@ pre.ev{
       <div><label>Timeout (sec/trial)</label><input id="cmpTo" type="number" min="1" value="600" style="text-align:right"></div>
       <div><label>Workspace</label><input id="cmpWs" value="."></div>
     </div>
+    <label for="cmpPlan" style="margin-top:10px">LLM Plan (仅 LLM 策略使用)</label>
+    <textarea id="cmpPlan" style="min-height:80px">Find the best nonlinear model under the given parameter budget and target. Explore memory_depth and mp_order_count with complex_lstsq for fast closed-form fitting. Prefer models that are likely to reach the target NMSE.</textarea>
     <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:12px">&#9878; Run Comparison</button>
     <button type="button" class="btn btn-ghost" id="cmpLoadBtn" style="margin-top:8px;width:100%;min-height:38px">&#128194; Load Saved Results</button>
     <div id="cmpResults" style="margin-top:18px;display:none">
@@ -533,7 +535,8 @@ document.getElementById("cmpBtn").addEventListener("click",function(){
     nmse_threshold_db:Number(document.getElementById("cmpThr").value),
     seeds: Array.from({length:seeds_count},function(_,i){return [7,17,29,43,61][i]||(7+i*10)}),
     trial_budget:Number(document.getElementById("cmpBudget").value),
-    methods:["random_search","optuna_tpe","llm_no_reflection","llm_with_reflection"]
+    methods:["random_search","optuna_tpe","llm_no_reflection","llm_with_reflection"],
+    plan:document.getElementById("cmpPlan").value
   };
   go("/compare/events",body,document.getElementById("cmpBtn"))
 });

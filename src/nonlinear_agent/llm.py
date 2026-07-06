@@ -127,7 +127,7 @@ class OpenAICompatibleClient:
         cls,
         api_key: str | None = None,
         base_url: str = "https://api.deepseek.com",
-        model: str = "deepseek-v4-pro",
+        model: str = "deepseek-v4-flash",
         timeout_seconds: float = 60.0,
     ) -> "OpenAICompatibleClient":
         """创建 DeepSeek 客户端。
