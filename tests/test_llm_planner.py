@@ -21,7 +21,7 @@ class LLMPlannerTest(unittest.TestCase):
         client = OpenAICompatibleClient.deepseek(api_key="test-key")
 
         self.assertEqual(client.base_url, "https://api.deepseek.com")
-        self.assertEqual(client.model, "deepseek-v4-pro")
+        self.assertEqual(client.model, "deepseek-v4-flash")
         self.assertEqual(client.api_key, "test-key")
 
     def test_planner_parses_llm_json_into_experiment_plan(self):
