@@ -273,26 +273,25 @@ pre.ev{
     <h2>&#9878; Strategy Comparison</h2>
     <p class="hint">
       <strong>真实执行 4 种搜索策略对照。</strong>
-      可调所有参数反复跑，对比 Random/TPE/LLM 在不同预算下的表现。
+      调参后点 Run 跑真实训练，点 Load Saved 加载已有结果。
     </p>
-    <div class="card-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+    <div class="card-grid" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr">
       <div><label>Domain</label><select id="cmpDom">
-        <option value="synthetic" selected>Synthetic Regression</option>
-        <option value="nonlinear">Nonlinear Modeling</option>
+        <option value="synthetic">Synthetic</option>
+        <option value="nonlinear" selected>Nonlinear</option>
       </select></div>
-      <div><label>Param Count Max</label><input id="cmpPm" type="number" value="15000" style="text-align:right"></div>
-      <div><label>Target (dB)</label><input id="cmpThr" type="number" step="0.5" value="-39" style="text-align:right"></div>
-      <div><label>Seeds</label><input id="cmpSeeds" type="number" min="1" max="10" value="3" style="text-align:right"></div>
+      <div><label>Param Max</label><input id="cmpPm" type="number" value="15000"></div>
+      <div><label>Target (dB)</label><input id="cmpThr" type="number" step="0.5" value="-39"></div>
+      <div><label>Seeds</label><input id="cmpSeeds" type="number" min="1" max="10" value="3"></div>
+      <div><label>Trials/Seed</label><input id="cmpBudget" type="number" min="1" max="20" value="5"></div>
+      <div><label>Timeout (s)</label><input id="cmpTo" type="number" min="1" value="600"></div>
     </div>
-    <div class="card-grid" style="grid-template-columns:1fr 1fr 1fr">
-      <div><label>Trials per Seed</label><input id="cmpBudget" type="number" min="1" max="20" value="5" style="text-align:right"></div>
-      <div><label>Timeout (sec/trial)</label><input id="cmpTo" type="number" min="1" value="600" style="text-align:right"></div>
-      <div><label>Workspace</label><input id="cmpWs" value="."></div>
+    <label for="cmpPlan" style="margin-top:12px">LLM Plan <span style="color:var(--muted);font-weight:400">(仅 llm_* 策略使用，可自定义搜索策略)</span></label>
+    <textarea id="cmpPlan" style="min-height:72px">Find the best nonlinear model under the given parameter budget and target. Use complex_lstsq with high memory_depth and mp_order_count for fast closed-form fitting. Avoid mp=1 or mp=2 with large memory which gives poor NMSE. Prefer mp>=4.</textarea>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:0;flex:1">&#9878; Run Comparison</button>
+      <button type="button" class="btn btn-ghost" id="cmpLoadBtn" style="margin-top:0;flex:1;min-height:46px">&#128194; Load Saved Results</button>
     </div>
-    <label for="cmpPlan" style="margin-top:10px">LLM Plan (仅 LLM 策略使用)</label>
-    <textarea id="cmpPlan" style="min-height:80px">Find the best nonlinear model under the given parameter budget and target. Explore memory_depth and mp_order_count with complex_lstsq for fast closed-form fitting. Prefer models that are likely to reach the target NMSE.</textarea>
-    <button type="button" class="btn btn-go" id="cmpBtn" style="margin-top:12px">&#9878; Run Comparison</button>
-    <button type="button" class="btn btn-ghost" id="cmpLoadBtn" style="margin-top:8px;width:100%;min-height:38px">&#128194; Load Saved Results</button>
     <div id="cmpResults" style="margin-top:18px;display:none">
       <h3 style="font-size:14px;margin-bottom:10px">&#9878; Comparison Results</h3>
       <div id="cmpTableWrap" style="overflow-x:auto"></div>
@@ -529,7 +528,7 @@ document.getElementById("cmpBtn").addEventListener("click",function(){
   var seeds_count=Number(document.getElementById("cmpSeeds").value);
   var body={
     domain:document.getElementById("cmpDom").value,
-    workspace:document.getElementById("cmpWs").value,
+    workspace:"."
     timeout_seconds:Number(document.getElementById("cmpTo").value),
     parameter_count_max:Number(document.getElementById("cmpPm").value),
     nmse_threshold_db:Number(document.getElementById("cmpThr").value),
