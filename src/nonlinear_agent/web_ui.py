@@ -528,7 +528,7 @@ document.getElementById("cmpBtn").addEventListener("click",function(){
   var seeds_count=Number(document.getElementById("cmpSeeds").value);
   var body={
     domain:document.getElementById("cmpDom").value,
-    workspace:"."
+    workspace:".",
     timeout_seconds:Number(document.getElementById("cmpTo").value),
     parameter_count_max:Number(document.getElementById("cmpPm").value),
     nmse_threshold_db:Number(document.getElementById("cmpThr").value),
