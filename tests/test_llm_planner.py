@@ -90,8 +90,10 @@ class LLMPlannerTest(unittest.TestCase):
         self.assertEqual(result.rounds, 2)
 
     def test_planner_prompt_exposes_physics_informed_design_space(self):
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
         llm = FakeLLMClient(responses=['{"summary":"stop", "stop": true, "experiments": []}'])
-        planner = ExperimentPlanner(llm_client=llm)
+        planner = ExperimentPlanner(llm_client=llm, domain=NonlinearModelingDomain())
 
         planner.plan(
             goal="Try spline LUT activation and shallow nonlinear models",

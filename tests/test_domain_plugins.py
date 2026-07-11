@@ -171,6 +171,20 @@ class TestPlannerWithDomain(unittest.TestCase):
         prompt = planner._build_prompt(goal="test", history=[], constraints={})
         self.assertIn("nonlinear", prompt.lower())
 
+    def test_planner_without_domain_has_no_hardcoded_domain_fields(self):
+        from nonlinear_agent.llm import FakeLLMClient
+
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"test","stop":true,"experiments":[]}',
+            ]
+        )
+        planner = ExperimentPlanner(llm_client=llm)
+        prompt = planner._build_prompt(goal="test", history=[], constraints={})
+        self.assertNotIn("memory_depth", prompt)
+        self.assertNotIn("spline_mlp", prompt)
+        self.assertNotIn("mp_order_count", prompt)
+
 
 class TestGuardWithDomain(unittest.TestCase):
     """Verify the schema guard delegates domain-specific checks."""

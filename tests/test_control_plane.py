@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from nonlinear_agent.control_plane import RuntimeControlPlane
 
@@ -94,3 +98,23 @@ class TestControlPlane(unittest.TestCase):
         self.assertEqual(len(events), 2)
         self.assertEqual(events[0]["id"], 1)
         self.assertEqual(events[1]["id"], 2)
+
+    def test_concurrent_claim_executes_once(self):
+        """8 workers claiming the same job: exactly one wins (idempotent execute)."""
+        import threading
+
+        job_id = self.cp.enqueue_job("s1", "req-1")
+        barrier = threading.Barrier(8)
+        results: list[bool] = []
+
+        def worker(index: int) -> None:
+            barrier.wait()
+            results.append(self.cp.claim_job(job_id, f"worker-{index}"))
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(sum(results), 1)

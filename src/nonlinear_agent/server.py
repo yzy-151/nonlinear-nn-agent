@@ -256,13 +256,32 @@ def encode_sse_event(
     return "\n".join(lines)
 
 
-async def stream_sse_events(
-    runtime: ExperimentHarnessRuntime, request: HarnessRequest
-) -> AsyncIterator[str]:
-    """把 Runtime 的事件流转为 SSE 字符串流。
+def encode_replayed_sse_event(event: dict) -> str:
+    """Encode a persisted {id, event, data} event as SSE for replay."""
+    data = json.dumps(event.get("data", {}), ensure_ascii=False, default=str)
+    return f"id: {event['id']}\nevent: {event['event']}\ndata: {data}\n\n\n"
 
-    这是一个简单的适配器：TraceEvent → encode_sse_event → yield string
+
+async def stream_sse_events(
+    runtime: ExperimentHarnessRuntime,
+    request: HarnessRequest,
+    last_event_id: int | None = None,
+) -> AsyncIterator[str]:
+    """把 Runtime 的事件流转为 SSE 字符串流，支持 Last-Event-ID 恢复。
+
+    当客户端提供 last_event_id 时，先重放控制平面中已持久化的事件，
+    再继续实时事件流，保证断线重连不丢失事件。
     """
+    if last_event_id is not None and runtime.control_plane is not None:
+        replayed = runtime.control_plane.get_events_since(
+            request.session_id, last_event_id
+        )
+        for event in replayed:
+            yield encode_replayed_sse_event(event)
+            _session_event_counters[request.session_id] = max(
+                _session_event_counters.get(request.session_id, 0),
+                int(event["id"]),
+            )
     async for event in runtime.run(request):
         yield encode_sse_event(event, event_id=_next_event_id(request.session_id))
 
@@ -275,6 +294,7 @@ def build_runtime(
     session_id: str,
     timeout_seconds: float = 300.0,
     domain: DomainPlugin | None = None,
+    control_plane: Any = None,
 ) -> ExperimentHarnessRuntime:
     """装配一个完整的 Runtime 实例（ToolRegistry + SessionStore + TraceLogger）。
 
@@ -288,11 +308,13 @@ def build_runtime(
     else:
         tool_registry = build_experiment_tool_registry(root, default_timeout_seconds=timeout_seconds)
         display_names = None
+
     return ExperimentHarnessRuntime(
         tool_registry=tool_registry,
         session_store=SessionStore(root / "sessions"),
         trace_logger=TraceLogger(root / "traces" / f"{session_id}.jsonl"),
         display_metric_names=display_names,
+        control_plane=control_plane,
     )
 
 
@@ -448,7 +470,7 @@ def create_app(workspace: Path | str):
     返回的 app 可以用 uvicorn.run() 启动。
     """
     try:
-        from fastapi import FastAPI
+        from fastapi import FastAPI, Header
         from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
     except ImportError as exc:
         raise RuntimeError(
@@ -523,11 +545,16 @@ def create_app(workspace: Path | str):
 
     # ── POST /runs/{session_id}/events — Fixed Workflow ──
     @app.post("/runs/{session_id}/events")
-    async def run_events(session_id: str, body: Optional[Dict[str, Any]] = None):
+    async def run_events(
+        session_id: str,
+        body: Optional[Dict[str, Any]] = None,
+        x_last_event_id: Optional[str] = Header(default=None),
+    ):
         """Fixed Workflow 模式：前端填参数 → 直接执行 4 步工具链。
 
         不需要 LLM，不需要 API Key，固定流程执行到底。
         body 里的字段直接映射到 HarnessRunSpec 的构造函数参数。
+        客户端可通过 Last-Event-ID 头从断点恢复事件流。
         """
         payload = body or {}
         spec = HarnessRunSpec(session_id=session_id, **payload)
@@ -542,9 +569,12 @@ def create_app(workspace: Path | str):
             from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
             domain = NonlinearModelingDomain()
 
+        from nonlinear_agent.control_plane import RuntimeControlPlane
+
+        control_plane = RuntimeControlPlane(root / "runtime.sqlite")
         runtime = build_runtime(
             root, session_id=session_id, timeout_seconds=spec.timeout_seconds,
-            domain=domain,
+            domain=domain, control_plane=control_plane,
         )
         if domain is not None:
             request = HarnessRequest(
@@ -557,11 +587,23 @@ def create_app(workspace: Path | str):
         trace_path = root / "traces" / f"{session_id}.jsonl"
         output_dir = spec.output_dir or f"reports/{session_id}"
 
+        last_event_id = None
+        if x_last_event_id is not None:
+            try:
+                last_event_id = int(x_last_event_id)
+            except ValueError:
+                last_event_id = None
+
         async def event_stream():
-            async for chunk in stream_sse_events(runtime, request):
-                yield chunk
-            # Workflow 完成后生成 replay report
-            write_replay_report(trace_path, root / output_dir / "replay.md")
+            try:
+                async for chunk in stream_sse_events(
+                    runtime, request, last_event_id=last_event_id
+                ):
+                    yield chunk
+                # Workflow 完成后生成 replay report
+                write_replay_report(trace_path, root / output_dir / "replay.md")
+            finally:
+                control_plane.close()
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 

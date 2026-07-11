@@ -13,6 +13,7 @@ domain without changing any harness code.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +103,14 @@ class SyntheticRegressionDomain:
 
     def default_constraints(self) -> dict:
         return {"parameter_count_max": 100, "metric": "val_mse"}
+
+    def dataset_fingerprint(self) -> str:
+        """Deterministic fingerprint of the fixed synthetic data split."""
+        payload = (
+            "synthetic-regression|seed=42|true_degree=5|"
+            "true_coeffs=0.5,-1.8,2.1,-0.9,0.3,-0.05|train_n=200|val_n=100"
+        )
+        return hashlib.sha256(payload.encode()).hexdigest()
 
     # ── v2.1: Execution workflow ────────────────────────────────
     def build_harness_spec(
