@@ -25,7 +25,7 @@ pip install -r requirements.txt
 python -m unittest discover tests
 ```
 
-预期输出 `Ran 63 tests ... OK`。如果报错 `Start directory is not importable`，说明你不在项目根目录——先执行 `cd /d D:\FILEEEEEEEEEEE\projects\nonlinear-nn-agent`（Windows cmd）或 `cd D:/FILEEEEEEEEEEE/projects/nonlinear-nn-agent`（bash）。
+预期输出 `Ran 208 tests ... OK`（Optuna 已锁定为 `optuna>=4,<5`，测试不再跳过 TPE 基线）。如果报错 `Start directory is not importable`，说明你不在项目根目录——先执行 `cd /d D:\FILEEEEEEEEEEE\projects\nonlinear-nn-agent`（Windows cmd）或 `cd D:/FILEEEEEEEEEEE/projects/nonlinear-nn-agent`（bash）。
 
 ### 第三步：跑一次完整 Agent Loop（无需 API Key，30 秒）
 
@@ -70,6 +70,8 @@ ls runs\my-first-run
 | `python agent.py benchmark` | 执行 Benchmark 评分 | 否 |
 | `python agent.py diagnostics` | 生成 Markdown 诊断仪表盘 | 否 |
 | `python agent.py dashboard` | 生成 HTML 诊断仪表盘 | 否 |
+| `python agent.py compare-search` | 真实执行 4 策略搜索对照（Random/TPE/LLM±Reflection） | 否 |
+| `python agent.py stress-runtime` | SQLite 控制面并发压测（幂等/恢复/事件） | 否 |
 | `python agent.py serve` | 启动 SSE 流式服务 | 否 |
 
 也可以走等价入口：
@@ -143,6 +145,29 @@ python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2
 - 项目有真实训练和真实 PSD 结果，不是空壳 Agent。
 - `exp016` 是 4000 参数约束下接近上限的强候选。
 - `exp_019` 是 DeepSeek 在错误反馈后完成自我修正并选择的轻量候选。
+
+### 搜索对照实验（v1.9+）
+
+在统一 Trial Protocol 下完成 **4 策略 × 5 seeds × 10 有效训练 trial = 200 trial** 的真实对照（Random Search / Optuna TPE / LLM without Reflection / LLM with Reflection），数据、协议和统计报告全部落盘：
+
+```text
+benchmarks/protocol/nonlinear-search-v1.json   # 固定协议（seeds、budget、参数上限）
+benchmarks/nonlinear-search-v1/                # trials.jsonl + summary.json/csv + 两张 PNG
+docs/experiments/nonlinear-search-ablation-v1.md  # 实验报告
+```
+
+核心结论（详见报告，所有数字可从 JSON/CSV 复算）：
+
+- Optuna TPE 的 best NMSE 均值最高且方差最小（-37.07 dB，std 0.27 dB）。
+- `llm_with_reflection` 相对 `llm_no_reflection` 的 paired delta 为 +2.34 dB，**不显著**——未观察到 Reflection 的稳定优势，报告如实呈现失败与不显著结果。
+- 每条 trial 记录真实 `config_hash` / `dataset_hash` / `git_commit`，rejected 计划单独统计、不占用有效训练预算。
+
+复现：
+
+```powershell
+python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1
+python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1 --output-dir benchmarks/runtime-v2
+```
 
 ## 3. Agentic Loop
 
@@ -640,11 +665,16 @@ benchmarks/<run>/
 |---|---|
 | `agent_workflow.py` | 早期自动训练 workflow，包含命令编排和指标解析 |
 | `benchmark.py` | Agent benchmark case、评分和 artifact 输出 |
+| `compare_runner.py` | 4 策略真实对照执行器（hash 落库、Reflection 消融、图表输出） |
 | `cli.py` | 统一 CLI 入口，封装 run/benchmark/diagnostics/dashboard/serve |
 | `comparison.py` | 实验结果对比辅助 |
 | `context_memory.py` | 历史压缩和 prompt history 控制 |
+| `control_plane.py` | SQLite 控制面：请求去重、任务 lease、单调事件序列 |
 | `dashboard.py` | standalone HTML diagnostics dashboard 生成器 |
 | `diagnostics.py` | benchmark/run artifacts 聚合与 Markdown dashboard |
+| `domains/` | DomainPlugin 协议 + nonlinear-modeling / synthetic-regression 两个插件 |
+| `evaluation_protocol.py` | 统一实验协议（seeds、budget、trial record schema） |
+| `evaluation_statistics.py` | bootstrap 95% CI、paired delta、summary.json/csv |
 | `experiment.py` | 非线性拟合模型、特征、训练和评估核心 |
 | `experiment_tools.py` | 把真实训练流程封装为可注册工具 |
 | `hooks.py` | HookManager，支持 runtime 事件扩展 |
@@ -658,8 +688,11 @@ benchmarks/<run>/
 | `run_control.py` | RunController，支持取消/中断 |
 | `runtime.py` | Harness Runtime，执行工具链并产出事件 |
 | `runtime_errors.py` | ErrorType 和异常分类 |
+| `search/` | SearchStrategy 协议 + Random / Optuna TPE / LLM 策略 |
 | `server.py` | FastAPI SSE 服务层 |
 | `session.py` | session 数据结构和本地持久化 |
+| `sse_replay.py` | SSE 解析与 Last-Event-ID 重放客户端 |
+| `stress.py` | 控制面并发压测（幂等/恢复/事件验收线） |
 | `tools.py` | ToolCall、ToolResult、ToolSpec、ToolRegistry |
 | `trace.py` | TraceEvent 和 JSONL TraceLogger |
 
@@ -751,6 +784,7 @@ version/v1.5
 version/v1.6
 version/v1.6.1
 version/v1.6.2
+version/v2.0.0
 ```
 
 ### v0.1: Harness Runtime
@@ -1104,6 +1138,41 @@ version/v1.6.2
 - Reflection 更适合由确定性逻辑生成结构化错误分类；LLM 可以补充假设，但不能替代可审计恢复策略。
 - Benchmark case 数量要覆盖关键失败模式，3 个只能算 smoke test，5 个才更像可解释评估。
 - 文档收敛本身是工程交付能力：新人能上手、面试能讲清、后续 Codex/DeepSeek 能接着维护。
+
+### v1.7.0: 仓库与实验协议收口
+
+新增：
+
+- `configs/baselines/` 与 `configs/examples/` 目录治理，生成配置统一写入 `runs/<run_id>/configs/`
+- `artifact_paths.py` 路径规则 + `tests/test_artifact_paths.py`
+- `.gitignore` 覆盖生成配置与运行产物
+
+### v1.8.0: Harness 与领域解耦
+
+新增：
+
+- `DomainPlugin` 协议（`domains/base.py`）
+- `NonlinearModelingDomain`（主任务）与 `SyntheticRegressionDomain`（轻量第二插件，证明可迁移）
+- Planner / Guard / Loop 全部从 domain 获取设计空间、校验规则、ToolRegistry 与主指标
+
+### v1.9.0: 搜索与 Reflection 对照实验
+
+新增：
+
+- `SearchStrategy` 协议 + `random_search` / `optuna_tpe` / `llm_no_reflection` / `llm_with_reflection`
+- `EvaluationProtocol`（smoke 24 / full 200 有效 trial）与 `EvaluationStatistics`（bootstrap 95% CI、paired delta）
+- 真实 200-trial 对照落盘 `benchmarks/nonlinear-search-v1/`，协议文件 `benchmarks/protocol/nonlinear-search-v1.json`
+- 报告 `docs/experiments/nonlinear-search-ablation-v1.md`：诚实呈现未观察到 Reflection 稳定优势
+
+### v2.0.0: Runtime 可靠性与最终投递
+
+新增：
+
+- `RuntimeControlPlane`：SQLite 请求去重、原子 claim、任务 lease 与重试上限、单调事件序列（WAL + busy timeout）
+- SSE event ID / 15s heartbeat / `/cancel` / **Last-Event-ID 断线重放**（`sse_replay.py`）
+- 层级 Trace：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token_count/cost_usd`
+- `stress-runtime` 并发压测：重复执行率 0、事件丢失率 0、终态一致率 1.0、故障恢复率 ≥ 0.95
+- Strategy Comparison 页（Dashboard + Web UI）与 5 分钟演示脚本 `docs/demo-script.md`
 
 ## 13. 如何运行
 
