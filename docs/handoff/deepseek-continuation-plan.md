@@ -1,6 +1,6 @@
 # Nonlinear NN Agent Harness 交接与维护文档
 
-更新时间：2026-07-26
+更新时间：2026-08-04
 
 本文件是唯一维护中的交接文档。它合并了原 DeepSeek continuation plan、DeepSeek planner self-correction case study 和 experiment-agent-harness-plan。
 
@@ -88,6 +88,10 @@ git push origin main
 | v1.6 | Onboarding / Demo UI | `web_ui.py`, docs |
 | v1.6.1 | 状态审查修复 | path guard, reflection history, 5-case benchmark |
 | v1.6.2 | 维护定版 | artifact path guard, reflection context, docs consolidation, dark UI |
+| v1.7.0 | 仓库与实验协议收口 | `artifact_paths.py`, `configs/baselines|examples/`, `.gitignore` |
+| v1.8.0 | Harness 与领域解耦 | `domains/`（base + nonlinear + synthetic） |
+| v1.9.0 | 搜索与 Reflection 对照 | `search/`, `evaluation_protocol.py`, `evaluation_statistics.py`, `benchmarks/nonlinear-search-v1/` |
+| v2.0.0 | Runtime 可靠性与最终投递 | `control_plane.py`, `sse_replay.py`, `stress.py`, 层级 Trace, Strategy Comparison |
 
 ## 6. 核心代码入口
 
@@ -105,6 +109,14 @@ src/nonlinear_agent/diagnostics.py        aggregate run/benchmark artifacts
 src/nonlinear_agent/server.py             FastAPI + SSE endpoints
 src/nonlinear_agent/web_ui.py             browser UI
 src/nonlinear_agent/mcp_server.py         MCP-compatible bridge
+src/nonlinear_agent/domains/              DomainPlugin 协议 + 两个插件
+src/nonlinear_agent/search/               SearchStrategy + Random/Optuna/LLM 策略
+src/nonlinear_agent/evaluation_protocol.py  统一实验协议
+src/nonlinear_agent/evaluation_statistics.py bootstrap CI / paired delta
+src/nonlinear_agent/compare_runner.py     4 策略真实对照执行器
+src/nonlinear_agent/control_plane.py      SQLite 控制面（去重/lease/事件）
+src/nonlinear_agent/sse_replay.py         SSE Last-Event-ID 重放
+src/nonlinear_agent/stress.py             并发压测
 ```
 
 ## 7. Web / CLI 功能
@@ -214,6 +226,32 @@ Benchmark 指标：
 
 3 个 case 只能算 smoke test。当前 5 个 case 可以支撑面试中的“我有评估体系”说法，但更强版本仍应加入多 seed、长上下文压缩、timeout/retry、真实 DeepSeek replay。
 
+### v1.9 搜索对照实验
+
+统一 Trial Protocol（`benchmarks/protocol/nonlinear-search-v1.json`）下的 4 策略 × 5 seeds × 10 有效训练 trial 真实对照已落地，见：
+
+```text
+benchmarks/nonlinear-search-v1/trials.jsonl
+benchmarks/nonlinear-search-v1/summary.json / summary.csv
+benchmarks/nonlinear-search-v1/best-so-far.png / reflection-ablation.png
+docs/experiments/nonlinear-search-ablation-v1.md
+```
+
+关键结论（诚实口径）：
+
+- Optuna TPE best NMSE 均值最高（-37.07 dB，std 0.27 dB）。
+- `llm_with_reflection` 相对 `llm_no_reflection` paired delta = +2.34 dB，**不显著**，未观察到稳定优势。
+- 每条 trial 记录真实 `config_hash` / `dataset_hash` / `git_commit`；rejected 单独统计、不占用有效预算。
+
+LLM 策略当前为离线邻域采样模拟（token/cost = 0），真实 LLM 证据仍以 DeepSeek case study（exp016 / exp_019）为准。
+
+### v2.0 Runtime 可靠性
+
+- `RuntimeControlPlane`：SQLite 请求去重、原子 claim、lease 过期重领、max_attempts、单调事件序列（WAL + busy timeout）。
+- SSE：事件 ID、15s heartbeat、`/cancel/{session_id}`、Last-Event-ID 断线重放。
+- 层级 Trace：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token_count/cost_usd`。
+- 压测验收线（`benchmarks/runtime-v2/stress.json`，PASS）：重复执行率 0、事件丢失率 0、终态一致率 1.0、注入 10% 故障后恢复率 1.0。
+
 ## 10. 当前状态修复记录
 
 ### 根目录实验产物
@@ -262,7 +300,7 @@ Benchmark 指标：
 
 ## 12. 后续边界
 
-本项目不继续无目标堆 v1.7/v1.8。后续修改以修 bug、更新面试 Q&A、更新 case study、稳定 UI 和测试为主。
+本项目 v1.7.0 → v2.0.0 计划已完成（仓库收口、DomainPlugin、搜索对照、SQLite 控制面、SSE 重放、压测）。后续修改以修 bug、更新面试 Q&A、更新 case study、稳定 UI 和测试为主。
 
 以下内容交给 Storm 或其他项目：
 
@@ -279,6 +317,8 @@ Benchmark 指标：
 python -m unittest discover tests
 python examples\nonlinear_fit\run_benchmark.py --output-dir benchmarks\fake-check
 python agent.py dashboard
+python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --dry-run
+python agent.py stress-runtime --concurrency 2 --requests 10 --failure-rate 0.1 --output-dir benchmarks/runtime-smoke
 ```
 
 v1.6.2 定版验证记录：
@@ -286,3 +326,9 @@ v1.6.2 定版验证记录：
 - `python -m unittest discover tests`：95 tests OK。
 - Benchmark 当前为 5 case：target hit、非法计划拒绝、runtime failure、reflection recovery、budget stop。
 - Web UI 和 diagnostics dashboard 已统一为深色主题，并在页面说明 benchmark 指标口径。
+
+v2.0.0 验证记录：
+
+- `python -m unittest discover tests`：208 tests OK（含 DomainPlugin、搜索策略、评估统计、控制面、SSE 重放、并发压测）。
+- `benchmarks/nonlinear-search-v1/`：200 个有效训练 trial（+120 rejected），hash 完整，PASS。
+- `benchmarks/runtime-v2/stress.json`：并发 8 × 100 请求，重复执行率 0 / 事件丢失率 0 / 终态一致率 1.0 / 恢复率 1.0，PASS。

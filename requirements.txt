@@ -1,5 +1,6 @@
 matplotlib
 numpy
+optuna>=4,<5
 pyyaml
 scipy
 torch

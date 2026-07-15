@@ -190,6 +190,16 @@ class NonlinearModelingDomain:
             "nmse_threshold_db": DEFAULT_NMSE_THRESHOLD_DB,
         }
 
+    def dataset_fingerprint(self) -> str:
+        """SHA-256 of the fixed MPDPD data file used by all trials."""
+        import hashlib
+
+        data_path = Path("examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat")
+        try:
+            return hashlib.sha256(data_path.read_bytes()).hexdigest()
+        except OSError:
+            return "unknown"
+
     def default_epochs(self) -> int:
         return 200
 

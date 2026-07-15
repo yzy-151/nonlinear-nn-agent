@@ -71,6 +71,12 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--parameter-count-max", type=int, default=15000)
     compare.add_argument("--nmse-threshold-db", type=float, default=-39.0)
     compare.add_argument("--output-dir", default="benchmarks/nonlinear-search-v1")
+    compare.add_argument("--protocol",
+        help="JSON protocol file (methods/seeds/trial_budget). Takes precedence over --methods/--seeds/--trial-budget.")
+    compare.add_argument("--domain", choices=["nonlinear", "synthetic"], default="nonlinear",
+        help="Which DomainPlugin to execute (default: nonlinear).")
+    compare.add_argument("--timeout-seconds", type=float, default=300.0,
+        help="Per-trial training timeout (default 300s).")
     compare.add_argument("--smoke", action="store_true", help="Use reduced smoke budget (2 seeds x 3 trials)")
     compare.add_argument("--dry-run", action="store_true", help="Print protocol and exit without running")
 
@@ -144,117 +150,80 @@ async def _run_planner(args: argparse.Namespace) -> int:
 
 
 def _run_compare_search(args: argparse.Namespace) -> int:
+    import json as _json
+    from pathlib import Path
+
+    from nonlinear_agent.compare_runner import run_compare_protocol
     from nonlinear_agent.evaluation_protocol import EvaluationProtocol
 
-    methods = [m.strip() for m in args.methods.split(",")]
-    seeds = [int(s.strip()) for s in args.seeds.split(",")]
-    if args.smoke:
-        seeds = seeds[:2]
-        args.trial_budget = 3
-
-    protocol = EvaluationProtocol(
-        methods=methods,
-        seeds=seeds,
-        trial_budget=args.trial_budget,
-        parameter_count_max=args.parameter_count_max,
-        nmse_threshold_db=args.nmse_threshold_db,
-    )
+    if args.protocol:
+        with Path(args.protocol).open("r", encoding="utf-8") as fh:
+            data = _json.load(fh)
+        protocol = EvaluationProtocol(
+            methods=data["methods"],
+            seeds=[int(s) for s in data["seeds"]],
+            trial_budget=int(data["trial_budget"]),
+            parameter_count_max=int(data.get("parameter_count_max", 4000)),
+            nmse_threshold_db=float(data.get("nmse_threshold_db", -35.0)),
+        )
+    else:
+        methods = [m.strip() for m in args.methods.split(",")]
+        seeds = [int(s.strip()) for s in args.seeds.split(",")]
+        if args.smoke:
+            seeds = seeds[:2]
+            args.trial_budget = 3
+        protocol = EvaluationProtocol(
+            methods=methods,
+            seeds=seeds,
+            trial_budget=args.trial_budget,
+            parameter_count_max=args.parameter_count_max,
+            nmse_threshold_db=args.nmse_threshold_db,
+        )
 
     if args.dry_run:
-        import json
-        print(json.dumps(protocol.to_dict(), indent=2, ensure_ascii=False))
+        print(_json.dumps(protocol.to_dict(), indent=2, ensure_ascii=False))
         print(f"Output directory: {args.output_dir}")
         return 0
 
+    if args.domain == "synthetic":
+        from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
+
+        domain = SyntheticRegressionDomain()
+    else:
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
+        domain = NonlinearModelingDomain()
+
     print(f"Protocol: {protocol.estimate_total_trials()} total trials "
-          f"({len(methods)} methods x {len(seeds)} seeds x {args.trial_budget} trials)")
-    print(f"Output: {args.output_dir}")
+          f"({len(protocol.methods)} methods x {len(protocol.seeds)} seeds x "
+          f"{protocol.trial_budget} trials)")
+    print(f"Domain: {domain.name} | Output: {args.output_dir}")
 
-    from pathlib import Path
-    from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
-    from nonlinear_agent.search.base import SearchContext
-    from nonlinear_agent.search.random_search import RandomSearch
-    from nonlinear_agent.evaluation_protocol import build_trial_record
-
-    domain = NonlinearModelingDomain()
     out_dir = Path(args.output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    rows, summary, _ = asyncio.run(run_compare_protocol(
+        protocol,
+        domain,
+        Path(args.workspace),
+        output_dir=out_dir,
+        timeout_seconds=args.timeout_seconds,
+    ))
 
-    trial_rows: list[dict] = []
-    import numpy as np
-    rng = np.random.default_rng(42)
-
-    for method in methods:
-        for seed in seeds:
-            ctx = SearchContext(domain=domain, seed=seed, trial_budget=args.trial_budget)
-            strategy = RandomSearch(ctx) if method == "random_search" else None
-
-            for trial_idx in range(args.trial_budget):
-                if strategy:
-                    candidate = strategy.suggest([], trial_idx)
-                else:
-                    candidate = {"model_type": "complex_lstsq", "feature_mode": "complex_mp", "memory_depth": 150, "mp_order_count": 12}
-
-                # Simulate NMSE with clear strategy differentiation under 15000 params / -39 dB target
-                if method == "random_search":
-                    base_nmse, nmse_std = -35.5, 1.8
-                elif method == "optuna_tpe":
-                    base_nmse, nmse_std = -38.0, 1.2
-                elif method == "llm_no_reflection":
-                    base_nmse, nmse_std = -40.5, 1.8
-                elif method == "llm_with_reflection":
-                    base_nmse, nmse_std = -42.0, 0.6
-                else:
-                    base_nmse, nmse_std = -36.0, 2.0
-                nmse = base_nmse + rng.normal(0, nmse_std)
-
-                record = build_trial_record(
-                    run_id=f"v19-{method}-s{seed}-t{trial_idx}",
-                    method=method,
-                    seed=seed,
-                    trial_index=trial_idx,
-                    nmse_db=float(nmse),
-                    target_hit=nmse <= args.nmse_threshold_db,
-                    model_type=candidate.get("model_type", "unknown"),
-                    parameter_count=3980 if "complex_lstsq" in str(candidate.get("model_type", "")) else (
-                        12000 if "spline_mlp" in str(candidate.get("model_type", "")) else 200
-                    ),
-                    reflection_used=(method == "llm_with_reflection"),
-                    rejected=False,
-                    runtime_failed=False,
-                )
-                trial_rows.append(record)
-
-    # Write trials.jsonl
-    import json as _json
-    trials_path = out_dir / "trials.jsonl"
-    with trials_path.open("w", encoding="utf-8") as fh:
-        for r in trial_rows:
-            fh.write(_json.dumps(r, ensure_ascii=False) + "\n")
-
-    # Write statistics
-    from nonlinear_agent.evaluation_statistics import write_summary_json, write_summary_csv
-    summary = write_summary_json(trial_rows, methods, out_dir / "summary.json")
-    write_summary_csv(summary, out_dir / "summary.csv")
-
-    # Print summary
-    print(f"\nWrote {len(trial_rows)} trials to {trials_path}")
-    print(f"Wrote summary to {out_dir / 'summary.json'}")
-    for m in methods:
+    print(f"\nWrote {len(rows)} trials to {out_dir / 'trials.jsonl'}")
+    metric = domain.primary_metric()
+    for m in protocol.methods:
         stats = summary["per_method"].get(m, {})
-        best = stats.get("best_nmse_db_mean", "N/A")
+        best = stats.get(f"best_{metric}_mean", "N/A")
         hit = stats.get("target_hit_rate_mean", 0)
         if isinstance(best, float):
-            print(f"  {m}: best_nmse={best:.1f} dB, hit_rate={float(hit)*100:.0f}%")
+            print(f"  {m}: best={best:.1f}, hit_rate={float(hit) * 100:.0f}%")
 
-    # Paired delta
     paired = summary.get("paired_comparisons", {})
     for name, delta in paired.items():
         n = delta.get("paired_seed_count", 0)
-        d = delta.get("nmse_delta_mean_db", 0)
+        d = delta.get("nmse_delta_mean_db") or delta.get(f"{metric}_delta_mean")
         sig = "significant" if delta.get("significant") else "not significant"
         if isinstance(d, float):
-            print(f"  {name}: delta={d:.1f} dB across {n} seeds ({sig})")
+            print(f"  {name}: delta={d:.2f} across {n} seeds ({sig})")
 
     return 0
 
@@ -289,61 +258,28 @@ def _write_dashboard(args: argparse.Namespace) -> int:
 
 
 def _run_stress(args: argparse.Namespace) -> int:
-    """Run a lightweight reliability stress test on the RuntimeControlPlane."""
-    import tempfile
+    """Run the concurrent reliability stress test on the RuntimeControlPlane."""
     from pathlib import Path
-    from nonlinear_agent.control_plane import RuntimeControlPlane
+    from nonlinear_agent.stress import run_stress_test
 
-    with tempfile.TemporaryDirectory() as tmp:
-        cp = RuntimeControlPlane(Path(tmp) / "stress.sqlite")
-        n = args.requests
-        dup_count = 0
-        claim_fail_count = 0
+    out_dir = Path(args.output_dir)
+    report = run_stress_test(
+        concurrency=args.concurrency,
+        requests=args.requests,
+        failure_rate=args.failure_rate,
+        output_dir=out_dir,
+    )
 
-        # Request dedup test: each request_id sent twice, second should be duplicate
-        for i in range(n):
-            ok1 = cp.register_request("s1", f"req-{i}", "{}")
-            ok2 = cp.register_request("s1", f"req-{i}", "{}")
-            if ok1 and not ok2:
-                continue  # dedup working: first registered, second rejected
-            dup_count += 1  # dedup failed or unexpected state
-
-        # Job claim test
-        jobs = []
-        for i in range(n):
-            jid = cp.enqueue_job("s1", f"req-{i}")
-            jobs.append(jid)
-            if i < n // 2:
-                cp.claim_job(jid, "worker-1")
-            else:
-                claimed = cp.claim_job(jid, "worker-2")
-                if not claimed:
-                    claim_fail_count += 1
-
-        # Event sequence test
-        events_lost = 0
-        last_seq = -1
-        for i in range(n):
-            seq = cp.record_event("s1", "test", "{}")
-            if seq != last_seq + 1:
-                events_lost += 1
-            last_seq = seq
-
-        cp.close()
-
-    dup_rate = dup_count / n if n else 0
-    event_loss_rate = events_lost / n if n else 0
-    consistency = 1.0 - (claim_fail_count / (n // 2)) if n > 1 else 1.0
-
-    print(f"Stress test: {n} requests, concurrency={args.concurrency}")
-    print(f"  Duplicate requests: {dup_count} (rate={dup_rate:.3f})")
-    print(f"  Event sequence gaps: {events_lost} (rate={event_loss_rate:.3f})")
-    print(f"  Claim success rate: {consistency:.3f}")
-    print(f"  Target: dup_rate=0, event_loss=0, consistency=1.0")
-
-    ok = (dup_rate == 0 and event_loss_rate == 0 and consistency >= 0.95)
-    print(f"  {'PASS' if ok else 'FAIL'}")
-    return 0 if ok else 1
+    print(f"Stress test: {report['requests']} requests, "
+          f"concurrency={report['concurrency']}")
+    print(f"  Duplicate execution rate: {report['duplicate_execution_rate']:.3f}")
+    print(f"  Event loss rate: {report['event_loss_rate']:.3f}")
+    print(f"  Terminal consistency: {report['terminal_consistency']:.3f}")
+    print(f"  Recovery rate (injected {report['injected_failures']} failures): "
+          f"{report['recovery_rate']:.3f}")
+    print(f"  Report: {out_dir / 'stress.json'}")
+    print(f"  {'PASS' if report['pass'] else 'FAIL'}")
+    return 0 if report["pass"] else 1
 
 
 def _serve(args: argparse.Namespace) -> int:

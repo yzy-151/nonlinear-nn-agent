@@ -305,3 +305,36 @@ v0.4 后可以把项目升级表述为：
 面试表达：
 
 > v1.6.2 不是继续堆功能，而是补齐工程闭环：产物路径、决策上下文、benchmark 口径、文档边界和展示界面都统一起来。这个版本可以证明我不只会让 Agent 跑起来，也会维护它长期可复现、可审计、可交接。
+
+## v1.9.0 追加：搜索对照与统计证据表达
+
+- 在统一 Trial Protocol 下实现 Random Search / Optuna TPE / LLM without Reflection / LLM with Reflection 四策略真实对照：4 策略 × 5 seeds × 10 有效训练 trial = 200 个有效训练 trial（rejected 单独统计、不占用有效预算），每条 trial 记录真实 config/dataset/git hash。
+- 用固定 bootstrap seed（2000 次采样、95% CI）与按 seed 配对 delta 做统计：Optuna TPE best NMSE 均值 -37.07 dB（std 0.27 dB）为四策略中最稳；Reflection 消融 paired delta +2.34 dB 不显著，报告如实结论为“未观察到稳定优势”，不挑选单 seed 展示。
+
+面试表达：
+
+> 我把“Agent 是否更优”从口头叙事变成可复算实验：固定协议、真实训练、hash 落盘、bootstrap 置信区间和 paired 消融。结论里有不显著的结果我也照实写——这比一个挑选出来的成功案例更有说服力。
+
+复现命令：
+
+```powershell
+python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1
+```
+
+报告：`docs/experiments/nonlinear-search-ablation-v1.md`。
+
+## v2.0.0 追加：Runtime 可靠性与投递表达
+
+- 实现 SQLite 控制面（请求去重、任务 lease、原子 claim、单调事件序列，WAL + busy timeout），并通过并发压测验收：重复执行率 0、事件丢失率 0、终态一致率 1.0、注入 10% 故障后恢复率 1.0。
+- 为 SSE 增加事件 ID、15s heartbeat、显式 cancel 与 Last-Event-ID 断线重放；Trace 升级为层级 span（trace/span/parent/attempt/model/config_hash/token/cost）。
+- Dashboard / Web UI 增加 Strategy Comparison 页面，展示 best-so-far、5-seed 分布、hit rate、rejected、runtime failure 与 paired delta。
+
+面试表达：
+
+> v2.0 证明 Runtime 的可靠性是可测量的：并发下同一请求只执行一次、断线重连不丢事件、注入故障后任务能恢复，这些都有压测报告和自动化测试支撑。
+
+复现命令：
+
+```powershell
+python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1 --output-dir benchmarks/runtime-v2
+```

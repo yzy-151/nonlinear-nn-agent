@@ -1,0 +1,14 @@
+{
+  "protocol_version": "1.9.0",
+  "methods": [
+    "random_search",
+    "optuna_tpe",
+    "llm_no_reflection",
+    "llm_with_reflection"
+  ],
+  "seeds": [7, 17, 29, 43, 61],
+  "trial_budget": 10,
+  "parameter_count_max": 4000,
+  "nmse_threshold_db": -39.0,
+  "estimated_total_trials": 200
+}

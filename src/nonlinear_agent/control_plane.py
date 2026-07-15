@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -30,6 +31,7 @@ class RuntimeControlPlane:
 
     def __init__(self, db_path: Path):
         db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
@@ -80,16 +82,17 @@ class RuntimeControlPlane:
     ) -> bool:
         """Register a request. Returns True if new, False if duplicate."""
         now = time.time()
-        try:
-            self._conn.execute(
-                "INSERT INTO requests(session_id, request_id, payload, status, created_at) "
-                "VALUES (?, ?, ?, 'pending', ?)",
-                (session_id, request_id, payload, now),
-            )
-            self._conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
+        with self._lock:
+            try:
+                self._conn.execute(
+                    "INSERT INTO requests(session_id, request_id, payload, status, created_at) "
+                    "VALUES (?, ?, ?, 'pending', ?)",
+                    (session_id, request_id, payload, now),
+                )
+                self._conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
 
     # ── Job lease with atomic claim ────────────────────────────
     def enqueue_job(
@@ -98,12 +101,13 @@ class RuntimeControlPlane:
         """Enqueue a job and return its job_id."""
         job_id = uuid.uuid4().hex[:12]
         now = time.time()
-        self._conn.execute(
-            "INSERT INTO jobs(job_id, session_id, request_id, status, "
-            "max_attempts, created_at) VALUES (?, ?, ?, 'queued', ?, ?)",
-            (job_id, session_id, request_id, max_attempts, now),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO jobs(job_id, session_id, request_id, status, "
+                "max_attempts, created_at) VALUES (?, ?, ?, 'queued', ?, ?)",
+                (job_id, session_id, request_id, max_attempts, now),
+            )
+            self._conn.commit()
         return job_id
 
     def claim_job(
@@ -114,47 +118,51 @@ class RuntimeControlPlane:
         Returns True if the claim succeeded (this caller owns the job).
         """
         now = time.time()
-        cursor = self._conn.execute(
-            """UPDATE jobs SET
-                lease_owner = ?,
-                lease_expires_at = ?,
-                attempts = attempts + 1
-            WHERE job_id = ?
-            AND status = 'queued'
-            AND (lease_expires_at IS NULL OR lease_expires_at < ?)
-            AND attempts < max_attempts""",
-            (owner, now + lease_seconds, job_id, now),
-        )
-        self._conn.commit()
-        return cursor.rowcount > 0
+        with self._lock:
+            cursor = self._conn.execute(
+                """UPDATE jobs SET
+                    lease_owner = ?,
+                    lease_expires_at = ?,
+                    attempts = attempts + 1
+                WHERE job_id = ?
+                AND status = 'queued'
+                AND (lease_expires_at IS NULL OR lease_expires_at < ?)
+                AND attempts < max_attempts""",
+                (owner, now + lease_seconds, job_id, now),
+            )
+            self._conn.commit()
+            return cursor.rowcount > 0
 
     def complete_job(self, job_id: str) -> None:
         now = time.time()
-        self._conn.execute(
-            "UPDATE jobs SET status = 'completed', completed_at = ? WHERE job_id = ?",
-            (now, job_id),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "UPDATE jobs SET status = 'completed', completed_at = ? WHERE job_id = ?",
+                (now, job_id),
+            )
+            self._conn.commit()
 
     def fail_job(self, job_id: str) -> None:
         now = time.time()
-        self._conn.execute(
-            "UPDATE jobs SET status = 'failed', completed_at = ? WHERE job_id = ?",
-            (now, job_id),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "UPDATE jobs SET status = 'failed', completed_at = ? WHERE job_id = ?",
+                (now, job_id),
+            )
+            self._conn.commit()
 
     def fail_job_if_max_attempts(self, job_id: str) -> bool:
         """If attempts >= max_attempts, mark job as 'failed'. Returns True if failed."""
-        cursor = self._conn.execute(
-            "SELECT attempts, max_attempts FROM jobs WHERE job_id = ?",
-            (job_id,),
-        )
-        row = cursor.fetchone()
-        if row and row[0] >= row[1]:
-            self.fail_job(job_id)
-            return True
-        return False
+        with self._lock:
+            cursor = self._conn.execute(
+                "SELECT attempts, max_attempts FROM jobs WHERE job_id = ?",
+                (job_id,),
+            )
+            row = cursor.fetchone()
+            if row and row[0] >= row[1]:
+                self.fail_job(job_id)
+                return True
+            return False
 
     # ── Event sequencing ───────────────────────────────────────
     def record_event(
@@ -162,32 +170,35 @@ class RuntimeControlPlane:
     ) -> int:
         """Append an event and return its monotonic sequence number."""
         now = time.time()
-        cursor = self._conn.execute(
-            "SELECT COALESCE(MAX(sequence), -1) + 1 FROM events WHERE session_id = ?",
-            (session_id,),
-        )
-        seq = cursor.fetchone()[0]
-        self._conn.execute(
-            "INSERT INTO events(session_id, sequence, event_type, payload, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (session_id, seq, event_type, payload, now),
-        )
-        self._conn.commit()
-        return seq
+        with self._lock:
+            cursor = self._conn.execute(
+                "SELECT COALESCE(MAX(sequence), -1) + 1 FROM events WHERE session_id = ?",
+                (session_id,),
+            )
+            seq = cursor.fetchone()[0]
+            self._conn.execute(
+                "INSERT INTO events(session_id, sequence, event_type, payload, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (session_id, seq, event_type, payload, now),
+            )
+            self._conn.commit()
+            return seq
 
     def get_events_since(
         self, session_id: str, last_event_id: int = -1
     ) -> list[dict[str, Any]]:
         """Return events with sequence > last_event_id for SSE replay."""
-        cursor = self._conn.execute(
-            "SELECT sequence, event_type, payload FROM events "
-            "WHERE session_id = ? AND sequence > ? ORDER BY sequence",
-            (session_id, last_event_id),
-        )
-        return [
-            {"id": seq, "event": etype, "data": json.loads(payload)}
-            for seq, etype, payload in cursor.fetchall()
-        ]
+        with self._lock:
+            cursor = self._conn.execute(
+                "SELECT sequence, event_type, payload FROM events "
+                "WHERE session_id = ? AND sequence > ? ORDER BY sequence",
+                (session_id, last_event_id),
+            )
+            return [
+                {"id": seq, "event": etype, "data": json.loads(payload)}
+                for seq, etype, payload in cursor.fetchall()
+            ]
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()

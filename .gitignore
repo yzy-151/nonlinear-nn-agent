@@ -11,6 +11,8 @@ reports/
 
 sessions/
 traces/
+runtime.sqlite
+runtime.sqlite-*
 .env.local
 # Generated experiment configs (not hand-maintained baselines)
 configs/[0-9]*.yaml
