@@ -87,6 +87,8 @@ class FakeLLMClient:
         self.responses = list(responses)
         self.prompts: list[str] = []   # 记录每次调用的 prompt，方便调试
         self.last_prompt = ""           # 最近一次的 prompt
+        self.total_prompt_tokens = 0    # Fake 模式无真实 token 消耗
+        self.total_completion_tokens = 0
 
     def complete(self, prompt: str) -> str:
         """从预置队列里弹出一个回复返回。"""
@@ -120,6 +122,8 @@ class OpenAICompatibleClient:
     model: str
     temperature: float = 0.2        # 低温度 → 输出更稳定、更少随机性
     timeout_seconds: float = 60.0
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
 
     # ── 工厂方法：快速创建 DeepSeek 客户端 ──────────────────
     @classmethod
@@ -202,4 +206,10 @@ class OpenAICompatibleClient:
 
         # ── 提取回复文本 ──
         # OpenAI 格式：choices[0].message.content
-        return str(body["choices"][0]["message"]["content"])
+        content = str(body["choices"][0]["message"]["content"])
+
+        # ── 累计 token 用量（用于 benchmark 成本统计）──
+        usage = body.get("usage") or {}
+        self.total_prompt_tokens += int(usage.get("prompt_tokens", 0))
+        self.total_completion_tokens += int(usage.get("completion_tokens", 0))
+        return content

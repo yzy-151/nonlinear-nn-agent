@@ -127,6 +127,16 @@ class NonlinearModelingDomain:
         hidden_units = int(overrides.get("hidden_units", 64))
         spline_knots = int(overrides.get("spline_knots", 16))
 
+        # model_type 必须是设计空间白名单内的模型
+        if "model_type" in overrides:
+            allowed_models = {
+                str(m) for m in self.design_space().get("model_type", [])
+            }
+            if model_type not in allowed_models:
+                errors.append(
+                    f"model_type must be one of {sorted(allowed_models)}."
+                )
+
         # spline_range must be a number
         if "spline_range" in overrides and not _is_number(overrides["spline_range"]):
             errors.append("spline_range must be a number.")
@@ -199,6 +209,12 @@ class NonlinearModelingDomain:
             return hashlib.sha256(data_path.read_bytes()).hexdigest()
         except OSError:
             return "unknown"
+
+    def historical_priors(self) -> list[Any]:
+        """Known-good candidates from prior runs, best-first."""
+        from nonlinear_agent.priors import load_historical_priors
+
+        return load_historical_priors()
 
     def default_epochs(self) -> int:
         return 200

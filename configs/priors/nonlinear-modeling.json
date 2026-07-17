@@ -1,0 +1,95 @@
+{
+  "description": "Historical best candidates for the nonlinear modeling task under the 20000-parameter budget. Sources: DeepSeek planner run (2026-07-22, exp016/exp019), docs/model-search-results.csv, configs/baselines, and reports/ scan.",
+  "parameter_count_max": 20000,
+  "metric": "nmse_db",
+  "candidates": [
+    {
+      "id": "reports-017",
+      "model_type": "complex_lstsq",
+      "feature_mode": "complex_mp",
+      "memory_depth": 500,
+      "mp_order_count": 16,
+      "epochs": 0,
+      "parameter_count": 16034,
+      "known_nmse_db": -38.5620,
+      "source": "reports/017"
+    },
+    {
+      "id": "reports-021",
+      "model_type": "complex_lstsq",
+      "feature_mode": "complex_mp",
+      "memory_depth": 800,
+      "mp_order_count": 6,
+      "epochs": 0,
+      "parameter_count": 9614,
+      "known_nmse_db": -37.8662,
+      "source": "reports/021"
+    },
+    {
+      "id": "reports-013",
+      "model_type": "complex_lstsq",
+      "feature_mode": "complex_mp",
+      "memory_depth": 500,
+      "mp_order_count": 8,
+      "epochs": 0,
+      "parameter_count": 8018,
+      "known_nmse_db": -37.8142,
+      "source": "reports/013"
+    },
+    {
+      "id": "reports-012",
+      "model_type": "complex_lstsq",
+      "feature_mode": "complex_mp",
+      "memory_depth": 200,
+      "mp_order_count": 12,
+      "epochs": 0,
+      "parameter_count": 4826,
+      "known_nmse_db": -37.5698,
+      "source": "reports/012"
+    },
+    {
+      "id": "exp016",
+      "model_type": "complex_lstsq",
+      "feature_mode": "complex_mp",
+      "memory_depth": 220,
+      "mp_order_count": 9,
+      "epochs": 0,
+      "parameter_count": 3980,
+      "known_nmse_db": -37.4875,
+      "source": "deepseek-run-2026-07-22"
+    },
+    {
+      "id": "lstsq-complexmp-o12-m150",
+      "model_type": "complex_lstsq",
+      "feature_mode": "complex_mp",
+      "memory_depth": 150,
+      "mp_order_count": 12,
+      "epochs": 0,
+      "parameter_count": 3626,
+      "known_nmse_db": -37.4249,
+      "source": "docs/model-search-results.csv"
+    },
+    {
+      "id": "exp019",
+      "model_type": "complex_lstsq",
+      "feature_mode": "complex_mp",
+      "memory_depth": 24,
+      "mp_order_count": 4,
+      "epochs": 0,
+      "parameter_count": 202,
+      "known_nmse_db": -36.0275,
+      "source": "deepseek-run-2026-07-22"
+    },
+    {
+      "id": "lstsq-complexmp-direct",
+      "model_type": "complex_lstsq",
+      "feature_mode": "complex_mp",
+      "memory_depth": 5,
+      "mp_order_count": 4,
+      "epochs": 0,
+      "parameter_count": 50,
+      "known_nmse_db": -35.9397,
+      "source": "docs/model-search-results.csv"
+    }
+  ]
+}

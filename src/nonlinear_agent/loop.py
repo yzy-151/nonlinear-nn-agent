@@ -63,6 +63,29 @@ class PlannerLoopResult:
     history: list[dict[str, Any]] = field(default_factory=list)
     summaries: list[str] = field(default_factory=list)
     reflections: list[dict[str, Any]] = field(default_factory=list)
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+
+
+def _build_loop_result(
+    loop: "ExperimentPlannerLoop",
+    status: str,
+    rounds: int,
+    history: list[dict[str, Any]],
+    summaries: list[str] | None = None,
+    reflections: list[dict[str, Any]] | None = None,
+) -> PlannerLoopResult:
+    """Construct a PlannerLoopResult, capturing LLM token usage from the client."""
+    client = getattr(loop.planner, "llm_client", None)
+    return PlannerLoopResult(
+        status=status,
+        rounds=rounds,
+        history=history,
+        summaries=summaries or [],
+        reflections=reflections or [],
+        total_prompt_tokens=getattr(client, "total_prompt_tokens", 0),
+        total_completion_tokens=getattr(client, "total_completion_tokens", 0),
+    )
 
 
 # runtime_factory 的类型：给定 session_id，返回一个 ExperimentHarnessRuntime
@@ -157,7 +180,8 @@ class ExperimentPlannerLoop:
 
             # ── 退出条件 1：LLM 说停 ──
             if plan.stop and not plan.experiments:
-                result = PlannerLoopResult(
+                result = _build_loop_result(
+                    self,
                     status="stopped",
                     rounds=rounds,
                     history=history,
@@ -171,7 +195,8 @@ class ExperimentPlannerLoop:
             for experiment in plan.experiments:
                 # ── 退出条件 2：实验配额用完 ──
                 if max_experiments is not None and executed_experiments >= max_experiments:
-                    result = PlannerLoopResult(
+                    result = _build_loop_result(
+                        self,
                         status="max_experiments_reached",
                         rounds=rounds,
                         history=history,
@@ -227,7 +252,8 @@ class ExperimentPlannerLoop:
                 self.artifact_writer.write_reflection(reflection)
 
         # ── 退出条件 3：轮数用完 ──
-        result = PlannerLoopResult(
+        result = _build_loop_result(
+            self,
             status="max_rounds_reached",
             rounds=rounds,
             history=history,
@@ -297,7 +323,8 @@ class ExperimentPlannerLoop:
             except Exception as exc:
                 # LLM 调用失败 → 保存已有结果，优雅退出
                 yield {"type": "error", "message": f"LLM planner failed: {exc}"}
-                result = PlannerLoopResult(
+                result = _build_loop_result(
+                    self,
                     status="planner_error",
                     rounds=rounds,
                     history=history,
@@ -332,7 +359,8 @@ class ExperimentPlannerLoop:
 
             # 退出条件 1：LLM 说停
             if plan.stop and not plan.experiments:
-                result = PlannerLoopResult(
+                result = _build_loop_result(
+                    self,
                     status="stopped",
                     rounds=rounds,
                     history=history,
@@ -351,7 +379,8 @@ class ExperimentPlannerLoop:
             for experiment in plan.experiments:
                 # 退出条件 2：配额用完
                 if max_experiments is not None and executed >= max_experiments:
-                    result = PlannerLoopResult(
+                    result = _build_loop_result(
+                        self,
                         status="max_experiments_reached",
                         rounds=rounds,
                         history=history,
@@ -476,7 +505,8 @@ class ExperimentPlannerLoop:
                 }
 
         # 退出条件 3：轮数用完
-        result = PlannerLoopResult(
+        result = _build_loop_result(
+            self,
             status="max_rounds_reached",
             rounds=rounds,
             history=history,

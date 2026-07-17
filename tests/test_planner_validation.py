@@ -25,6 +25,29 @@ class PlannerValidationTest(unittest.TestCase):
         self.assertNotIn("train_samples", normalized)
         self.assertEqual(normalized["epochs"], 8)
 
+    def test_normalize_maps_common_llm_field_aliases(self):
+        normalized = normalize_planner_overrides({
+            "model": "mlp",
+            "lr": 0.001,
+            "hidden_sizes": [16, 32],
+        })
+        self.assertEqual(normalized["model_type"], "tiny_mlp")
+        self.assertEqual(normalized["learning_rate"], 0.001)
+        self.assertEqual(normalized["hidden_units"], [16, 32])
+        self.assertNotIn("model", normalized)
+        self.assertNotIn("lr", normalized)
+        self.assertNotIn("hidden_sizes", normalized)
+
+    def test_validate_rejects_unsupported_model_type(self):
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
+        with self.assertRaises(ValueError):
+            validate_planned_overrides(
+                {"model_type": "lstm", "epochs": 0},
+                parameter_count_max=20000,
+                domain=NonlinearModelingDomain(),
+            )
+
     def test_validate_rejects_unsupported_rank_field(self):
         with self.assertRaisesRegex(ValueError, "Unsupported planner override fields: rank"):
             validate_planned_overrides({"model_type": "complex_lstsq", "rank": 100})

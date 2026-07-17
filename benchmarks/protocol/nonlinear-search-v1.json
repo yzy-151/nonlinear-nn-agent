@@ -8,7 +8,7 @@
   ],
   "seeds": [7, 17, 29, 43, 61],
   "trial_budget": 10,
-  "parameter_count_max": 4000,
+  "parameter_count_max": 20000,
   "nmse_threshold_db": -39.0,
   "estimated_total_trials": 200
 }

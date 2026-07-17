@@ -158,6 +158,22 @@ class TestPlannerWithDomain(unittest.TestCase):
         prompt = planner._build_prompt(goal="test", history=[], constraints={})
         self.assertIn("complex_lstsq", prompt.lower())
 
+    def test_planner_prompt_injects_allowed_override_fields(self):
+        """The LLM must be told exactly which override fields the guard accepts."""
+        from nonlinear_agent.llm import FakeLLMClient
+
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"test","stop":true,"experiments":[]}',
+            ]
+        )
+        planner = ExperimentPlanner(
+            llm_client=llm, domain=NonlinearModelingDomain()
+        )
+        prompt = planner._build_prompt(goal="test", history=[], constraints={})
+        self.assertIn("allowed override fields", prompt)
+        self.assertIn("memory_depth", prompt)
+
     def test_planner_without_domain_still_works(self):
         from nonlinear_agent.llm import FakeLLMClient
 

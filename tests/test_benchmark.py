@@ -81,6 +81,49 @@ class BenchmarkTest(unittest.TestCase):
         self.assertEqual(summary["runtime_failure_rate"], 0.25)
         self.assertEqual(summary["average_experiments_used"], 1.0)
 
+    def test_summarize_loop_result_computes_self_correction_and_quality_metrics(self):
+        case = BenchmarkCase(case_id="multi-round", goal="recover", target_nmse_db=-35.0)
+        loop_result = PlannerLoopResult(
+            status="stopped",
+            rounds=3,
+            history=[
+                {"id": "r1", "run_status": "rejected", "error": "rank"},
+                {"id": "r2", "run_status": "succeeded", "nmse_db": -36.0},
+                {"id": "r3", "run_status": "failed", "nmse_db": -20.0},
+                {"id": "r4", "run_status": "succeeded", "nmse_db": -37.0},
+            ],
+            summaries=["a", "b", "c"],
+            total_prompt_tokens=100,
+            total_completion_tokens=50,
+        )
+
+        result = summarize_loop_result(case, loop_result)
+
+        self.assertEqual(result.self_correction_count, 2)
+        self.assertEqual(result.planner_success_rate, 0.75)  # 3/4 records passed guard
+        self.assertEqual(result.tool_call_correct_rate, 2 / 3)
+        self.assertEqual(result.total_prompt_tokens, 100)
+        self.assertEqual(result.total_completion_tokens, 50)
+
+    def test_build_benchmark_summary_includes_extended_metrics(self):
+        results = [
+            BenchmarkCaseResult(
+                case_id="a", target_hit=True, succeeded_count=2,
+                failed_count=1, rejected_count=1, experiments_used=3,
+                rounds=2, self_correction_count=1,
+                planner_success_rate=0.75, tool_call_correct_rate=2 / 3,
+                total_prompt_tokens=100, total_completion_tokens=50,
+                estimated_cost_usd=0.01,
+            ),
+        ]
+        summary = build_benchmark_summary(results)
+        self.assertIn("planner_success_rate", summary)
+        self.assertIn("average_rounds", summary)
+        self.assertEqual(summary["self_correction_count"], 1)
+        self.assertEqual(summary["total_prompt_tokens"], 100)
+        self.assertEqual(summary["total_completion_tokens"], 50)
+        self.assertAlmostEqual(summary["estimated_cost_usd"], 0.01)
+
     def test_run_benchmark_cases_uses_executor(self):
         cases = [
             BenchmarkCase(case_id="case-001", goal="run", target_nmse_db=-35.0),

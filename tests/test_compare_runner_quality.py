@@ -116,6 +116,29 @@ class TestReflectionAblation(unittest.TestCase):
             "with_reflection must avoid a model type that was rejected",
         )
 
+    def test_with_reflection_samples_historical_priors(self):
+        """with_reflection must draw candidates from the known-best prior region."""
+        ctx = SearchContext(domain=NonlinearModelingDomain(), seed=7, trial_budget=10)
+        strategy = _LLMSearch("llm_with_reflection", ctx)
+        candidates = [strategy.suggest([], i) for i in range(50)]
+        prior_depths = {500, 800}  # values only reachable via the prior file
+        hits = [c for c in candidates if c.get("memory_depth") in prior_depths]
+        self.assertGreater(
+            len(hits), 0,
+            "with_reflection must use historical priors (e.g. memory_depth 500/800)",
+        )
+
+    def test_without_reflection_never_samplest_prior_only_depths(self):
+        """no_reflection samples only from the declared design space."""
+        ctx = SearchContext(domain=NonlinearModelingDomain(), seed=7, trial_budget=10)
+        strategy = _LLMSearch("llm_no_reflection", ctx)
+        candidates = [strategy.suggest([], i) for i in range(50)]
+        declared = {5, 8, 12, 24, 32, 48, 72, 100, 150, 220}
+        self.assertTrue(
+            all(c["memory_depth"] in declared for c in candidates),
+            "no_reflection must not use priors outside the design space",
+        )
+
 
 class TestRuntimeFailureClassification(unittest.TestCase):
     """metric_threshold_error is an outcome; tool/timeout errors are failures."""

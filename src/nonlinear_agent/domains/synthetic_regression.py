@@ -112,6 +112,10 @@ class SyntheticRegressionDomain:
         )
         return hashlib.sha256(payload.encode()).hexdigest()
 
+    def historical_priors(self) -> list[Any]:
+        """No historical priors exist for the synthetic demo domain."""
+        return []
+
     # ── v2.1: Execution workflow ────────────────────────────────
     def build_harness_spec(
         self, session_id: str, base_config: str, overrides: dict,

@@ -155,6 +155,31 @@ class ExperimentPlanner:
         # otherwise use the built-in nonlinear modeling instructions.
         if self.domain is not None:
             domain_instructions = self.domain.planner_instructions()
+            allowed = sorted(self.domain.allowed_override_fields())
+            domain_instructions += (
+                "\nOnly these allowed override fields may be used: "
+                f"{allowed}. Any other field will be rejected by the guard.\n"
+            )
+            # Few-shot example: real LLMs adhere to a flat schema far better
+            # when shown one valid overrides object.
+            design_space = self.domain.design_space()
+            example_fields = list(design_space.keys())[:2]
+            example = {
+                field: design_space[field][0] for field in example_fields
+            }
+            domain_instructions += (
+                'Example of a valid "overrides" object: '
+                f"{json.dumps(example, ensure_ascii=False)}. "
+                "Keep overrides flat; nested objects are rejected.\n"
+            )
+            if "model_type" in design_space:
+                domain_instructions += (
+                    "STRICT: model_type MUST be one of "
+                    f"{design_space['model_type']}. NEVER use keys like "
+                    "model, hidden_sizes, dropout, weight_decay, lr_scheduler, "
+                    "optimizer_type, batch_size, num_layers, architecture, "
+                    "training, data. Use hidden_units (not hidden_sizes).\n"
+                )
         else:
             domain_instructions = (
                 "No domain plugin is loaded, so the executable design space "

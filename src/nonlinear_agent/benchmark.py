@@ -51,6 +51,11 @@ from typing import Any, Awaitable, Callable
 from nonlinear_agent.loop import PlannerLoopResult
 
 
+# DeepSeek chat pricing (USD per 1M tokens, approximate public list price)
+PROMPT_TOKEN_PRICE_USD = 0.27 / 1_000_000
+COMPLETION_TOKEN_PRICE_USD = 1.10 / 1_000_000
+
+
 # ============================================================
 # BenchmarkCase — 一个测试用例（输入）
 # ============================================================
@@ -95,6 +100,12 @@ class BenchmarkCaseResult:
     failed_count: int = 0                # 执行失败次数
     succeeded_count: int = 0             # 执行成功次数
     experiments_used: int = 0            # 实际消耗的实验配额（failed + succeeded，不含 rejected）
+    self_correction_count: int = 0       # rejected/failed 后下一轮修正成功的次数
+    planner_success_rate: float = 0.0    # 计划通过 Guard 的比例
+    tool_call_correct_rate: float = 0.0  # 工具调用成功占比
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    estimated_cost_usd: float = 0.0
 
 
 # execute_case 的类型：接受 BenchmarkCase，返回 PlannerLoopResult
@@ -141,6 +152,8 @@ def summarize_loop_result(
     rejected_count = _count_status(history, "rejected")
     failed_count = _count_status(history, "failed")
     succeeded_count = _count_status(history, "succeeded")
+    total_records = rejected_count + failed_count + succeeded_count
+    tool_calls = failed_count + succeeded_count
 
     best_nmse = _to_float(best.get("nmse_db")) if best else None
 
@@ -164,6 +177,19 @@ def summarize_loop_result(
         failed_count=failed_count,
         succeeded_count=succeeded_count,
         experiments_used=failed_count + succeeded_count,
+        self_correction_count=_count_self_corrections(history),
+        planner_success_rate=(
+            tool_calls / total_records if total_records else 0.0
+        ),
+        tool_call_correct_rate=(
+            succeeded_count / tool_calls if tool_calls else 0.0
+        ),
+        total_prompt_tokens=loop_result.total_prompt_tokens,
+        total_completion_tokens=loop_result.total_completion_tokens,
+        estimated_cost_usd=(
+            loop_result.total_prompt_tokens * PROMPT_TOKEN_PRICE_USD
+            + loop_result.total_completion_tokens * COMPLETION_TOKEN_PRICE_USD
+        ),
     )
 
 
@@ -187,6 +213,17 @@ def build_benchmark_summary(results: list[BenchmarkCaseResult]) -> dict[str, Any
         for result in results
     )
     total_experiments = sum(result.experiments_used for result in results)
+    total_rounds = sum(result.rounds for result in results)
+    total_prompt_tokens = sum(result.total_prompt_tokens for result in results)
+    total_completion_tokens = sum(
+        result.total_completion_tokens for result in results
+    )
+    # planner_success_rate 按每个 case 的记录数加权
+    planner_weighted = sum(
+        result.planner_success_rate
+        * (result.rejected_count + result.failed_count + result.succeeded_count)
+        for result in results
+    )
 
     return {
         "case_count": case_count,
@@ -209,6 +246,18 @@ def build_benchmark_summary(results: list[BenchmarkCaseResult]) -> dict[str, Any
                 if result.best_nmse_db is not None
             ),
             default=None,
+        ),
+        "planner_success_rate": (
+            planner_weighted / total_records if total_records else 0.0
+        ),
+        "self_correction_count": sum(
+            result.self_correction_count for result in results
+        ),
+        "average_rounds": (total_rounds / case_count) if case_count else 0.0,
+        "total_prompt_tokens": total_prompt_tokens,
+        "total_completion_tokens": total_completion_tokens,
+        "estimated_cost_usd": sum(
+            result.estimated_cost_usd for result in results
         ),
     }
 
@@ -316,6 +365,17 @@ def _experiment_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _count_status(history: list[dict[str, Any]], status: str) -> int:
     """统计 history 中某状态的记录数。"""
     return sum(1 for record in history if record.get("run_status") == status)
+
+
+def _count_self_corrections(history: list[dict[str, Any]]) -> int:
+    """Count transitions from rejected/failed to a later succeeded record."""
+    corrections = 0
+    for i in range(1, len(history)):
+        previous = history[i - 1].get("run_status")
+        current = history[i].get("run_status")
+        if previous in ("rejected", "failed") and current == "succeeded":
+            corrections += 1
+    return corrections
 
 
 def _rate(numerator: int, denominator: int) -> float:

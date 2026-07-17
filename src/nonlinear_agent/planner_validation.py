@@ -37,6 +37,18 @@ ALIAS_FIELDS = {
     "train_samples": "max_train_samples",
     # LLM 有时写旧字段名 → 自动映射到新字段名
     # 加新别名：直接在字典里加一行，不用改代码逻辑
+    "lr": "learning_rate",
+    "hidden_sizes": "hidden_units",
+}
+
+MODEL_TYPE_ALIASES = {
+    "mlp": "tiny_mlp",          # 本项目 MLP 对应 tiny_mlp
+    "linear": "linear",
+    "spline": "spline_mlp",
+    "complex_lstsq": "complex_lstsq",
+    "tiny_mlp": "tiny_mlp",
+    "spline_mlp": "spline_mlp",
+    "complex_cnn": "complex_cnn",
 }
 
 # LLM 绝对不能设置的字段（这些都是"结果字段"，不是"配置字段"）
@@ -84,6 +96,10 @@ def normalize_planner_overrides(overrides: dict[str, Any]) -> dict[str, Any]:
     """
     normalized: dict[str, Any] = {}
     for key, value in overrides.items():
+        if key == "model":
+            # LLM 常用 "model": "mlp" 而不是 "model_type": "tiny_mlp"
+            key = "model_type"
+            value = MODEL_TYPE_ALIASES.get(str(value), value)
         target_key = ALIAS_FIELDS.get(key, key)
         if target_key == "output_dir":
             value = normalize_experiment_output_dir(value)

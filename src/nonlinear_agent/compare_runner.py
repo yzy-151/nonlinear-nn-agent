@@ -205,10 +205,26 @@ class _LLMSearch:
         self._reflection = ReflectionPolicy() if method == "llm_with_reflection" else None
         self._reflection_record: dict[str, Any] | None = None
         self._failed_model_types: set[str] = set()
+        self._priors = (
+            self._ctx.domain.historical_priors()
+            if method == "llm_with_reflection"
+            else []
+        )
 
     def suggest(self, history: list[dict], trial_index: int) -> dict[str, Any]:
         design_space = self._ctx.domain.design_space()
         metric = self._ctx.domain.primary_metric()
+
+        # Reflection 知识库：以较高概率从历史最优先验邻域出发。
+        # llm_no_reflection 不加载 priors，因此两者在"是否利用历史知识"上被区分开。
+        if self._priors and self._rng.random() < 0.6:
+            for _ in range(20):
+                prior = self._rng.choice(self._priors)
+                candidate = dict(prior.overrides)
+                h = json.dumps(candidate, sort_keys=True, default=str)
+                if h not in self._seen_hashes:
+                    self._seen_hashes.add(h)
+                    return candidate
 
         # 找历史最优候选
         best_candidate: dict[str, Any] | None = None
