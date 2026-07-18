@@ -92,6 +92,7 @@ git push origin main
 | v1.8.0 | Harness 与领域解耦 | `domains/`（base + nonlinear + synthetic） |
 | v1.9.0 | 搜索与 Reflection 对照 | `search/`, `evaluation_protocol.py`, `evaluation_statistics.py`, `benchmarks/nonlinear-search-v1/` |
 | v2.0.0 | Runtime 可靠性与最终投递 | `control_plane.py`, `sse_replay.py`, `stress.py`, 层级 Trace, Strategy Comparison |
+| v2.1.0 | 先验注入 + Benchmark 成熟化 | `priors.py`, `configs/priors/`, 10-case benchmark, `--provider deepseek` |
 
 ## 6. 核心代码入口
 
@@ -332,3 +333,9 @@ v2.0.0 验证记录：
 - `python -m unittest discover tests`：208 tests OK（含 DomainPlugin、搜索策略、评估统计、控制面、SSE 重放、并发压测）。
 - `benchmarks/nonlinear-search-v1/`：200 个有效训练 trial（+120 rejected），hash 完整，PASS。
 - `benchmarks/runtime-v2/stress.json`：并发 8 × 100 请求，重复执行率 0 / 事件丢失率 0 / 终态一致率 1.0 / 恢复率 1.0，PASS。
+
+v2.1.0 验证记录：
+
+- `python -m unittest discover tests`：227 tests OK。
+- 20000 参数预算 + 历史先验注入：`llm_with_reflection` paired delta **-4.28 dB（显著）**，hit 78% vs 28%（`benchmarks/nonlinear-search-v1-v20000/`，报告 `docs/experiments/nonlinear-search-ablation-v2.md`）。
+- Benchmark 10 case：fake 模式 hit 7/10；DeepSeek 模式 hit 5/10，但 Guard 拦截率 80–98%（模型 schema 遵从性不稳定，已知边界）。

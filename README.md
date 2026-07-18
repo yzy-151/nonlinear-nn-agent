@@ -158,8 +158,8 @@ docs/experiments/nonlinear-search-ablation-v1.md  # 实验报告
 
 核心结论（详见报告，所有数字可从 JSON/CSV 复算）：
 
-- Optuna TPE 的 best NMSE 均值最高且方差最小（-37.07 dB，std 0.27 dB）。
-- `llm_with_reflection` 相对 `llm_no_reflection` 的 paired delta 为 +2.34 dB，**不显著**——未观察到 Reflection 的稳定优势，报告如实呈现失败与不显著结果。
+- 4000 参数预算（v1）：Optuna TPE 的 best NMSE 均值最高（-37.07 dB，std 0.27 dB）；Reflection 无显著优势（delta +2.34 dB 不显著）。
+- **20000 参数预算 + 历史先验注入（v2）**：`llm_with_reflection` 读取 `configs/priors/nonlinear-modeling.json` 的历史最优候选，paired delta **-4.28 dB 显著**，hit 率 78% vs 28%——Reflection 出现明显提升。
 - 每条 trial 记录真实 `config_hash` / `dataset_hash` / `git_commit`，rejected 计划单独统计、不占用有效训练预算。
 
 复现：
@@ -168,6 +168,17 @@ docs/experiments/nonlinear-search-ablation-v1.md  # 实验报告
 python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1
 python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1 --output-dir benchmarks/runtime-v2
 ```
+
+### Agent Benchmark（v2.1 起 10 case）
+
+Agent 行为回归测试扩展为 **10 个 case**（新增噪音 JSON 容错、参数预算边界、未知工具拦截、长历史压缩、多轮自我修正），并新增指标：`planner_success_rate`、`self_correction_count`、`average_rounds`、`total_prompt_tokens` / `estimated_cost_usd`。
+
+```powershell
+python agent.py benchmark --output-dir benchmarks/fake-v21b                                  # 离线 fake
+python examples\nonlinear_fit\run_benchmark.py --provider deepseek --output-dir benchmarks/deepseek-v21-final  # 真实 LLM
+```
+
+真实 DeepSeek benchmark 揭示：deepseek-v4-flash 的 JSON schema 遵从性不稳定（Guard 拦截率 80%–98% 波动），这是当前 LLM+Guard 契约的已知边界。
 
 ## 3. Agentic Loop
 
@@ -1173,6 +1184,14 @@ version/v2.0.0
 - 层级 Trace：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token_count/cost_usd`
 - `stress-runtime` 并发压测：重复执行率 0、事件丢失率 0、终态一致率 1.0、故障恢复率 ≥ 0.95
 - Strategy Comparison 页（Dashboard + Web UI）与 5 分钟演示脚本 `docs/demo-script.md`
+
+### v2.1.0: 历史先验注入 + Benchmark 成熟化
+
+- `configs/priors/nonlinear-modeling.json` + `priors.py`：把历史最优候选（exp016、reports/017 等）作为知识注入 `llm_with_reflection`
+- 20000 参数预算下 Reflection paired delta **-4.28 dB 显著**，hit 78% vs 28%（`docs/experiments/nonlinear-search-ablation-v2.md`）
+- Agent Benchmark 用例 5 → 10，新增 planner_success_rate / self-correction / token-cost 指标
+- benchmark 支持 `--provider deepseek`（真实 LLM + 真实训练）；LLM client 累计 token usage
+- Guard 增强：`lr→learning_rate`、`hidden_sizes→hidden_units`、`model:mlp→tiny_mlp` 别名规范化 + model_type 白名单
 
 ## 13. 如何运行
 
