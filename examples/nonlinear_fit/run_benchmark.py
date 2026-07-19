@@ -310,7 +310,12 @@ async def execute_case(case: BenchmarkCase, provider: str = "fake"):
         domain = NonlinearModelingDomain()
 
         def runtime_factory(session_id):
-            return build_runtime(PROJECT_ROOT, session_id=session_id, domain=domain)
+            return build_runtime(
+                PROJECT_ROOT,
+                session_id=session_id,
+                domain=domain,
+                timeout_seconds=36000.0,  # 用户允许长训练，不再受 300s 限制
+            )
 
     else:
         runtime_factory = lambda session_id: FakeBenchmarkRuntime()
@@ -321,6 +326,7 @@ async def execute_case(case: BenchmarkCase, provider: str = "fake"):
         runtime_factory=runtime_factory,
         artifact_dir=PROJECT_ROOT / "runs" / f"benchmark-{case.case_id}",
         constraints={"parameter_count_max": 20000, "metric": "nmse_db", "nmse_threshold_db": case.target_nmse_db},
+        planner_retries=2 if provider == "deepseek" else 0,
     )
     try:
         return await loop.run(

@@ -89,6 +89,59 @@ class LLMPlannerTest(unittest.TestCase):
         self.assertEqual(result.history[0]["nmse_db"], -38.0)
         self.assertEqual(result.rounds, 2)
 
+    def test_planner_loop_retries_after_guard_rejection(self):
+        """After a guard rejection, the loop re-plans with the error feedback."""
+        from nonlinear_agent.trace import TraceEvent
+
+        llm = FakeLLMClient(
+            responses=[
+                # 第 1 个计划：非法字段 rank → guard 拒绝
+                '{"summary":"bad plan", "stop": false, "experiments": ['
+                '{"id":"bad-rank", "reason":"invalid", "overrides":{"rank":1, "epochs":0}}]}',
+                # 重试计划：合法候选 → 应被接受并执行
+                '{"summary":"fixed plan", "stop": false, "experiments": ['
+                '{"id":"good-001", "reason":"valid", "overrides":{"model_type":"complex_lstsq", "epochs":0}}]}',
+                '{"summary":"stop", "stop": true, "experiments": []}',
+            ]
+        )
+        planner = ExperimentPlanner(llm_client=llm)
+        executed: list[str] = []
+
+        class FakeRuntime:
+            async def run(self, request):
+                executed.append(request.session_id)
+                yield TraceEvent(
+                    session_id=request.session_id,
+                    event_type="metric",
+                    status="succeeded",
+                    payload={"name": "nmse_db", "value": -36.0},
+                )
+                yield TraceEvent(
+                    session_id=request.session_id,
+                    event_type="complete",
+                    status="succeeded",
+                )
+
+        with TemporaryDirectory() as tmpdir:
+            loop = ExperimentPlannerLoop(
+                planner=planner,
+                workspace=Path(tmpdir),
+                runtime_factory=lambda session_id: FakeRuntime(),
+                artifact_dir=Path(tmpdir) / "runs" / "retry",
+                constraints={
+                    "parameter_count_max": 20000,
+                    "metric": "nmse_db",
+                    "nmse_threshold_db": -35.0,
+                },
+                planner_retries=1,
+            )
+            result = asyncio.run(loop.run(goal="g", max_rounds=1))
+
+        statuses = [r.get("run_status") for r in result.history]
+        self.assertIn("rejected", statuses)
+        self.assertIn("succeeded", statuses)
+        self.assertEqual(executed, ["good-001"])
+
     def test_planner_prompt_exposes_physics_informed_design_space(self):
         from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
 

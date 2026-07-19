@@ -119,10 +119,12 @@ class ExperimentPlannerLoop:
         history_compressor: HistoryCompressor | None = None,
         reflection_policy: ReflectionPolicy | None = None,
         domain: DomainPlugin | None = None,
+        planner_retries: int = 0,
     ):
         self.planner = planner
         self.workspace = Path(workspace)
         self.domain = domain
+        self.planner_retries = planner_retries
         # 如果没有传 runtime_factory，默认用 build_runtime 创建
         self.runtime_factory = runtime_factory or (
             lambda session_id: build_runtime(
@@ -192,6 +194,7 @@ class ExperimentPlannerLoop:
                 return result
 
             # ── 第 2 步：逐个执行实验 ──
+            retried_this_round = False
             for experiment in plan.experiments:
                 # ── 退出条件 2：实验配额用完 ──
                 if max_experiments is not None and executed_experiments >= max_experiments:
@@ -216,14 +219,37 @@ class ExperimentPlannerLoop:
                         domain=getattr(self, "domain", None),
                     )
                 except ValueError as exc:
-                    history.append({
+                    rejected_record = {
                         "id": experiment.experiment_id,
                         "reason": experiment.reason,
                         "run_status": "rejected",
                         "error": str(exc),
-                    })
-                    round_records.append(history[-1])
-                    continue  # 跳过，下一个实验
+                    }
+                    history.append(rejected_record)
+                    round_records.append(rejected_record)
+
+                    # Guard 拒绝后自动恢复：带拒绝原因让 LLM 重新生成
+                    # 每轮最多重试一次，避免多个非法实验触发连锁重试
+                    if not retried_this_round:
+                        retried_this_round = True
+                        recovered = await self._recover_from_rejection(
+                            goal, history, experiment, max_experiments,
+                            executed_experiments,
+                        )
+                        if recovered is not None:
+                            retry_experiment, overrides = recovered
+                            metrics = await self._run_experiment(
+                                retry_experiment.experiment_id, overrides
+                            )
+                            executed_experiments += 1
+                            record = {
+                                "id": retry_experiment.experiment_id,
+                                "reason": retry_experiment.reason,
+                                **metrics,
+                            }
+                            history.append(record)
+                            round_records.append(record)
+                    continue  # 跳过原实验，处理下一个
 
                 # ── 执行实验 ──
                 # Guard 通过 → 交给 Runtime 执行完整的工具链
@@ -262,6 +288,50 @@ class ExperimentPlannerLoop:
         )
         self.artifact_writer.write_result(result)
         return result
+
+    async def _recover_from_rejection(
+        self,
+        goal: str,
+        history: list[dict[str, Any]],
+        original_experiment: "PlannedExperiment",
+        max_experiments: int | None,
+        executed_experiments: int,
+    ) -> tuple["PlannedExperiment", dict[str, Any]] | None:
+        """After a guard rejection, re-plan with the error feedback.
+
+        Returns (retry_experiment, validated_overrides) when a retry plan
+        produces a candidate that passes the guard, else None. Each retry
+        costs one additional LLM call (tokens are tracked by the client).
+        """
+        if self.planner_retries <= 0:
+            return None
+        if max_experiments is not None and executed_experiments >= max_experiments:
+            return None
+
+        for _ in range(self.planner_retries):
+            prompt_history = self.history_compressor.build_prompt_history(history)
+            retry_plan = self.planner.plan(
+                goal=goal,
+                history=prompt_history,
+                constraints=self.constraints,
+            )
+            for retry_experiment in retry_plan.experiments:
+                try:
+                    overrides = validate_planned_overrides(
+                        retry_experiment.overrides,
+                        parameter_count_max=self.constraints.get("parameter_count_max"),
+                        domain=getattr(self, "domain", None),
+                    )
+                except ValueError as retry_exc:
+                    history.append({
+                        "id": retry_experiment.experiment_id,
+                        "reason": retry_experiment.reason,
+                        "run_status": "rejected",
+                        "error": str(retry_exc),
+                    })
+                    continue
+                return retry_experiment, overrides
+        return None
 
     # ================================================================
     # run_streaming() — Web UI 模式（实时 yield 事件给 SSE）

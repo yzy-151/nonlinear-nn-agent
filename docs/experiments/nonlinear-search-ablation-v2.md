@@ -71,6 +71,22 @@
 
 这说明：**对当前模型，JSON 自由生成 + 白名单 Guard 的契约是薄弱环节**；稳定的真实 LLM benchmark 需要更强的模型、工具调用式（structured tool use）约束或更宽松的规范化。Guard 的高拦截率是系统的正确防御，但暴露了上游 LLM 合规成本。
 
+### 第二轮修复：Guard 拒绝自动重试（v2.1 追加）
+
+针对真实 LLM 计划被 Guard 拒绝的问题，新增 `ExperimentPlannerLoop(planner_retries=N)`：某个实验被 Guard 拒绝后，把拒绝原因回喂给 LLM 重新生成计划（最多 N 次、每轮最多 1 次重试，避免连锁放大），重试候选通过 Guard 即正常执行。配套把训练超时从 300s 提升到 36000s（用户授权长时间运行），使 reports-017 等重候选可训练。
+
+最终运行（`benchmarks/deepseek-v23`，36000s 超时 + 限频重试，约 36 分钟，$0.17）：
+
+| 指标 | 值 |
+| --- | ---: |
+| target_hit_rate | 0.4（target-hit / invalid-plan / long-history / multi-round 命中） |
+| rejected_rate | 0.893 |
+| self_correction_count | 8 |
+| total tokens | 32,636 prompt + 148,424 completion |
+| estimated_cost_usd | 0.172 |
+
+**修复结论（诚实）**：6 轮改进（allowed-fields 注入 → few-shot → 显式禁止词 → guard 别名规范化 + model_type 白名单 → 拒绝自动重试 → 重试限频）后，单次调用可做到 100% schema 合规，但 10 case 全量运行中 Guard 拦截率稳定在 **85%–91%**。这证明当前瓶颈是 deepseek-v4-flash 对复杂 JSON schema 的**模型级遵从性边界**，而非系统缺陷——Guard 始终正确拦截、没有让非法计划进入训练。稳定方案需换更强模型（deepseek-v4-pro）或改用 structured tool-use 约束；已具备的 retry 机制把 LLM 自我修正纳入了系统（self_correction_count=8）。
+
 ## 5. 复现命令
 
 ```powershell

@@ -1,0 +1,11 @@
+case_id,target_hit,best_nmse_db,best_experiment_id,best_parameter_count,status,rounds,experiments_used,rejected_count,failed_count,succeeded_count
+target-hit,True,-37.42494350080102,exp5_mlp_hidden_64,3626,max_experiments_reached,2,2,8,0,2
+invalid-plan,True,-37.42494350080102,exp_control_empty,3626,max_experiments_reached,1,1,4,0,1
+long-history-compression,True,-37.42494350080102,exp11_default_config,3626,max_rounds_reached,3,3,32,1,2
+multi-round-self-correction,True,-37.42494350080102,exp2,3626,max_experiments_reached,3,4,8,0,4
+reflection-recovery,False,-29.928910101282284,linear_baseline,7250,max_rounds_reached,2,1,20,1,0
+unknown-tool,False,-29.928910101282284,exp_baseline_linear,7250,max_experiments_reached,1,1,5,1,0
+runtime-failure,False,-1.488099266918831,exp_0002_linear_underfit,7250,max_experiments_reached,1,1,1,1,0
+budget-stop,False,,,,max_rounds_reached,1,0,11,0,0
+json-tolerance,False,,,,max_rounds_reached,2,0,20,0,0
+parameter-budget-edge,False,,,,planner_error,0,0,0,0,0
