@@ -1,0 +1,19 @@
+data_path: examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat
+output_dir: reports/model-search/linear-complexmp-direct-adam-600-lr3e3
+memory_depth: 5
+max_train_samples:
+train_ratio: 1.0
+seed: 42
+epochs: 600
+batch_size: 512
+learning_rate: 0.003
+optimizer: adam
+scheduler_step_size: 1000
+scheduler_gamma: 1.0
+nfft: 1024
+sample_rate_hz: 491520000.0
+model_type: linear
+hidden_units: 64
+activation: silu
+target_mode: direct
+feature_mode: complex_mp

@@ -1,0 +1,9 @@
+rank,experiment,main_change,parameter_count,nmse_db,output_dir
+1,lstsq-complexmp-o12-m150,"complex_mp features + closed-form complex least squares, memory_depth=150, mp_order_count=12",3626,-37.4249,reports/model-search/lstsq-complexmp-o12-m150
+2,lstsq-complexmp-direct,"complex_mp features + closed-form complex least squares, memory_depth=5, mp_order_count=4",50,-35.9397,reports/model-search/lstsq-complexmp-direct
+3,mlp32-complexmp-direct-adam-400-lr2e3,complex_mp features + 32 hidden MLP,1634,-34.913,reports/model-search/mlp32-complexmp-direct-adam-400-lr2e3
+4,linear-complexmp-direct-adam-600-lr3e3,complex_mp features + Adam-trained linear layer,98,-34.6637,reports/model-search/linear-complexmp-direct-adam-600-lr3e3
+5,mlp48-silu-residual-adam-240-lr8e4,legacy features + residual learning + 48 hidden MLP,2450,-30.271,reports/model-search/mlp48-silu-residual-adam-240-lr8e4
+6,mlp64-silu-adam-240-lr8e4,legacy features + direct learning + 64 hidden MLP,3266,-29.0951,reports/model-search/mlp64-silu-adam-240-lr8e4
+7,mlp32-silu-adam-240-lr8e4,legacy features + direct learning + 32 hidden MLP,1634,-28.7489,reports/model-search/mlp32-silu-adam-240-lr8e4
+baseline,experiment-good-adam,"complex CNN baseline, exceeds this search parameter budget",,-41.8089,reports/experiment-good-adam
