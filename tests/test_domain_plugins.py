@@ -174,6 +174,39 @@ class TestPlannerWithDomain(unittest.TestCase):
         self.assertIn("allowed override fields", prompt)
         self.assertIn("memory_depth", prompt)
 
+    def test_planner_prompt_injects_known_best_priors(self):
+        """Known -41dB candidates must be injected as design requirements."""
+        from nonlinear_agent.llm import FakeLLMClient
+
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"test","stop":true,"experiments":[]}',
+            ]
+        )
+        planner = ExperimentPlanner(
+            llm_client=llm, domain=NonlinearModelingDomain()
+        )
+        prompt = planner._build_prompt(goal="test", history=[], constraints={})
+        self.assertIn("known best candidates", prompt.lower())
+        self.assertIn("tiny_mlp", prompt)
+        self.assertIn("-42.26", prompt)
+
+    def test_planner_prompt_contains_json_template(self):
+        """Prompt must show a fill-in JSON template (Hermes/Claude style)."""
+        from nonlinear_agent.llm import FakeLLMClient
+
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"test","stop":true,"experiments":[]}',
+            ]
+        )
+        planner = ExperimentPlanner(
+            llm_client=llm, domain=NonlinearModelingDomain()
+        )
+        prompt = planner._build_prompt(goal="test", history=[], constraints={})
+        self.assertIn('"overrides"', prompt)
+        self.assertIn("fill in", prompt.lower())
+
     def test_planner_without_domain_still_works(self):
         from nonlinear_agent.llm import FakeLLMClient
 

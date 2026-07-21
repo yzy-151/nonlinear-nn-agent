@@ -287,9 +287,13 @@ def build_cases() -> list[BenchmarkCase]:
 
 async def execute_case(case: BenchmarkCase, provider: str = "fake"):
     if provider == "deepseek":
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
         from nonlinear_agent.llm import OpenAICompatibleClient
 
-        planner = ExperimentPlanner(OpenAICompatibleClient.deepseek())
+        domain = NonlinearModelingDomain()
+        planner = ExperimentPlanner(
+            OpenAICompatibleClient.deepseek(), domain=domain
+        )
     else:
         raw_plans = CASE_PLANS[case.case_id]
         if case.case_id == "json-tolerance":
@@ -302,12 +306,10 @@ async def execute_case(case: BenchmarkCase, provider: str = "fake"):
         else:
             plans = [json.dumps(plan, ensure_ascii=False) for plan in raw_plans]
         planner = ExperimentPlanner(FakeLLMClient(responses=plans))
+        domain = None
 
     if provider == "deepseek":
-        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
         from nonlinear_agent.server import build_runtime
-
-        domain = NonlinearModelingDomain()
 
         def runtime_factory(session_id):
             return build_runtime(
@@ -327,6 +329,7 @@ async def execute_case(case: BenchmarkCase, provider: str = "fake"):
         artifact_dir=PROJECT_ROOT / "runs" / f"benchmark-{case.case_id}",
         constraints={"parameter_count_max": 20000, "metric": "nmse_db", "nmse_threshold_db": case.target_nmse_db},
         planner_retries=2 if provider == "deepseek" else 0,
+        timeout_seconds=36000.0,  # long training runs are allowed (user-approved)
     )
     try:
         return await loop.run(

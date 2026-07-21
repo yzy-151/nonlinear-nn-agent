@@ -87,6 +87,41 @@
 
 **修复结论（诚实）**：6 轮改进（allowed-fields 注入 → few-shot → 显式禁止词 → guard 别名规范化 + model_type 白名单 → 拒绝自动重试 → 重试限频）后，单次调用可做到 100% schema 合规，但 10 case 全量运行中 Guard 拦截率稳定在 **85%–91%**。这证明当前瓶颈是 deepseek-v4-flash 对复杂 JSON schema 的**模型级遵从性边界**，而非系统缺陷——Guard 始终正确拦截、没有让非法计划进入训练。稳定方案需换更强模型（deepseek-v4-pro）或改用 structured tool-use 约束；已具备的 retry 机制把 LLM 自我修正纳入了系统（self_correction_count=8）。
 
+### 第三轮：-41 dB 参数还原 + Hermes/Claude 式契约 + 根因修复（v26 最终）
+
+**1. 查出 -41 dB 的真实跑法**。全项目扫描发现达到 -41 dB 的不是 complex_lstsq，而是**神经模型长训练**：
+
+| 实验 | 模型 | 参数 | NMSE |
+| --- | --- | --- | ---: |
+| reports/tiny_md20_mp3_hu96_relu_ep10000 | tiny_mlp | mem=20 mp=3 hu=96 relu **epochs=10000** | **-42.26** |
+| reports/tiny_md20_mp3_hu128_relu_ep10000 | tiny_mlp | mem=20 mp=3 hu=128 relu epochs=10000 | -42.08 |
+| reports/exp_492 | spline_mlp | mem=40 mp=1 hu=180 silu knots=32 epochs=4000 | -41.99 |
+| runs/20260726-222348 | tiny_mlp | hu=256 | -41.34 |
+
+这些参数已写入 `configs/priors/nonlinear-modeling.json`（slow 标记），并作为 **known-best 要求**注入 planner prompt。
+
+**2. 借鉴 Hermes / Claude Code**：
+- Hermes 的 `<tools>` + 精确 JSON schema → 本项目给 LLM **"必须照填的 JSON 模板"**（overrides 键与值类型固定），替代"可用字段列表"；
+- Claude 的 structured outputs / system prompt 契约 → 强化 system prompt："只输出符合 schema 的 JSON，overrides 键必须来自 allowed 列表，model_type 必须来自白名单"。
+
+**3. 找到并修复两个真实根因**（此前 85–91% 拦截不是模型不行，而是实现 bug）：
+- `run_benchmark.py` 创建 DeepSeek planner 时**没有传 domain** → 上述注入全都没进 prompt；
+- `ExperimentPlannerLoop.timeout_seconds` 默认 300 且 benchmark 未传 → 即使 runtime 设为 36000s，ToolCall 仍 300s 超时。
+
+**v26 最终结果（10/10 case 真实运行，36000s 训练预算，约 $0.06）**：
+
+| 指标 | v21-final（修复前） | v26（修复后） |
+| --- | ---: | ---: |
+| target_hit_rate | 0.5 | **0.9** |
+| rejected_rate | 0.85 | **0.074** |
+| planner_success_rate | 0.15 | **0.93** |
+| best NMSE | -37.42 | **-42.43** |
+| self_correction_count | 6 | 3 |
+
+命中 case：target-hit **-42.43**、reflection-recovery **-42.26**、json-tolerance **-42.32**、long-history **-42.32**、multi-round **-40.98**、invalid-plan/budget-stop/parameter-budget-edge/unknown-tool（-38.4 ~ -38.7，guard 正确拦截边界）。唯一 miss 是 runtime-failure（设计为验证失败处理的 case）。
+
+**-42.43 的诞生**：LLM 在 known-best（tiny_mlp mem=20/mp=3/hu=96/epochs=10000 → -42.26）基础上改进为 tiny_mlp mem=16/mp=3/hu=128/silu/**epochs=20000** → -42.43 dB，证明先验注入让 LLM 在已知最优邻域上继续搜索是有效的。
+
 ## 5. 复现命令
 
 ```powershell

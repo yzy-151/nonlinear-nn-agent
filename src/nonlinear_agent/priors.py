@@ -27,6 +27,7 @@ class HistoricalPrior:
     known_nmse_db: float
     parameter_count: int
     source: str = ""
+    slow: bool = False  # True = very long training (e.g. epochs=10000)
 
 
 def load_historical_priors(
@@ -65,6 +66,7 @@ def load_historical_priors(
                 known_nmse_db=float(item["known_nmse_db"]),
                 parameter_count=parameter_count,
                 source=str(item.get("source", "")),
+                slow=bool(item.get("slow", False)),
             )
         )
 

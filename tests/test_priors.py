@@ -16,9 +16,9 @@ from nonlinear_agent.priors import HistoricalPrior, load_historical_priors
 class TestHistoricalPriors(unittest.TestCase):
     def test_loads_priors_sorted_best_first(self):
         priors = load_historical_priors()
-        self.assertGreaterEqual(len(priors), 6)
-        self.assertEqual(priors[0].id, "reports-017")
-        self.assertEqual(priors[0].known_nmse_db, -38.5620)
+        self.assertGreaterEqual(len(priors), 8)
+        self.assertEqual(priors[0].id, "tiny_mlp_hu96_md20")
+        self.assertEqual(priors[0].known_nmse_db, -42.26)
         nmse_values = [p.known_nmse_db for p in priors]
         self.assertEqual(nmse_values, sorted(nmse_values))
 
@@ -30,9 +30,10 @@ class TestHistoricalPriors(unittest.TestCase):
     def test_priors_expose_usable_overrides(self):
         priors = load_historical_priors()
         best = priors[0]
-        self.assertEqual(best.overrides["model_type"], "complex_lstsq")
-        self.assertEqual(best.overrides["memory_depth"], 500)
-        self.assertEqual(best.overrides["mp_order_count"], 16)
+        self.assertEqual(best.overrides["model_type"], "tiny_mlp")
+        self.assertEqual(best.overrides["memory_depth"], 20)
+        self.assertEqual(best.overrides["mp_order_count"], 3)
+        self.assertEqual(best.overrides["hidden_units"], 96)
 
     def test_over_budget_prior_is_filtered(self):
         payload = {

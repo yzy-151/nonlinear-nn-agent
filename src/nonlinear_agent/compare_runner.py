@@ -206,7 +206,11 @@ class _LLMSearch:
         self._reflection_record: dict[str, Any] | None = None
         self._failed_model_types: set[str] = set()
         self._priors = (
-            self._ctx.domain.historical_priors()
+            [
+                prior
+                for prior in self._ctx.domain.historical_priors()
+                if not prior.slow  # full matrix must stay feasible (~seconds/trial)
+            ]
             if method == "llm_with_reflection"
             else []
         )

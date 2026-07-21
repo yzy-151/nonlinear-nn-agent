@@ -180,6 +180,39 @@ class ExperimentPlanner:
                     "optimizer_type, batch_size, num_layers, architecture, "
                     "training, data. Use hidden_units (not hidden_sizes).\n"
                 )
+            # Known-best candidates from project history: design near these.
+            from nonlinear_agent.priors import load_historical_priors
+
+            priors = load_historical_priors()[:5]
+            if priors:
+                known_lines = []
+                for prior in priors:
+                    ov = prior.overrides
+                    known_lines.append(
+                        f"- {prior.id}: {ov.get('model_type')} "
+                        f"feature={ov.get('feature_mode')} "
+                        f"mem={ov.get('memory_depth')} mp={ov.get('mp_order_count')} "
+                        f"hu={ov.get('hidden_units')} epochs={ov.get('epochs')} "
+                        f"-> {prior.known_nmse_db} dB ({prior.parameter_count} params)"
+                    )
+                domain_instructions += (
+                    "\nKnown best candidates from project history (design "
+                    "experiments near these regions):\n"
+                    + "\n".join(known_lines)
+                    + "\n"
+                )
+            # Fill-in JSON template (Hermes/Claude-style schema adherence).
+            template = (
+                '{"id": "exp_001", "reason": "string", "overrides": '
+                '{"model_type": "complex_lstsq|linear|tiny_mlp|spline_mlp|complex_cnn", '
+                '"feature_mode": "complex_mp", "memory_depth": 20, '
+                '"mp_order_count": 3, "hidden_units": 96, "activation": "relu", '
+                '"epochs": 10000}}'
+            )
+            domain_instructions += (
+                "\nFill in this JSON template exactly (keys of 'overrides' "
+                f"must stay within this shape):\n{template}\n"
+            )
         else:
             domain_instructions = (
                 "No domain plugin is loaded, so the executable design space "

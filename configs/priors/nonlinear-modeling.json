@@ -1,8 +1,73 @@
 {
-  "description": "Historical best candidates for the nonlinear modeling task under the 20000-parameter budget. Sources: DeepSeek planner run (2026-07-22, exp016/exp019), docs/model-search-results.csv, configs/baselines, and reports/ scan.",
+  "description": "Historical best candidates for the nonlinear modeling task under the 20000-parameter budget. Sources: DeepSeek planner run (2026-07-22), docs/model-search-results.csv, configs/baselines, and reports/ scan. Neural models (tiny_mlp/spline_mlp) with long training reach -41 dB; complex_lstsq plateaus near -38 dB.",
   "parameter_count_max": 20000,
   "metric": "nmse_db",
   "candidates": [
+    {
+      "id": "tiny_mlp_hu96_md20",
+      "model_type": "tiny_mlp",
+      "feature_mode": "complex_mp",
+      "memory_depth": 20,
+      "mp_order_count": 3,
+      "hidden_units": 96,
+      "activation": "relu",
+      "epochs": 10000,
+      "learning_rate": 0.0008,
+      "optimizer": "adam",
+      "parameter_count": 12386,
+      "known_nmse_db": -42.26,
+      "slow": true,
+      "source": "reports/tiny_md20_mp3_hu96_relu_ep10000"
+    },
+    {
+      "id": "tiny_mlp_hu128_md20",
+      "model_type": "tiny_mlp",
+      "feature_mode": "complex_mp",
+      "memory_depth": 20,
+      "mp_order_count": 3,
+      "hidden_units": 128,
+      "activation": "relu",
+      "epochs": 10000,
+      "learning_rate": 0.0008,
+      "optimizer": "adam",
+      "parameter_count": 16514,
+      "known_nmse_db": -42.08,
+      "slow": true,
+      "source": "reports/tiny_md20_mp3_hu128_relu_ep10000"
+    },
+    {
+      "id": "spline_mlp_hu180_md40",
+      "model_type": "spline_mlp",
+      "feature_mode": "complex_mp",
+      "memory_depth": 40,
+      "mp_order_count": 1,
+      "hidden_units": 180,
+      "activation": "silu",
+      "spline_knots": 32,
+      "epochs": 4000,
+      "learning_rate": 0.0008,
+      "optimizer": "adam",
+      "parameter_count": 21062,
+      "known_nmse_db": -41.99,
+      "slow": true,
+      "source": "reports/exp_492"
+    },
+    {
+      "id": "tiny_mlp_hu80_md20",
+      "model_type": "tiny_mlp",
+      "feature_mode": "complex_mp",
+      "memory_depth": 20,
+      "mp_order_count": 3,
+      "hidden_units": 80,
+      "activation": "relu",
+      "epochs": 10000,
+      "learning_rate": 0.0008,
+      "optimizer": "adam",
+      "parameter_count": 10322,
+      "known_nmse_db": -41.50,
+      "slow": true,
+      "source": "reports/tiny_mlp_md20_mp3_hu80_relu_ep10000"
+    },
     {
       "id": "reports-017",
       "model_type": "complex_lstsq",
@@ -12,6 +77,7 @@
       "epochs": 0,
       "parameter_count": 16034,
       "known_nmse_db": -38.5620,
+      "slow": false,
       "source": "reports/017"
     },
     {
@@ -23,6 +89,7 @@
       "epochs": 0,
       "parameter_count": 9614,
       "known_nmse_db": -37.8662,
+      "slow": false,
       "source": "reports/021"
     },
     {
@@ -34,6 +101,7 @@
       "epochs": 0,
       "parameter_count": 8018,
       "known_nmse_db": -37.8142,
+      "slow": false,
       "source": "reports/013"
     },
     {
@@ -45,6 +113,7 @@
       "epochs": 0,
       "parameter_count": 4826,
       "known_nmse_db": -37.5698,
+      "slow": false,
       "source": "reports/012"
     },
     {
@@ -56,6 +125,7 @@
       "epochs": 0,
       "parameter_count": 3980,
       "known_nmse_db": -37.4875,
+      "slow": false,
       "source": "deepseek-run-2026-07-22"
     },
     {
@@ -67,6 +137,7 @@
       "epochs": 0,
       "parameter_count": 3626,
       "known_nmse_db": -37.4249,
+      "slow": false,
       "source": "docs/model-search-results.csv"
     },
     {
@@ -78,6 +149,7 @@
       "epochs": 0,
       "parameter_count": 202,
       "known_nmse_db": -36.0275,
+      "slow": false,
       "source": "deepseek-run-2026-07-22"
     },
     {
@@ -89,6 +161,7 @@
       "epochs": 0,
       "parameter_count": 50,
       "known_nmse_db": -35.9397,
+      "slow": false,
       "source": "docs/model-search-results.csv"
     }
   ]

@@ -168,7 +168,14 @@ class OpenAICompatibleClient:
                     "role": "system",
                     # system prompt 只给最基本指令："输出简洁 JSON"
                     # 详细的实验设计指引由 planner.py 构造在 user prompt 里
-                    "content": "You design concise JSON experiment plans. Return JSON only.",
+                    "content": (
+                        "You are an experiment-planning agent. You output ONLY a "
+                        "valid JSON object matching the user-provided schema. "
+                        "Never add prose, markdown, code fences, or nested "
+                        "training/model objects. Every key inside 'overrides' "
+                        "must be one of the keys the user marks as allowed; "
+                        "'model_type' must be one of the listed model names."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
