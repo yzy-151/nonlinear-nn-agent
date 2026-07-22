@@ -127,3 +127,7 @@ v0.4 后可以把项目升级表述为：
 ## v0.6 追加：可观测实验记录表达
 
 - 为 Agent Harness 增加 run artifact 自动落盘能力，结构化保存每轮 planner JSON、最终 result、按 NMSE 排序的 leaderboard.csv 与 summary.md，实现 LLM 实验循环的可复现、可审计和结果展示闭环。
+
+## v0.7 追加：Schema Guard 表达
+
+- 基于真实 DeepSeek planner 运行暴露的非法参数事故，补充 planner schema guard 和类型/值域预检，将 `spline_range=None/list`、神经模型 `epochs=0` 等不可执行计划在 runtime 前拒绝并写入 history，提升 Agent Harness 的稳定性、可审计性和自我修正输入质量。

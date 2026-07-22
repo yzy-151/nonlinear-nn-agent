@@ -39,6 +39,7 @@ def validate_planned_overrides(
     unsupported = sorted((set(normalized) - allowed) | (set(overrides) & UNSUPPORTED_FIELDS))
     if unsupported:
         raise ValueError(f"Unsupported planner override fields: {', '.join(unsupported)}")
+    _validate_field_values(normalized)
     if parameter_count_max is not None:
         parameter_count = estimate_parameter_count(normalized)
         if parameter_count is not None and parameter_count > parameter_count_max:
@@ -71,6 +72,31 @@ def estimate_parameter_count(overrides: dict[str, Any]) -> int | None:
     if model_type == "complex_cnn":
         return None
     raise ValueError(f"Unsupported model_type: {model_type}")
+
+
+def _validate_field_values(overrides: dict[str, Any]) -> None:
+    model_type = str(overrides.get("model_type", ""))
+    if "spline_range" in overrides and not _is_number(overrides["spline_range"]):
+        raise ValueError("spline_range must be a number.")
+    for field in ("memory_depth", "mp_order_count", "hidden_units", "spline_knots", "batch_size", "max_train_samples"):
+        if field in overrides and not _is_positive_int(overrides[field]):
+            raise ValueError(f"{field} must be a positive integer.")
+    if "epochs" in overrides:
+        if not isinstance(overrides["epochs"], int) or isinstance(overrides["epochs"], bool) or overrides["epochs"] < 0:
+            raise ValueError("epochs must be a non-negative integer.")
+        if model_type in {"tiny_mlp", "spline_mlp", "linear", "complex_cnn"} and overrides["epochs"] < 1:
+            raise ValueError(f"epochs must be >= 1 for neural model {model_type}.")
+    for field in ("learning_rate", "scheduler_gamma", "train_ratio"):
+        if field in overrides and not _is_number(overrides[field]):
+            raise ValueError(f"{field} must be a number.")
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _is_positive_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 def _feature_width(feature_mode: str, memory_depth: int, mp_order_count: int) -> int:
