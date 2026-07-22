@@ -282,3 +282,35 @@ LLM proposes experiment
 | exp_023 | tiny_mlp, hidden=32, tanh, max_train_samples=5000 | 1698 | -20.8188 | 神经小模型仍弱于闭式 MP |
 
 注意：这只是“初步自我修正”，不是完全可靠的 autonomous research agent。它仍需要 schema guard、参数预算检查和结果验证约束，否则可能继续输出非法字段或低质量实验。
+
+## 2026-07-22 追加：v0.6 自动落盘与可复现实验记录
+
+v0.6 把 planner loop 从“命令行输出结果”升级为“自动生成可审计 run artifacts”。
+
+新增能力：
+
+- 每轮 planner 输出自动保存到 `runs/<timestamp>/plans/round-XXX.json`。
+- 最终 loop 结果保存到 `result.json`。
+- 所有实验按 `nmse_db` 排序生成 `leaderboard.csv`。
+- 自动生成面向阅读的 `summary.md`，包括状态、轮数、最佳候选和 planner summaries。
+- CLI 支持 `--artifact-dir` 指定输出目录；不指定时自动生成 timestamp run 目录。
+- `runs/` 和 planner 生成的临时 config 被 `.gitignore` 忽略，避免把实验产物污染代码仓库。
+
+这一步对应 Agent Harness 岗位里的几个关键词：
+
+- observability：每轮计划、执行结果、错误和指标都有文件记录。
+- reproducibility：一次 run 不再只存在于 stdout，可以事后复盘。
+- execution trace：`plans/` + `result.json` + `leaderboard.csv` 构成最小可审计链路。
+- engineering control：实验输出和 Git 提交边界分离，代码仓库保持干净。
+
+你应该从这一版学会：
+
+1. Agent loop 不是只要能调用 LLM，还要把“计划、执行、观察、停止原因”结构化保存。
+2. 好的 agent 工程要考虑失败后的复盘能力，否则无法优化 planner prompt 和 tool schema。
+3. 面试时不要只说“我做了一个自动实验 agent”，要说“我做了一个带硬预算、schema guard、run artifact、leaderboard 和 summary 的实验 harness”。
+
+简历表达可以写：
+
+```text
+实现 LLM-driven experiment harness 的可观测闭环：支持 DeepSeek planner 自动设计实验、runtime 执行训练、history 反馈修正，并自动落盘每轮 plan、最终 result、leaderboard.csv 与 summary.md，便于复现实验、错误追踪和面试级结果展示。
+```

@@ -1,4 +1,6 @@
 import asyncio
+import csv
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -170,6 +172,59 @@ class LLMPlannerTest(unittest.TestCase):
         self.assertEqual(thresholds, [-41.0, -41.0, -41.0])
         self.assertEqual(result.status, "max_experiments_reached")
         self.assertEqual(len(result.history), 3)
+
+    def test_planner_loop_writes_run_artifacts(self):
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"run candidates", "stop": false, "experiments": ['
+                '{"id":"candidate-001", "reason":"first", '
+                '"overrides":{"output_dir":"reports/candidate-001", "epochs":0}},'
+                '{"id":"candidate-002", "reason":"second", '
+                '"overrides":{"output_dir":"reports/candidate-002", "epochs":0}}]}',
+                '{"summary":"stop after results", "stop": true, "experiments": []}',
+            ]
+        )
+        planner = ExperimentPlanner(llm_client=llm)
+
+        class FakeRuntime:
+            async def run(self, request):
+                nmse = -38.5 if request.session_id == "candidate-001" else -39.25
+                yield TraceEvent(
+                    session_id=request.session_id,
+                    event_type="metric",
+                    status="succeeded",
+                    payload={"name": "nmse_db", "value": nmse},
+                )
+                yield TraceEvent(
+                    session_id=request.session_id,
+                    event_type="metric",
+                    status="succeeded",
+                    payload={"name": "parameter_count", "value": 128},
+                )
+
+        with TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir) / "runs" / "unit-run"
+            loop = ExperimentPlannerLoop(
+                planner=planner,
+                workspace=Path(tmpdir),
+                runtime_factory=lambda session_id: FakeRuntime(),
+                artifact_dir=run_dir,
+            )
+            result = asyncio.run(loop.run(goal="persist artifacts", max_rounds=3))
+
+            result_payload = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
+            plan_payload = json.loads((run_dir / "plans" / "round-001.json").read_text(encoding="utf-8"))
+            with (run_dir / "leaderboard.csv").open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            summary = (run_dir / "summary.md").read_text(encoding="utf-8")
+
+        self.assertEqual(result.status, "stopped")
+        self.assertEqual(result_payload["status"], "stopped")
+        self.assertEqual(plan_payload["summary"], "run candidates")
+        self.assertEqual(rows[0]["id"], "candidate-002")
+        self.assertEqual(rows[0]["nmse_db"], "-39.25")
+        self.assertIn("candidate-002", summary)
+        self.assertIn("-39.25", summary)
 
 if __name__ == "__main__":
     unittest.main()

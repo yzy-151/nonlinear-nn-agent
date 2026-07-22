@@ -434,3 +434,36 @@ nmse_db: -36.0275 dB
 ```
 
 这个记录可以作为面试中的“Agent loop 不是固定 workflow，而能根据错误和指标修正下一轮计划”的证据。
+
+## 2026-07-22 追加：v0.6 Run Artifacts
+
+本项目新增自动 run artifact 能力：
+
+- `src/nonlinear_agent/run_artifacts.py`
+- `ExperimentPlannerLoop(..., artifact_dir=...)`
+- CLI 参数：`--artifact-dir`
+
+每次 loop 会生成：
+
+```text
+runs/<timestamp-or-user-dir>/
+  plans/
+    round-001.json
+    round-002.json
+  result.json
+  leaderboard.csv
+  summary.md
+```
+
+验证命令：
+
+```powershell
+python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --max-experiments 1 --artifact-dir runs\fake-v06-check --goal "artifact smoke test"
+python -m unittest discover tests
+```
+
+注意：
+
+- `runs/` 已加入 `.gitignore`，默认不提交临时实验产物。
+- planner 自动生成的 `configs/exp*.yaml`、`configs/planner-*.yaml` 也已忽略。
+- 后续如果需要把某次重要实验放进 Git，建议手动整理成 `docs/experiments/*.md`，不要直接提交完整 `runs/`。
