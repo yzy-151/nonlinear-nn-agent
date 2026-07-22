@@ -39,10 +39,11 @@ class ExperimentPlannerLoop:
         self.constraints = constraints or {"parameter_count_max": 4000, "metric": "nmse_db"}
         self.timeout_seconds = timeout_seconds
 
-    async def run(self, goal: str, max_rounds: int = 3) -> PlannerLoopResult:
+    async def run(self, goal: str, max_rounds: int = 3, max_experiments: int | None = None) -> PlannerLoopResult:
         history: list[dict[str, Any]] = []
         summaries: list[str] = []
         rounds = 0
+        executed_experiments = 0
         for _ in range(max_rounds):
             rounds += 1
             plan = self.planner.plan(goal=goal, history=history, constraints=self.constraints)
@@ -50,6 +51,13 @@ class ExperimentPlannerLoop:
             if plan.stop and not plan.experiments:
                 return PlannerLoopResult(status="stopped", rounds=rounds, history=history, summaries=summaries)
             for experiment in plan.experiments:
+                if max_experiments is not None and executed_experiments >= max_experiments:
+                    return PlannerLoopResult(
+                        status="max_experiments_reached",
+                        rounds=rounds,
+                        history=history,
+                        summaries=summaries,
+                    )
                 try:
                     overrides = validate_planned_overrides(
                         experiment.overrides,
@@ -64,6 +72,7 @@ class ExperimentPlannerLoop:
                     })
                     continue
                 metrics = await self._run_experiment(experiment.experiment_id, overrides)
+                executed_experiments += 1
                 record = {"id": experiment.experiment_id, "reason": experiment.reason, **metrics}
                 history.append(record)
         return PlannerLoopResult(status="max_rounds_reached", rounds=rounds, history=history, summaries=summaries)
@@ -77,7 +86,7 @@ class ExperimentPlannerLoop:
             epochs=int(overrides.get("epochs", 0)),
             learning_rate=float(overrides.get("learning_rate", 0.0008)),
             optimizer=str(overrides.get("optimizer", "adam")),
-            nmse_threshold_db=float(overrides.get("nmse_threshold_db", -35.0)),
+            nmse_threshold_db=float(overrides.get("nmse_threshold_db", self.constraints.get("nmse_threshold_db", -35.0))),
             timeout_seconds=self.timeout_seconds,
             overrides=overrides,
         )
@@ -93,5 +102,3 @@ class ExperimentPlannerLoop:
                 metrics["run_status"] = "failed"
                 metrics["error"] = event.error
         return metrics
-
-

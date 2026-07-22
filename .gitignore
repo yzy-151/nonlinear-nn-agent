@@ -12,3 +12,5 @@ reports/
 sessions/
 traces/
 .env.local
+configs/exp*.yaml
+exp[0-9]*/

@@ -52,10 +52,10 @@ async def run(args) -> None:
         planner=planner,
         workspace=PROJECT_ROOT,
         base_config=args.base_config,
-        constraints={"parameter_count_max": args.parameter_count_max, "metric": "nmse_db"},
+        constraints={"parameter_count_max": args.parameter_count_max, "metric": "nmse_db", "nmse_threshold_db": args.nmse_threshold_db},
         timeout_seconds=args.timeout_seconds,
     )
-    result = await loop.run(goal=args.goal, max_rounds=args.max_rounds)
+    result = await loop.run(goal=args.goal, max_rounds=args.max_rounds, max_experiments=args.max_experiments)
     print(json.dumps(result.__dict__, ensure_ascii=False, indent=2))
 
 
@@ -65,7 +65,9 @@ def main() -> None:
     parser.add_argument("--goal", default="Find a low-NMSE nonlinear model under 4000 parameters and produce PSD evidence.")
     parser.add_argument("--base-config", default="configs/model-search/lstsq-complexmp-o12-m150.yaml")
     parser.add_argument("--parameter-count-max", type=int, default=4000)
+    parser.add_argument("--nmse-threshold-db", type=float, default=-35.0)
     parser.add_argument("--max-rounds", type=int, default=2)
+    parser.add_argument("--max-experiments", type=int)
     parser.add_argument("--timeout-seconds", type=float, default=300.0)
     parser.add_argument("--fake-plan")
     args = parser.parse_args()
