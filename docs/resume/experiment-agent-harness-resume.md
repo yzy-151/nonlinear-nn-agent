@@ -119,3 +119,7 @@ v0.4 后可以把项目升级表述为：
 ## v0.5 新增简历证据
 
 - 为 LLM Planner 增加 schema guard 和参数预算预检查，支持 `train_samples -> max_train_samples` 字段映射，拒绝 `rank` 等非法控制字段，并在运行前估算 `complex_lstsq`、`tiny_mlp`、`spline_mlp` 参数量，避免 LLM 输出不可执行或超预算实验；被拒绝候选会写入 history 形成可审计失败记录。
+
+## v0.5 追加：自我修正能力表达
+
+- 通过真实 DeepSeek planner run 验证 plan-run-observe 反馈闭环：LLM 第一轮输出非法 `spline_range` 类型导致 spline_mlp 训练失败，Harness 将错误写入 history，第二轮 planner 根据错误修正为 scalar 并继续实验，第三轮基于 NMSE 结果选择 202 参数的 `complex_lstsq` 候选并主动停止。
