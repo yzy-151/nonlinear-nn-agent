@@ -143,3 +143,7 @@ v0.4 后可以把项目升级表述为：
 ## v1.0 追加：Tool Registry / Skill 化表达
 
 - 为 Agent Harness 工具系统增加 ToolSpec 描述层，支持工具名称、用途、输入 schema、类别和错误策略的结构化注册，并通过 `ToolRegistry.describe_tools()` 向 LLM Planner 渐进式披露可用工具能力，实现工具发现、调用边界控制和 unknown tool 结构化失败处理。
+
+## v1.1 追加：Reflection / Recovery Policy 表达
+
+- 为 LLM Planner Loop 增加 Reflection / Recovery Policy，在每轮实验后结构化生成失败原因、修正策略和下一轮避免项，并将 rejected/failed/succeeded 状态、最佳指标和 recovery actions 写入 run artifacts，提升 Agent 自我修正、错误复盘和面试可解释性。

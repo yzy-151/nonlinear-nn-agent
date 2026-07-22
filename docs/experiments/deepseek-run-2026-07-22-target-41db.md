@@ -30,6 +30,16 @@ Best result:
 |---|---|---|---:|---:|---:|---:|---|
 | exp016 | complex_lstsq | complex_mp | 220 | 9 | 3980 | -37.4875 | failed target |
 
+## Result Figures
+
+### Best candidate PSD
+
+![PSD for exp016](../assets/psd-exp016-best-41db-run.png)
+
+### DeepSeek self-correction reference PSD
+
+![PSD for exp_019](../assets/psd-exp019-self-correction-run.png)
+
 The run did not reach `-41 dB`. DeepSeek stopped after round 5 because the best complex least-squares candidates plateaued around `-37.5 dB`, while neural and spline candidates remained much worse.
 
 ## Notable Candidates

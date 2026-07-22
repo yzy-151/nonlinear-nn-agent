@@ -52,6 +52,10 @@ class RunArtifactWriter:
         }
         self._write_json(self.plans_dir / f"round-{round_index:03d}.json", payload)
 
+    def write_reflection(self, reflection: dict[str, Any]) -> None:
+        round_index = int(reflection.get("round", 0))
+        self._write_json(self.run_dir / "reflections" / f"round-{round_index:03d}.json", reflection)
+
     def write_result(self, result: Any) -> None:
         self.run_dir.mkdir(parents=True, exist_ok=True)
         payload = asdict(result) if hasattr(result, "__dataclass_fields__") else dict(result)
@@ -102,6 +106,21 @@ class RunArtifactWriter:
             for index, summary in enumerate(result["summaries"], start=1):
                 lines.append(f"{index}. {summary}")
             lines.append("")
+        if result.get("reflections"):
+            lines.extend(["## Reflections", ""])
+            for reflection in result["reflections"]:
+                lines.append(f"### Round {reflection.get('round', '')}")
+                lines.append("")
+                lines.append(f"- status_counts: `{reflection.get('status_counts', {})}`")
+                best_id = reflection.get("best_experiment_id", "")
+                best_nmse = reflection.get("best_nmse_db", "")
+                if best_id:
+                    lines.append(f"- best: `{best_id}` at `{best_nmse}` dB")
+                for action in reflection.get("recovery_actions", []):
+                    lines.append(f"- recovery: {action}")
+                for avoid in reflection.get("avoid_next", []):
+                    lines.append(f"- avoid_next: {avoid}")
+                lines.append("")
         lines.append("See `leaderboard.csv`, `result.json`, and `plans/` for full details.")
         (self.run_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

@@ -8,7 +8,7 @@
 
 把 `nonlinear-nn-agent` 打造成面向 Agent Harness / Runtime / Agent Coding 岗位的项目证据。
 
-当前已完成到 v1.0：
+当前已完成到 v1.1：
 
 - v0.1：Harness Runtime
 - v0.2：真实实验工具
@@ -20,6 +20,7 @@
 - v0.8：Benchmark Evaluation
 - v0.9：Context / Memory Compression
 - v1.0：Tool Registry / Skill 化
+- v1.1：Reflection / Recovery Policy
 
 ## 开发原则
 
@@ -123,16 +124,36 @@ benchmarks/<timestamp>/
 - tool error policy
 - unknown tool structured failure
 
-## v1.1 计划：Reflection + Recovery Policy
+## v1.1 已完成：Reflection + Recovery Policy
 
 目标：回答 Self-refine / 自我修正策略问题。
 
-能力：
+已新增：
+
+- `src/nonlinear_agent/reflection.py`
+- `tests/test_reflection.py`
+
+已支持：
 
 - 每轮结束生成 reflection record
 - 总结失败原因
 - 明确下一轮修正策略
 - rejected/failed history 触发 recovery policy
+- `runs/<run-id>/reflections/round-XXX.json`
+- `result.json` 保存完整 `reflections`
+- `summary.md` 展示 recovery / avoid_next 摘要
+
+## v1.2 计划：MCP Server / Tool Protocol
+
+目标：回答 MCP / Tool Protocol / Agent 工具协议问题。
+
+建议能力：
+
+- 把当前 `ToolSpec` 映射为 MCP tool schema。
+- 暴露 `generate_config`、`run_training`、`verify_artifacts`、`write_report`。
+- 提供 stdio server 或最小可运行 mock server。
+- 写测试验证 tool schema、参数校验、错误返回。
+- 文档解释 Skill、ToolSpec、MCP 三者关系。
 
 ## 验证命令
 

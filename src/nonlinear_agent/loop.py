@@ -7,6 +7,7 @@ from typing import Any, Callable
 from nonlinear_agent.context_memory import HistoryCompressor
 from nonlinear_agent.planner import ExperimentPlanner
 from nonlinear_agent.planner_validation import validate_planned_overrides
+from nonlinear_agent.reflection import ReflectionPolicy
 from nonlinear_agent.run_artifacts import RunArtifactWriter, default_run_dir
 from nonlinear_agent.server import HarnessRunSpec, build_harness_request, build_runtime
 
@@ -17,6 +18,7 @@ class PlannerLoopResult:
     rounds: int
     history: list[dict[str, Any]] = field(default_factory=list)
     summaries: list[str] = field(default_factory=list)
+    reflections: list[dict[str, Any]] = field(default_factory=list)
 
 
 RuntimeFactory = Callable[[str], Any]
@@ -33,6 +35,7 @@ class ExperimentPlannerLoop:
         timeout_seconds: float = 300.0,
         artifact_dir: Path | str | None = None,
         history_compressor: HistoryCompressor | None = None,
+        reflection_policy: ReflectionPolicy | None = None,
     ):
         self.planner = planner
         self.workspace = Path(workspace)
@@ -44,20 +47,29 @@ class ExperimentPlannerLoop:
         self.timeout_seconds = timeout_seconds
         self.artifact_writer = RunArtifactWriter(artifact_dir or default_run_dir(self.workspace))
         self.history_compressor = history_compressor or HistoryCompressor()
+        self.reflection_policy = reflection_policy or ReflectionPolicy()
 
     async def run(self, goal: str, max_rounds: int = 3, max_experiments: int | None = None) -> PlannerLoopResult:
         history: list[dict[str, Any]] = []
         summaries: list[str] = []
+        reflections: list[dict[str, Any]] = []
         rounds = 0
         executed_experiments = 0
         for _ in range(max_rounds):
             rounds += 1
+            round_records: list[dict[str, Any]] = []
             prompt_history = self.history_compressor.build_prompt_history(history)
             plan = self.planner.plan(goal=goal, history=prompt_history, constraints=self.constraints)
             summaries.append(plan.summary)
             self.artifact_writer.write_plan(rounds, plan)
             if plan.stop and not plan.experiments:
-                result = PlannerLoopResult(status="stopped", rounds=rounds, history=history, summaries=summaries)
+                result = PlannerLoopResult(
+                    status="stopped",
+                    rounds=rounds,
+                    history=history,
+                    summaries=summaries,
+                    reflections=reflections,
+                )
                 self.artifact_writer.write_result(result)
                 return result
             for experiment in plan.experiments:
@@ -67,6 +79,7 @@ class ExperimentPlannerLoop:
                         rounds=rounds,
                         history=history,
                         summaries=summaries,
+                        reflections=reflections,
                     )
                     self.artifact_writer.write_result(result)
                     return result
@@ -82,12 +95,24 @@ class ExperimentPlannerLoop:
                         "run_status": "rejected",
                         "error": str(exc),
                     })
+                    round_records.append(history[-1])
                     continue
                 metrics = await self._run_experiment(experiment.experiment_id, overrides)
                 executed_experiments += 1
                 record = {"id": experiment.experiment_id, "reason": experiment.reason, **metrics}
                 history.append(record)
-        result = PlannerLoopResult(status="max_rounds_reached", rounds=rounds, history=history, summaries=summaries)
+                round_records.append(record)
+            if round_records:
+                reflection = self.reflection_policy.reflect(round_index=rounds, round_records=round_records)
+                reflections.append(reflection)
+                self.artifact_writer.write_reflection(reflection)
+        result = PlannerLoopResult(
+            status="max_rounds_reached",
+            rounds=rounds,
+            history=history,
+            summaries=summaries,
+            reflections=reflections,
+        )
         self.artifact_writer.write_result(result)
         return result
 
