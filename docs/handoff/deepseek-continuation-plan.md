@@ -254,3 +254,49 @@ v0.3 推荐目标调整：
 - `reports/`、`sessions/`、`traces/` 是运行产物，不要提交。
 - `configs/harness-demo-v02.yaml` 是 demo 生成配置，除非要作为展示样例，否则不要提交。
 - 下一步优先补 `server.py` 和 `tests/test_server.py`，不要继续调模型效果。
+
+## 2026-07-22 v0.3 已完成内容
+
+新增模块：
+
+- `src/nonlinear_agent/server.py`
+  - `HarnessRunSpec`
+  - `build_harness_request`
+  - `encode_sse_event`
+  - `stream_sse_events`
+  - `build_runtime`
+  - `create_app`
+
+- `examples/nonlinear_fit/serve_harness.py`
+  - 启动 FastAPI/uvicorn 服务。
+
+新增测试：
+
+- `tests/test_server_streaming.py`
+
+新增学习文档：
+
+- `docs/learning/experiment-agent-harness-v0.3.md`
+- `docs/superpowers/plans/2026-07-22-experiment-agent-harness-v0.3.md`
+
+服务启动：
+
+```powershell
+python examples\nonlinear_fit\serve_harness.py --host 127.0.0.1 --port 8000
+```
+
+SSE 请求：
+
+```powershell
+curl -N -X POST http://127.0.0.1:8000/runs/server-demo/events -H "Content-Type: application/json" -d "{\"epochs\":0,\"nmse_threshold_db\":-35}"
+```
+
+v0.4 推荐目标：
+
+1. 做 cancellation/interrupt，不要先做复杂前端。
+2. 在 runtime 中加入 `CancellationToken` 或 `RunController`。
+3. 让 SSE 流遇到 cancel 时产出 `cancelled` event 并保存 failed/cancelled session。
+4. 再做 MCP server。
+5. 最后做 LangGraph 对照版。
+
+注意：FastAPI/uvicorn 已加入 `requirements.txt`，但 `server.py` 采用懒加载，未安装时核心测试仍可运行。
