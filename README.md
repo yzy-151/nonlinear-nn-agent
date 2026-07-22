@@ -1,1463 +1,168 @@
 # Nonlinear NN Agent Harness
 
-面向 Agent Harness / Runtime / Agent Coding 岗位的实验型项目。
+基于 LLM 的自动化实验系统（Agent Harness Runtime），把非线性系统建模（RF MPDPD）实验组织为 **plan → validate → execute → observe → reflect** 的可复现工作流：LLM 负责设计实验，Harness 负责受控工具调用、Schema Guard、参数预算、真实训练、指标验证、SSE 实时观测与结果落盘。
 
-这个项目把一个真实的非线性系统建模任务，改造成 LLM-driven Agent Harness。LLM 负责根据目标和历史结果设计下一轮实验，Harness 负责受控工具调用、schema guard、参数预算检查、训练执行、指标验证、trace/session、上下文压缩、reflection、benchmark 和结果落盘。
+项目把"让模型做实验"这件事工程化：**计划与执行解耦**、**领域知识插件化**、**四种搜索策略可公平对照**、**运行可靠性可压测**。所有结论都能从 JSON/CSV 复算。
 
-核心目标不是只把 NMSE 调低，而是证明自己理解并实现过一个 Agent Runtime 应该具备的工程能力。
+## 界面预览
 
-## 新手 5 分钟快速上手
+浏览器操作面板（Workflow / Agent Planner / Benchmark / Strategy Comparison 四页签）：
 
-### 环境要求
+![Web UI 操作面板](docs/assets/screenshots/web-ui-home.png)
 
-- Python 3.9+
-- Windows / Linux / macOS
+本地诊断 Dashboard（聚合全部实验指标、错误分布与策略对照）：
 
-### 第一步：安装依赖
+![Diagnostics Dashboard](docs/assets/screenshots/dashboard.png)
+
+## 核心特性
+
+- **Planner / Runtime 解耦**：LLM 只输出结构化 JSON 实验计划，不直接执行命令；Runtime 只调用已注册工具
+- **Schema Guard 与预算控制**：白名单字段校验、结果字段黑名单、参数预算估算、`model_type` 白名单；被拒计划单独统计并回喂给 LLM 自动修正
+- **DomainPlugin 可迁移**：非线性建模与合成回归两个领域插件共用同一套 Harness，证明系统可迁移
+- **四种搜索策略统一对照**：Random Search、Optuna TPE、LLM（无/有 Reflection）在同一协议、同一数据划分下公平比较，输出 bootstrap 95% CI 与 paired delta
+- **历史先验注入**：把历史最优候选（-42 dB 级）作为知识注入 Reflection 策略，让 LLM 在已知最优邻域继续搜索
+- **SSE 实时观测**：事件 ID、15 秒心跳、`/cancel`、Last-Event-ID 断线重放
+- **SQLite 控制面**：请求去重、任务 lease、原子 claim、单调事件序列（WAL + busy timeout），并发压测通过
+- **层级 Trace**：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token/cost` 全链路
+- **Web UI + CLI + Dashboard** 三套交付面，浏览器一键跑实验并实时看事件流
+
+## 快速开始
+
+环境要求：Python 3.9+，Windows / Linux / macOS。
 
 ```powershell
+# 1. 安装依赖
 pip install -r requirements.txt
-```
 
-### 第二步：验证环境（30 秒）
-
-```powershell
+# 2. 运行测试（确认环境正常）
 python -m unittest discover tests
-```
 
-预期输出 `Ran 208 tests ... OK`（Optuna 已锁定为 `optuna>=4,<5`，测试不再跳过 TPE 基线）。如果报错 `Start directory is not importable`，说明你不在项目根目录——先执行 `cd /d D:\FILEEEEEEEEEEE\projects\nonlinear-nn-agent`（Windows cmd）或 `cd D:/FILEEEEEEEEEEE/projects/nonlinear-nn-agent`（bash）。
-
-### 第三步：跑一次完整 Agent Loop（无需 API Key，30 秒）
-
-```powershell
+# 3. 离线跑一次完整 Agent Loop（无需 API Key）
 python agent.py run --provider fake --max-rounds 2 --max-experiments 1 --artifact-dir runs\my-first-run
+
+# 4. 启动 Web UI（浏览器打开 http://127.0.0.1:8000）
+python agent.py serve --host 127.0.0.1 --port 8000
 ```
 
-这条命令做的事情：
+## 架构
+
+```mermaid
+flowchart LR
+    User -->|goal / constraints| Planner
+    Planner -->|JSON plan| Guard
+    Guard -->|validated overrides| Runtime
+    Runtime -->|ToolCall| ToolRegistry
+    ToolRegistry -->|execution| Train["train.py / fit"]
+    Runtime -->|TraceEvent / metric| SSE["SSE / Trace / Session"]
+    SSE --> History["History + Reflection"]
+    History -->|compressed context| Planner
+    SSE --> SQLite["Control Plane (idempotent / lease / replay)"]
+```
+
+核心模块：
+
+| 模块 | 职责 |
+| --- | --- |
+| `planner.py` | 构造 prompt、解析 LLM 返回的 JSON 计划（容错 + few-shot + 字段契约） |
+| `planner_validation.py` | Schema Guard：白名单/黑名单、类型、参数预算、别名规范化 |
+| `loop.py` | 主循环：plan → validate → execute → observe → reflect，含被拒自动重试 |
+| `runtime.py` | Harness Runtime：逐步执行工具链、事件流、session/trace |
+| `tools.py` | ToolCall / ToolResult / ToolSpec / ToolRegistry |
+| `domains/` | DomainPlugin 协议 + nonlinear-modeling / synthetic-regression 插件 |
+| `search/` | SearchStrategy 协议 + Random / Optuna TPE / LLM 策略 |
+| `evaluation_statistics.py` | bootstrap 95% CI、paired delta、summary 生成 |
+| `control_plane.py` | SQLite 控制面（请求去重、任务 lease、事件序列） |
+| `server.py` | FastAPI + SSE 服务层（含 Last-Event-ID 重放与取消） |
+| `web_ui.py` / `dashboard.py` | 浏览器操作面板与诊断 Dashboard |
+
+## 命令行速查
+
+| 命令 | 用途 |
+| --- | --- |
+| `python agent.py run --provider fake` | 离线 Agent Loop（预设计划） |
+| `python agent.py run --provider deepseek` | 真实 LLM Agent Loop（需 `DEEPSEEK_API_KEY`） |
+| `python agent.py benchmark` | 10-case Agent 行为回归 Benchmark（离线 fake） |
+| `python examples\nonlinear_fit\run_benchmark.py --provider deepseek` | 真实 LLM + 真实训练的 10-case Benchmark |
+| `python agent.py compare-search` | 四种搜索策略真实对照 |
+| `python agent.py stress-runtime` | SQLite 控制面并发压测 |
+| `python agent.py serve` | 启动 Web UI / SSE 服务 |
+| `python agent.py dashboard` | 生成诊断 Dashboard |
+
+## 实验证据
+
+### 搜索策略对照（真实训练）
+
+统一协议（`benchmarks/protocol/nonlinear-search-v1.json`）下，4 策略 × 5 seeds × 10 有效训练 trial，20000 参数预算：
+
+| 方法 | best NMSE mean (dB) | target hit | rejected |
+| --- | ---: | ---: | ---: |
+| random_search | -36.02 | 10% | 32% |
+| optuna_tpe | -37.02 | 22% | 35% |
+| llm_no_reflection | -33.59 | 28% | 10% |
+| **llm_with_reflection（含历史先验）** | **-37.87** | **78%** | 24% |
+
+Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**。
+
+![Best-so-far 对比](benchmarks/nonlinear-search-v1-v20000/best-so-far.png)
+
+![Reflection 消融](benchmarks/nonlinear-search-v1-v20000/reflection-ablation.png)
+
+### 历史先验注入：达到 -42 dB
+
+项目历史记录显示，达到 -41 dB 需要**神经模型长训练**（`tiny_mlp` + `epochs=10000` 等），而非 complex_lstsq 平台区。把这些候选写入 `configs/priors/nonlinear-modeling.json` 并注入 planner prompt 后，真实 DeepSeek 在已知最优邻域上继续搜索，设计出 **-42.43 dB**（tiny_mlp mem=16 / mp=3 / hu=128 / silu / epochs=20000）：
+
+![-41 dB 目标 run 的最优候选 PSD](docs/assets/psd-exp016-best-41db-run.png)
+
+### Agent Benchmark（10 case）
+
+指标：`target_hit_rate`、`rejected_rate`、`planner_success_rate`、`self_correction_count`、`runtime_failure_rate`、token/cost。
+
+| 运行方式 | target_hit | rejected | best NMSE |
+| --- | ---: | ---: | ---: |
+| 离线 fake（确定性） | 0.7 | 21% | -36.5 |
+| 真实 DeepSeek + 真实训练（v26） | **0.9** | **7.4%** | **-42.43** |
+
+真实 LLM 运行结果与原始数据：
 
 ```text
-FakeLLM 输出预设好的实验计划
-  → Schema Guard 检查参数合法性
-  → build_harness_request() 构造工具链
-  → ExperimentHarnessRuntime 逐步执行:
-      generate_config → run_training → verify_artifacts → write_report
-  → 每步产出 TraceEvent (start / tool_start / tool_end / metric / complete)
-  → 写入 session.json + trace.jsonl
-  → HistoryCompressor 压缩历史
-  → ReflectionPolicy 生成复盘
-  → 第二轮 planner 读到 history 后决定停止
-  → 落盘 runs/my-first-run/ (plans/ + reflections/ + result.json + leaderboard.csv + summary.md)
+benchmarks/deepseek-v26/results.json
+benchmarks/fake-v21b/results.json
+docs/experiments/nonlinear-search-ablation-v1.md
+docs/experiments/nonlinear-search-ablation-v2.md
 ```
 
-### 第四步：查看运行结果
+## 可靠性压测
 
 ```powershell
-# 看 terminal 输出的 JSON 结果
-# 打开产物目录
-ls runs\my-first-run
-```
-
-你会看到 `result.json`、`leaderboard.csv`、`summary.md`、`plans/`、`reflections/`。
-
-### 统一 CLI 面
-
-所有功能收敛到一个命令入口 `agent.py`：
-
-| 命令 | 用途 | 需要 API Key |
-|------|------|:--:|
-| `python agent.py run --provider fake` | 运行 Agent Loop（离线 demo） | 否 |
-| `python agent.py run --provider deepseek` | 运行 Agent Loop（真实 LLM） | 是 DeepSeek |
-| `python agent.py benchmark` | 执行 Benchmark 评分 | 否 |
-| `python agent.py diagnostics` | 生成 Markdown 诊断仪表盘 | 否 |
-| `python agent.py dashboard` | 生成 HTML 诊断仪表盘 | 否 |
-| `python agent.py compare-search` | 真实执行 4 策略搜索对照（Random/TPE/LLM±Reflection） | 否 |
-| `python agent.py stress-runtime` | SQLite 控制面并发压测（幂等/恢复/事件） | 否 |
-| `python agent.py serve` | 启动 SSE 流式服务 | 否 |
-
-也可以走等价入口：
-
-```powershell
-python -m nonlinear_agent.cli run --provider fake --max-rounds 2 --max-experiments 1
-python -m nonlinear_agent.cli dashboard
-python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2
-```
-
-## 1. 项目定位
-
-一句话：
-
-> An LLM-driven Agent Harness Runtime for nonlinear-system modeling experiments.
-
-更适合简历的中文描述：
-
-> 设计并实现面向算法实验的轻量级 Agent Harness Runtime，将非线性神经网络拟合任务拆解为配置生成、训练执行、NMSE/PSD 验证、报告生成等可注册工具，并接入 LLM Planner 形成 plan-run-observe-reflect 多轮闭环。
-
-本项目对齐的岗位能力：
-
-| 岗位能力 | 项目证据 |
-|---|---|
-| Agentic Loop | `ExperimentPlannerLoop.run()` 实现 plan -> validate -> execute -> observe -> reflect |
-| Tool Calling | `ToolCall` / `ToolResult` / `ToolRegistry.run()` |
-| Tool Spec | `ToolSpec` 描述工具名、用途、schema、类别、错误策略 |
-| Runtime | `ExperimentHarnessRuntime` 负责逐步执行工具链 |
-| Hook | `HookManager` 支持 before/after/error/metric hook |
-| Session | `SessionStore` 保存和恢复 session |
-| Trace | `TraceLogger` 写 JSONL 执行事件 |
-| SSE Streaming | FastAPI `POST /runs/{session_id}/events` 输出 `text/event-stream` |
-| LLM Planner | DeepSeek-compatible client 生成结构化实验计划 JSON |
-| Guardrail | `validate_planned_overrides()` 做 schema 和参数预算预检 |
-| Context Compression | `HistoryCompressor` 压缩历史，只给 planner 必要上下文 |
-| Reflection | `ReflectionPolicy` 生成失败原因、修正动作、下一轮避免项 |
-| Benchmark | `run_benchmark_cases()` 用固定 case 评估 agent 改动效果 |
-| Runtime Hardening | `ErrorType`、`RunController`、`RetryPolicy`、`resume_from_step` |
-| Diagnostics | `collect_diagnostics()` 聚合 benchmark/run artifacts 并生成 dashboard |
-| Delivery Surface | `nonlinear_agent.cli` 统一 run/benchmark/diagnostics/dashboard/serve 命令 |
-| Demo UI | `src/nonlinear_agent/web_ui.py` 提供浏览器首页，支持配置实验并实时查看 SSE event |
-
-## 2. 当前结果
-
-### Best candidate in -41 dB target run
-
-- Experiment: `exp016`
-- Model: `complex_lstsq`
-- Feature mode: `complex_mp`
-- Memory depth: `220`
-- MP order: `9`
-- Params: `3980`
-- NMSE: `-37.4875 dB`
-
-![PSD for exp016](docs/assets/psd-exp016-best-41db-run.png)
-
-### DeepSeek self-correction run
-
-- Experiment: `exp_019`
-- Model: `complex_lstsq`
-- Feature mode: `complex_mp`
-- Memory depth: `24`
-- MP order: `4`
-- Params: `202`
-- NMSE: `-36.0275 dB`
-
-![PSD for exp_019](docs/assets/psd-exp019-self-correction-run.png)
-
-这两张图用于说明：
-
-- 项目有真实训练和真实 PSD 结果，不是空壳 Agent。
-- `exp016` 是 4000 参数约束下接近上限的强候选。
-- `exp_019` 是 DeepSeek 在错误反馈后完成自我修正并选择的轻量候选。
-
-### 搜索对照实验（v1.9+）
-
-在统一 Trial Protocol 下完成 **4 策略 × 5 seeds × 10 有效训练 trial = 200 trial** 的真实对照（Random Search / Optuna TPE / LLM without Reflection / LLM with Reflection），数据、协议和统计报告全部落盘：
-
-```text
-benchmarks/protocol/nonlinear-search-v1.json   # 固定协议（seeds、budget、参数上限）
-benchmarks/nonlinear-search-v1/                # trials.jsonl + summary.json/csv + 两张 PNG
-docs/experiments/nonlinear-search-ablation-v1.md  # 实验报告
-```
-
-核心结论（详见报告，所有数字可从 JSON/CSV 复算）：
-
-- 4000 参数预算（v1）：Optuna TPE 的 best NMSE 均值最高（-37.07 dB，std 0.27 dB）；Reflection 无显著优势（delta +2.34 dB 不显著）。
-- **20000 参数预算 + 历史先验注入（v2）**：`llm_with_reflection` 读取 `configs/priors/nonlinear-modeling.json` 的历史最优候选，paired delta **-4.28 dB 显著**，hit 率 78% vs 28%——Reflection 出现明显提升。
-- 每条 trial 记录真实 `config_hash` / `dataset_hash` / `git_commit`，rejected 计划单独统计、不占用有效训练预算。
-
-复现：
-
-```powershell
-python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1
 python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1 --output-dir benchmarks/runtime-v2
 ```
 
-### Agent Benchmark（v2.1 起 10 case）
+验收线（本地单进程 SQLite 基线）：重复执行率 0、事件丢失率 0、终态一致率 1.0、注入 10% 故障后恢复率 ≥ 0.95。
 
-Agent 行为回归测试扩展为 **10 个 case**（新增噪音 JSON 容错、参数预算边界、未知工具拦截、长历史压缩、多轮自我修正），并新增指标：`planner_success_rate`、`self_correction_count`、`average_rounds`、`total_prompt_tokens` / `estimated_cost_usd`。
-
-```powershell
-python agent.py benchmark --output-dir benchmarks/fake-v21b                                  # 离线 fake
-python examples\nonlinear_fit\run_benchmark.py --provider deepseek --output-dir benchmarks/deepseek-v21-final  # 真实 LLM
-```
-
-真实 DeepSeek benchmark 揭示：deepseek-v4-flash 的 JSON schema 遵从性不稳定（Guard 拦截率 80%–98% 波动），这是当前 LLM+Guard 契约的已知边界。
-
-## 3. Agentic Loop
-
-当前主循环在 `src/nonlinear_agent/loop.py`：
+## 目录结构
 
 ```text
-User Goal
-  -> ExperimentPlanner.plan()
-  -> ExperimentPlan
-  -> validate_planned_overrides()
-  -> build_harness_request()
-  -> ExperimentHarnessRuntime.run()
-  -> ToolRegistry.run()
-  -> TraceEvent / metric / error
-  -> history
-  -> ReflectionPolicy.reflect()
-  -> RunArtifactWriter
-  -> next round prompt history
+src/nonlinear_agent/       核心包（planner/guard/loop/runtime/tools/domains/search/eval/control-plane/server/web-ui）
+examples/nonlinear_fit/    可运行入口（train.py / run_harness.py / run_benchmark.py / serve）
+configs/                   基础配置（baselines/、examples/、priors/）
+benchmarks/                实验与 Benchmark 产物（trials/summary/PNG/stress）
+docs/                      UI 截图、实验报告、交接文档
+tests/                     单元测试（230+）
 ```
 
-关键原则：
-
-- LLM 只输出结构化 JSON plan，不直接执行 shell。
-- Planner 输出先过 schema guard 和参数预算预估。
-- Runtime 只调用已注册工具。
-- 工具执行结果以 `TraceEvent` 流式返回。
-- 指标和错误进入 history。
-- history 被压缩后进入下一轮 prompt。
-- 每轮结束生成 reflection，记录失败原因和修正策略。
-
-### Loop 伪代码
-
-```python
-history = []
-for round in range(max_rounds):
-    prompt_history = history_compressor.build_prompt_history(history)
-    plan = planner.plan(goal, prompt_history, constraints)
-    write_plan(round, plan)
-
-    if plan.stop:
-        write_result(...)
-        return
-
-    for experiment in plan.experiments:
-        overrides = validate_planned_overrides(experiment.overrides)
-        request = build_harness_request(overrides)
-        events = runtime.run(request)
-        history.append(metrics_or_error(events))
-
-    reflection = reflection_policy.reflect(round, round_records)
-    write_reflection(reflection)
-```
-
-## 4. Tool Calling 机制
-
-### 4.1 ToolCall
-
-位置：`src/nonlinear_agent/tools.py`
-
-`ToolCall` 是一次工具调用请求：
-
-```python
-ToolCall(
-    name="run_training",
-    args={"config_path": "configs/exp001.yaml"},
-    timeout_seconds=305,
-    retries=0,
-)
-```
-
-字段含义：
-
-- `name`：工具名，必须在 `ToolRegistry` 注册过。
-- `args`：传给工具函数的结构化参数。
-- `timeout_seconds`：单次调用超时时间。
-- `retries`：失败重试次数。
-
-### 4.2 ToolResult
-
-`ToolResult` 是工具执行后的统一返回：
-
-- `status`: `succeeded` 或 `failed`
-- `output`: 工具输出 dict
-- `attempts`: 实际尝试次数
-- `latency_ms`: 延迟
-- `error`: 失败信息
-- `error_type`: 结构化错误类型，例如 `timeout_error` 或 `tool_error`
-- `retryable`: 最终失败是否仍被视为可重试
-
-Runtime 不关心工具内部怎么实现，只关心 `ToolResult`。
-
-### 4.3 ToolSpec
-
-`ToolSpec` 用于向 planner 披露工具能力：
-
-```python
-ToolSpec(
-    name="verify_artifacts",
-    description="Verify metrics, PSD artifact, and NMSE threshold.",
-    input_schema={"type": "object", "required": ["output_dir", "nmse_threshold_db"]},
-    category="experiment",
-    error_policy="return_error",
-)
-```
-
-它解决的问题：
-
-- LLM 知道有什么工具。
-- LLM 知道工具需要哪些参数。
-- 系统可以按 category 渐进式披露工具。
-- 面试时可以解释 ToolSpec 和 MCP schema 的关系。
-
-### 4.4 ToolRegistry
-
-位置：`src/nonlinear_agent/tools.py`
-
-核心函数：
-
-- `ToolRegistry.register(name, func, spec)`
-- `ToolRegistry.describe_tools(category=None)`
-- `ToolRegistry.run(call)`
-
-注册流程：
-
-```python
-registry.register(
-    "run_training",
-    partial(run_training_tool, workspace=root),
-    spec=ToolSpec(
-        name="run_training",
-        description="Run the nonlinear fitting training command.",
-        input_schema={"type": "object", "required": ["config_path"]},
-        category="experiment",
-        error_policy="return_error",
-    ),
-)
-```
-
-调用流程：
-
-```text
-HarnessRequest.steps
-  -> ToolCall(name, args)
-  -> ExperimentHarnessRuntime.run()
-  -> ToolRegistry.run(call)
-  -> _invoke(func, args)
-  -> ToolResult
-  -> TraceEvent
-```
-
-未知工具策略：
-
-- 默认 `unknown_tool_policy="raise"`，直接抛错。
-- v1.0 增加 `unknown_tool_policy="return_error"`，可以把未知工具变成结构化失败，便于 agent 复盘。
-
-## 5. 当前注册的实验工具
-
-位置：`src/nonlinear_agent/experiment_tools.py`
-
-`build_experiment_tool_registry(workspace)` 注册 4 个工具。
-
-### generate_config
-
-函数：`generate_config_tool()`
-
-作用：
-
-- 读取 base YAML config。
-- 合并 planner overrides。
-- 写入 `configs/<experiment_id>.yaml`。
-- 返回 config artifact 和 context summary。
-
-输入：
-
-- `base_config_path`
-- `experiment_id`
-- `overrides`
-
-输出：
-
-- `config_path`
-- `artifacts`
-- `context_summary`
-
-### run_training
-
-函数：`run_training_tool()`
-
-作用：
-
-- 调用 `examples/nonlinear_fit/train.py --config ...`。
-- 捕获 stdout / stderr / returncode / elapsed time。
-- 解析或读取 `metrics.json`。
-- 收集 `metrics.json`、`psd.png`、`summary.md`、`resolved_config.yaml`。
-
-输入：
-
-- `config_path`
-- `timeout_seconds`
-- 可选 `command`
-
-输出：
-
-- `metrics`
-- `artifacts`
-- `stdout_tail`
-- `stderr_tail`
-- `elapsed_seconds`
-
-### verify_artifacts
-
-函数：`verify_artifacts_tool()`
-
-作用：
-
-- 检查 `metrics.json` 是否存在。
-- 检查 `psd.png` 是否存在。
-- 检查 `nmse_db` 是否达到阈值。
-
-如果 `nmse_db > nmse_threshold_db`，工具失败，Runtime 会产生 `error` event。
-
-### write_report
-
-函数：`write_report_tool()`
-
-作用：
-
-- 从 session 读取 metrics 和 artifacts。
-- 写入 `reports/<session_id>/agent-harness-report.md`。
-- 形成可给人看的实验报告。
-
-## 6. Runtime 怎么执行工具
-
-位置：`src/nonlinear_agent/runtime.py`
-
-核心类：`ExperimentHarnessRuntime`
-
-输入：`HarnessRequest`
-
-```python
-HarnessRequest(
-    session_id="exp001",
-    goal="Run nonlinear NN experiment.",
-    steps=[ToolCall(...), ToolCall(...)]
-)
-```
-
-执行事件：
-
-- `start`
-- `tool_start`
-- `tool_end`
-- `metric`
-- `error`
-- `complete`
-
-执行逻辑：
-
-1. `SessionStore.load_or_create()` 加载或创建 session。
-2. 写入 `start` event。
-3. 对每个 `ToolCall`：
-   - 触发 `before_tool` hook。
-   - 调用 `ToolRegistry.run(call)`。
-   - 成功时写 `tool_end` event。
-   - 输出中有 `metrics` 时逐项写 `metric` event。
-   - 失败时写 `error` event 并终止链路。
-4. 全部工具成功后写 `complete` event。
-5. 每个 event 同步写入 session history 和 JSONL trace。
-
-这个设计体现的是生产 Agent Runtime 的基本边界：Planner 负责计划，Runtime 负责执行和观测，ToolRegistry 负责能力边界。
-
-## 7. LLM Planner 怎么设计实验
-
-位置：`src/nonlinear_agent/planner.py`
-
-核心类：
-
-- `PlannedExperiment`
-- `ExperimentPlan`
-- `ExperimentPlanner`
-
-LLM 必须返回 JSON：
-
-```json
-{
-  "summary": "try stronger memory polynomial candidates",
-  "stop": false,
-  "experiments": [
-    {
-      "id": "exp016",
-      "reason": "increase memory depth near parameter budget",
-      "overrides": {
-        "model_type": "complex_lstsq",
-        "feature_mode": "complex_mp",
-        "memory_depth": 220,
-        "mp_order_count": 9,
-        "epochs": 0
-      }
-    }
-  ]
-}
-```
-
-Planner prompt 中明确的设计空间：
-
-- `complex_lstsq`
-- `linear`
-- `tiny_mlp`
-- `spline_mlp`
-- `feature_mode=complex_mp`
-- `memory_depth`
-- `mp_order_count`
-- `hidden_units`
-- `activation`
-- `spline_knots`
-- `spline_range`
-- `learning_rate`
-- `optimizer`
-- `epochs`
-
-其中 `spline_mlp` 是物理启发浅层非线性模型：一层非线性层，learnable 1D LUT activation，默认 16 knots，一阶线性插值。
-
-## 8. Schema Guard 和参数预算
-
-位置：`src/nonlinear_agent/planner_validation.py`
-
-核心函数：
-
-- `normalize_planner_overrides()`
-- `validate_planned_overrides()`
-- `estimate_parameter_count()`
-- `allowed_override_fields()`
-
-解决的问题：
-
-- LLM 可能输出不存在的字段，例如 `rank`。
-- LLM 可能输出结果字段当配置字段，例如 `nmse_db`、`parameter_count`。
-- LLM 可能输出错误类型，例如 `spline_range=None` 或 list。
-- LLM 可能设计超过 4000 参数的模型。
-
-当前策略：
-
-- `train_samples` 自动映射为 `max_train_samples`。
-- `rank`、`parameter_count`、`nmse_db` 等字段直接 rejected。
-- `spline_range` 必须是数字。
-- 神经模型 `epochs` 必须大于等于 1。
-- `complex_lstsq` 可以 `epochs=0`，因为它是闭式最小二乘。
-- 对 `complex_lstsq`、`linear`、`tiny_mlp`、`spline_mlp` 预估参数量。
-
-被拒绝的候选不会进入 Runtime，而是写入 history：
-
-```json
-{
-  "id": "bad-rank",
-  "run_status": "rejected",
-  "error": "Unsupported planner override fields: rank"
-}
-```
-
-这让 planner 下一轮能看到自己的错误，而不是让训练脚本崩溃。
-
-## 9. Reflection 怎么做
-
-位置：`src/nonlinear_agent/reflection.py`
-
-核心类：`ReflectionPolicy`
-
-每轮实验结束后，`ExperimentPlannerLoop.run()` 调用：
-
-```python
-reflection = reflection_policy.reflect(round_index=rounds, round_records=round_records)
-```
-
-输出字段：
-
-- `round`
-- `record_count`
-- `status_counts`
-- `best_experiment_id`
-- `best_nmse_db`
-- `failure_causes`
-- `recovery_actions`
-- `avoid_next`
-
-示例：
-
-```json
-{
-  "round": 1,
-  "status_counts": {"rejected": 1, "failed": 1},
-  "failure_causes": [
-    "Schema/preflight rejection in bad-rank: Unsupported planner override fields: rank",
-    "Runtime/tool failure in weak: NMSE threshold failed"
-  ],
-  "recovery_actions": [
-    "Remove unsupported fields and keep planner overrides within the declared tool/config schema.",
-    "Prefer stronger baseline variants or revise the target/feature family after repeated NMSE threshold failures."
-  ],
-  "avoid_next": [
-    "Avoid planner fields not listed in ExperimentConfig or ToolSpec input_schema.",
-    "Avoid repeating weak model families without changing feature design or training budget."
-  ]
-}
-```
-
-Reflection 的意义：
-
-- 把失败从日志变成结构化复盘。
-- 给下一轮 planner prompt 提供可压缩的修正依据。
-- 面试时可以清楚回答 self-refine、failure recovery、agent debugging。
-- `RunArtifactWriter.write_reflection()` 会写入 `runs/<run-id>/reflections/round-XXX.json`。
-- 最终 `result.json` 和 `summary.md` 也包含 reflection 摘要。
-
-## 10. Benchmark 怎么评分
-
-位置：`src/nonlinear_agent/benchmark.py`
-
-Benchmark 不是只看一个实验结果，而是评估整个 Agent Loop 的行为质量。
-
-### BenchmarkCase
-
-```python
-BenchmarkCase(
-    case_id="target-under-budget",
-    goal="Find NMSE <= -35 dB under 4000 params.",
-    constraints={"parameter_count_max": 4000},
-    max_rounds=3,
-    max_experiments=5,
-    target_nmse_db=-35.0,
-)
-```
-
-### 单 case 统计
-
-`summarize_loop_result()` 从 `PlannerLoopResult.history` 中统计：
-
-- `history_count`
-- `best_experiment_id`
-- `best_nmse_db`
-- `best_parameter_count`
-- `target_hit`
-- `rejected_count`
-- `failed_count`
-- `succeeded_count`
-- `experiments_used`
-
-其中：
-
-- `best_nmse_db` 越小越好。
-- `target_hit = best_nmse_db <= target_nmse_db`。
-- `experiments_used = failed_count + succeeded_count`，不包括 schema rejected。
-- rejected 表示 guardrail 有效拦截了坏计划。
-- failed 表示计划通过了预检但 runtime/tool 没达成目标或执行失败。
-- succeeded 表示 runtime 工具链执行成功。
-
-### 总体评分
-
-`build_benchmark_summary()` 输出：
-
-- `case_count`
-- `target_hit_rate`
-- `rejected_rate`
-- `runtime_failure_rate`
-- `average_experiments_used`
-- `best_nmse_db`
-
-公式：
-
-```text
-target_hit_rate = target_hit cases / case_count
-rejected_rate = rejected records / all history records
-runtime_failure_rate = failed records / all history records
-average_experiments_used = executed experiments / case_count
-best_nmse_db = min(best_nmse_db over all cases)
-```
-
-Benchmark artifacts：
-
-```text
-benchmarks/<run>/
-  results.json
-  leaderboard.csv
-  summary.md
-```
-
-这个 benchmark 用来回答面试问题：“你怎么证明 agent 改动真的更好，而不是只跑了一个 demo？”
-
-## 11. 文件夹说明
-
-### `src/nonlinear_agent/`
-
-核心 Python 包。
-
-| 文件 | 作用 |
-|---|---|
-| `agent_workflow.py` | 早期自动训练 workflow，包含命令编排和指标解析 |
-| `benchmark.py` | Agent benchmark case、评分和 artifact 输出 |
-| `compare_runner.py` | 4 策略真实对照执行器（hash 落库、Reflection 消融、图表输出） |
-| `cli.py` | 统一 CLI 入口，封装 run/benchmark/diagnostics/dashboard/serve |
-| `comparison.py` | 实验结果对比辅助 |
-| `context_memory.py` | 历史压缩和 prompt history 控制 |
-| `control_plane.py` | SQLite 控制面：请求去重、任务 lease、单调事件序列 |
-| `dashboard.py` | standalone HTML diagnostics dashboard 生成器 |
-| `diagnostics.py` | benchmark/run artifacts 聚合与 Markdown dashboard |
-| `domains/` | DomainPlugin 协议 + nonlinear-modeling / synthetic-regression 两个插件 |
-| `evaluation_protocol.py` | 统一实验协议（seeds、budget、trial record schema） |
-| `evaluation_statistics.py` | bootstrap 95% CI、paired delta、summary.json/csv |
-| `experiment.py` | 非线性拟合模型、特征、训练和评估核心 |
-| `experiment_tools.py` | 把真实训练流程封装为可注册工具 |
-| `hooks.py` | HookManager，支持 runtime 事件扩展 |
-| `llm.py` | LLM client 抽象、FakeLLM、OpenAI-compatible DeepSeek client |
-| `loop.py` | LLM planner loop 主循环 |
-| `planner.py` | Planner prompt、JSON plan 解析 |
-| `planner_validation.py` | planner overrides schema guard 和参数预算 |
-| `reflection.py` | 每轮失败复盘和 recovery policy |
-| `replay.py` | trace replay 报告 |
-| `run_artifacts.py` | plans/result/leaderboard/summary/reflections 落盘 |
-| `run_control.py` | RunController，支持取消/中断 |
-| `runtime.py` | Harness Runtime，执行工具链并产出事件 |
-| `runtime_errors.py` | ErrorType 和异常分类 |
-| `search/` | SearchStrategy 协议 + Random / Optuna TPE / LLM 策略 |
-| `server.py` | FastAPI SSE 服务层 |
-| `session.py` | session 数据结构和本地持久化 |
-| `sse_replay.py` | SSE 解析与 Last-Event-ID 重放客户端 |
-| `stress.py` | 控制面并发压测（幂等/恢复/事件验收线） |
-| `tools.py` | ToolCall、ToolResult、ToolSpec、ToolRegistry |
-| `trace.py` | TraceEvent 和 JSONL TraceLogger |
-
-### `examples/nonlinear_fit/`
-
-可运行入口。
-
-| 文件 | 作用 |
-|---|---|
-| `train.py` | 单次非线性拟合训练入口 |
-| `run_harness.py` | 使用 Harness Runtime 跑一次完整工具链 |
-| `run_planner_loop.py` | 使用 fake 或 DeepSeek planner 跑多轮实验循环 |
-| `run_benchmark.py` | 执行 benchmark case 并输出评分 |
-| `serve_harness.py` | 启动 FastAPI SSE 服务 |
-| `write_diagnostics.py` | 生成 Markdown diagnostics dashboard |
-
-### `configs/`
-
-实验配置。
-
-- `configs/model-search/`：模型搜索相关 base config。
-- `configs/*.yaml`：planner 或 harness 生成的临时配置，默认不建议直接提交。
-
-### `docs/`
-
-求职导向文档。
-
-| 文件夹 | 作用 |
-|---|---|
-| `docs/learning/` | v0.1 到 v1.6.2 学习文档 |
-| `docs/onboarding/` | 新人上手 guide 和当前状态审查 |
-| `docs/diagnostics/` | Agent Runtime Markdown/HTML diagnostics dashboard |
-| `docs/handoff/` | 交接文档、维护计划和 DeepSeek self-correction case |
-| `docs/resume/` | 简历包装、面试表达和 Agent Harness Q&A |
-| `docs/experiments/` | 重要实验记录 |
-| `docs/assets/` | README 和文档使用的结果图 |
-
-### `tests/`
-
-单元测试。
-
-覆盖：
-
-- runtime 成功/失败/retry/session/trace
-- experiment tools
-- server streaming
-- llm planner
-- planner validation
-- run artifacts
-- benchmark
-- context memory
-- tool spec
-- reflection
-- runtime hardening
-- diagnostics dashboard
-
-### 运行产物目录
-
-这些目录通常不提交：
-
-- `reports/`
-- `runs/`
-- `sessions/`
-- `traces/`
-- `benchmarks/`
-
-重要结果应整理成 `docs/experiments/*.md` 和 `docs/assets/*.png` 后再提交。
-
-## 12. 版本演进
-
-稳定 checkpoint 已推送为 GitHub branches：
-
-```text
-version/v0.1
-version/v0.2
-version/v0.3
-version/v0.4
-version/v0.5
-version/v0.6
-version/v0.7
-version/v0.8
-version/v0.9
-version/v1.0
-version/v1.1
-version/v1.2
-version/v1.3
-version/v1.4
-version/v1.5
-version/v1.6
-version/v1.6.1
-version/v1.6.2
-version/v2.0.0
-```
-
-### v0.1: Harness Runtime
-
-新增：
-
-- `ToolCall`
-- `ToolResult`
-- `ToolRegistry`
-- `HookManager`
-- `ExperimentSession`
-- `SessionStore`
-- `TraceEvent`
-- `TraceLogger`
-- `ExperimentHarnessRuntime`
-
-知识点：
-
-- agent runtime 的基本组成。
-- 工具调用和普通函数调用的区别。
-- 为什么需要 session、trace、hook。
-- 失败重试和结构化错误。
-
-### v0.2: Real Experiment Tools
-
-新增：
-
-- `generate_config_tool`
-- `run_training_tool`
-- `verify_artifacts_tool`
-- `write_report_tool`
-- `build_experiment_tool_registry`
-- `run_harness.py`
-- `replay.py`
-
-知识点：
-
-- 把真实算法流程封装成 tool。
-- 工具输出 metrics/artifacts/context_summary。
-- 训练命令如何捕获 stdout/stderr/returncode/elapsed。
-- 如何从 trace 生成 replay report。
-
-### v0.3: SSE Streaming Server
-
-新增：
-
-- `server.py`
-- `serve_harness.py`
-- FastAPI `POST /runs/{session_id}/events`
-- `encode_sse_event()`
-- `stream_sse_events()`
-
-知识点：
-
-- 长任务 Agent 为什么需要流式事件。
-- SSE 如何表达 start/tool_start/tool_end/metric/error/complete。
-- 在线可观测性和离线报告的区别。
-
-### v0.4: LLM Planner Loop
-
-新增：
-
-- `llm.py`
-- `planner.py`
-- `loop.py`
-- DeepSeek-compatible client
-- fake planner offline path
-
-知识点：
-
-- workflow 和 agentic loop 的区别。
-- LLM 负责 plan，runtime 负责 execute。
-- plan-run-observe 多轮循环。
-- planner history 如何影响下一轮计划。
-
-### v0.4+: Experiment Design Space
-
-新增：
-
-- `spline_mlp`
-- learnable 1D LUT activation
-- `complex_lstsq`、`tiny_mlp`、`spline_mlp` 的候选空间说明
-
-知识点：
-
-- 如何把领域先验写进 planner prompt。
-- 为什么 1D LUT + 16-knot spline activation 能作为浅层非线性方案。
-- Agent 不是随机调参，而是在受控设计空间里做实验。
-
-### v0.5: Planner Schema Guard
-
-新增：
-
-- `planner_validation.py`
-- 参数预算预估
-- unsupported fields 拒绝
-- `train_samples -> max_train_samples` alias
-
-知识点：
-
-- LLM 输出不能直接信任。
-- preflight validation 比 runtime 崩溃更可控。
-- rejected history 是 planner 自我修正的输入。
-
-### v0.6: Run Artifacts
-
-新增：
-
-- `run_artifacts.py`
-- `plans/round-XXX.json`
-- `result.json`
-- `leaderboard.csv`
-- `summary.md`
-
-知识点：
-
-- Agent 运行必须可复现、可审计。
-- 每轮 planner 原始计划要保留。
-- leaderboard 要按 NMSE 排序，便于结果复盘。
-
-### v0.7: Stronger Validation Guard
-
-新增：
-
-- `spline_range` 类型检查
-- 神经模型 `epochs >= 1` 检查
-- 正整数和值域检查
-
-知识点：
-
-- guardrail 要根据真实事故迭代。
-- 类型错误不应拖到训练脚本才暴露。
-- validation 是 Agent 稳定性的核心部分。
-
-### v0.8: Agent Benchmark Evaluation
-
-新增：
-
-- `BenchmarkCase`
-- `BenchmarkCaseResult`
-- `run_benchmark_cases()`
-- `summarize_loop_result()`
-- `build_benchmark_summary()`
-- benchmark artifacts
-
-知识点：
-
-- Agent 改动需要用固定 case 评估。
-- 不只看最终 NMSE，还看 target hit、rejected rate、runtime failure rate、实验预算使用。
-- benchmark 是 prompt、guard、runtime 改动的回归测试。
-
-### v0.9: Context / Memory Compression
-
-新增：
-
-- `HistoryCompressor`
-- `summarize_history()`
-- recent window
-- notable errors
-
-知识点：
-
-- 完整历史保存在 artifacts，用于审计。
-- prompt 只注入压缩摘要和最近记录，用于省 token。
-- summary 必须保留状态统计、最佳实验和代表性错误。
-
-### v1.0: Tool Registry / Skill 化
-
-新增：
-
-- `ToolSpec`
-- `ToolRegistry.describe_tools()`
-- 工具 category
-- 工具 error_policy
-- unknown tool structured failure
-- planner prompt 渐进式披露 allowed tools
-
-知识点：
-
-- ToolSpec 是 MCP tool schema 的前置抽象。
-- Skill 偏工作流和能力组织，ToolSpec 偏工具接口描述。
-- Tool registry 是 LLM 和真实能力之间的边界层。
-
-### v1.1: Reflection / Recovery Policy
-
-新增：
-
-- `ReflectionPolicy`
-- `reflections/round-XXX.json`
-- `PlannerLoopResult.reflections`
-- `summary.md` reflection section
-
-知识点：
-
-- self-refine 不是一句“模型会反思”，而是明确记录 failure_causes、recovery_actions、avoid_next。
-- rejected / failed / succeeded 要分开处理。
-- reflection 可以作为下一轮 prompt、benchmark 分析和面试复盘依据。
-
-### v1.2: MCP Server / Tool Protocol
-
-新增：
-
-- `MCPToolBridge`
-- `tool_spec_to_mcp_tool()`
-- `build_mcp_tool_bridge()`
-- JSON-RPC `tools/list`
-- JSON-RPC `tools/call`
-- stdio JSON-lines mock server
-
-知识点：
-
-- MCP 是 Agent 工具发现和工具调用的协议层。
-- `ToolSpec` 可以映射为 MCP tool schema。
-- LLM Planner 和 MCP Client 可以共用同一个 `ToolRegistry`。
-- `tools/list` 负责暴露工具 schema。
-- `tools/call` 负责把外部工具调用转换为内部 `ToolCall`。
-- 当前实现是 MCP-compatible bridge，后续可接官方 MCP SDK transport。
-
-### v1.3: Async Runtime Hardening
-
-新增：
-
-- `ErrorType`
-- `RunController`
-- `RetryPolicy`
-- `ToolResult.error_type`
-- `TraceEvent.error_type`
-- `ExperimentSession.error_types`
-- `ExperimentSession.completed_steps`
-- `HarnessRequest.resume_from_step`
-- `ReflectionPolicy.error_type_counts`
-
-知识点：
-
-- Agent Runtime 不能只记录字符串错误，应该有结构化错误分类。
-- timeout、validation、metric threshold、tool error、cancelled 要分开处理。
-- retry policy 应该按错误类型控制，不能所有失败都盲目重试。
-- cancellation 应该是可观测状态，不是进程崩溃。
-- step-level resume 能避免失败后重复执行已完成工具。
-
-### v1.4: Evaluation Dashboard / Runtime Diagnostics
-
-新增：
-
-- `collect_diagnostics()`
-- `render_diagnostics_markdown()`
-- `write_diagnostics_report()`
-- `write_diagnostics.py`
-- `docs/diagnostics/agent-runtime-dashboard.md`
-
-知识点：
-
-- Agent evaluation 不应只看一次 demo 是否成功。
-- benchmark 和 planner loop artifacts 可以被统一聚合。
-- target hit rate、rejected rate、runtime failure rate、error_type 分布可以解释 prompt/guard/runtime 改动收益。
-- Markdown dashboard 比前端更轻，更适合 GitHub 和面试展示。
-
-### v1.5: Unified CLI / Local Dashboard Client
-
-新增：
-
-- `src/nonlinear_agent/cli.py`
-- `src/nonlinear_agent/dashboard.py`
-- `tests/test_cli.py`
-- `tests/test_dashboard.py`
-- `pyproject.toml`
-- `docs/diagnostics/agent-runtime-dashboard.html`
-
-知识点：
-
-- 项目交付面不能只散落在 examples 脚本里。
-- 统一 CLI 能把 planner loop、benchmark、diagnostics、dashboard、serve 收敛成稳定 command surface。
-- HTML dashboard 是轻量本地客户端，能直接打开展示 runtime diagnostics。
-- 先做 CLI/dashboard 比先打 exe 更适合 Agent Harness 岗：更可复现、更容易审查、更能展示系统边界。
-
-### v1.6: Final Docs / Onboarding / Demo UI
-
-新增：
-
-- `docs/onboarding/newcomer-guide.md`
-- `docs/handoff/deepseek-continuation-plan.md`
-- `docs/resume/experiment-agent-harness-resume.md`
-- `docs/learning/experiment-agent-harness-v1.6.md`
-- `src/nonlinear_agent/web_ui.py`
-- `GET /` 浏览器首页
-
-知识点：
-
-- 项目功能封版后，重点从”继续加模块”转向”让别人能理解、能复现、能听懂面试故事”。
-- Case study 比版本流水账更能证明 Agent 真实解决了什么问题。
-- Demo UI 让面试展示从命令行输出变成浏览器可操作界面。
-
-### v1.6.1: Web UI Integration / Benchmark Online / Source Docs
-
-新增：
-
-- Benchmark Tab 集成到 Web UI，三个 Tab（Workflow / Agent Planner / Benchmark）统一入口
-- Agent 端点自动加载 `.env.local`，DeepSeek API Key 无需手动 export
-- Agent Loop 跑完后自动刷新 diagnostics dashboard
-- 全部核心源码添加完整中文注释（tools / session / runtime / experiment_tools / llm / planner / planner_validation / loop / context_memory / reflection / benchmark）
-- Dashboard 暗色主题重设计，Aggregate Metrics 基于全部实验数据计算
-- Event 日志格式化显示（时间戳 HH:MM:SS + 关键字段提取）
-- Recent Runs 按修改时间倒序排列
-- DeepSeek 超时提升至 180s，LLM 调用失败优雅退出
-
-更新：
-
-- `src/nonlinear_agent/server.py`
-- `src/nonlinear_agent/web_ui.py`
-- `src/nonlinear_agent/dashboard.py`
-- `src/nonlinear_agent/diagnostics.py`
-- `pyproject.toml` — version 1.6.1
-
-知识点：
-
-- Web UI 从单页 Demo 进化为三 Tab 集成操作面板
-- Benchmark 在线化：不再需要 CLI 命令，浏览器一键运行
-- 源码注释体系：16 个核心文件全部中英文对照，新人可按注释自学
-- Dashboard 从静态快照变为 Agent Loop 完成后自动刷新
-
-### v1.6.2: Artifact Guard / Reflection Context / Docs Consolidation
-
-新增：
-
-- `src/nonlinear_agent/artifact_paths.py` 统一实验产物路径策略，裸 `exp*`、`output*`、`result*` 目录自动落到 `reports/`
-- Reflection 产物写入 planner history，下一轮 LLM 能读取 `recovery_actions` 和 `avoid_next`
-- Benchmark 扩展为 5 个 case，并同步 Web UI benchmark endpoint
-- 文档收敛为 onboarding / handoff / resume / learning / diagnostics，删除旧的零散说明文件
-- Web UI 切回深色控制台主题，Dashboard 补充 benchmark 指标公式说明
-- `docs/learning/experiment-agent-harness-v1.6.2.md`
-
-更新：
-
-- `src/nonlinear_agent/planner_validation.py`
-- `src/nonlinear_agent/experiment_tools.py`
-- `src/nonlinear_agent/loop.py`
-- `src/nonlinear_agent/benchmark.py`
-- `src/nonlinear_agent/run_artifacts.py`
-- `src/nonlinear_agent/server.py`
-- `src/nonlinear_agent/web_ui.py`
-- `src/nonlinear_agent/dashboard.py`
-- `README.md`
-- `docs/onboarding/newcomer-guide.md`
-- `docs/handoff/deepseek-continuation-plan.md`
-- `docs/resume/experiment-agent-harness-resume.md`
-- `pyproject.toml` - version 1.6.2
-
-知识点：
-
-- Agent 工程不是只会跑通 demo，还要防止产物污染、统计口径污染和决策上下文断裂。
-- Reflection 更适合由确定性逻辑生成结构化错误分类；LLM 可以补充假设，但不能替代可审计恢复策略。
-- Benchmark case 数量要覆盖关键失败模式，3 个只能算 smoke test，5 个才更像可解释评估。
-- 文档收敛本身是工程交付能力：新人能上手、面试能讲清、后续 Codex/DeepSeek 能接着维护。
-
-### v1.7.0: 仓库与实验协议收口
-
-新增：
-
-- `configs/baselines/` 与 `configs/examples/` 目录治理，生成配置统一写入 `runs/<run_id>/configs/`
-- `artifact_paths.py` 路径规则 + `tests/test_artifact_paths.py`
-- `.gitignore` 覆盖生成配置与运行产物
-
-### v1.8.0: Harness 与领域解耦
-
-新增：
-
-- `DomainPlugin` 协议（`domains/base.py`）
-- `NonlinearModelingDomain`（主任务）与 `SyntheticRegressionDomain`（轻量第二插件，证明可迁移）
-- Planner / Guard / Loop 全部从 domain 获取设计空间、校验规则、ToolRegistry 与主指标
-
-### v1.9.0: 搜索与 Reflection 对照实验
-
-新增：
-
-- `SearchStrategy` 协议 + `random_search` / `optuna_tpe` / `llm_no_reflection` / `llm_with_reflection`
-- `EvaluationProtocol`（smoke 24 / full 200 有效 trial）与 `EvaluationStatistics`（bootstrap 95% CI、paired delta）
-- 真实 200-trial 对照落盘 `benchmarks/nonlinear-search-v1/`，协议文件 `benchmarks/protocol/nonlinear-search-v1.json`
-- 报告 `docs/experiments/nonlinear-search-ablation-v1.md`：诚实呈现未观察到 Reflection 稳定优势
-
-### v2.0.0: Runtime 可靠性与最终投递
-
-新增：
-
-- `RuntimeControlPlane`：SQLite 请求去重、原子 claim、任务 lease 与重试上限、单调事件序列（WAL + busy timeout）
-- SSE event ID / 15s heartbeat / `/cancel` / **Last-Event-ID 断线重放**（`sse_replay.py`）
-- 层级 Trace：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token_count/cost_usd`
-- `stress-runtime` 并发压测：重复执行率 0、事件丢失率 0、终态一致率 1.0、故障恢复率 ≥ 0.95
-- Strategy Comparison 页（Dashboard + Web UI）与 5 分钟演示脚本 `docs/demo-script.md`
-
-### v2.1.0: 历史先验注入 + Benchmark 成熟化
-
-- `configs/priors/nonlinear-modeling.json` + `priors.py`：把历史最优候选（exp016、reports/017 等）作为知识注入 `llm_with_reflection`
-- 20000 参数预算下 Reflection paired delta **-4.28 dB 显著**，hit 78% vs 28%（`docs/experiments/nonlinear-search-ablation-v2.md`）
-- Agent Benchmark 用例 5 → 10，新增 planner_success_rate / self-correction / token-cost 指标
-- benchmark 支持 `--provider deepseek`（真实 LLM + 真实训练）；LLM client 累计 token usage
-- Guard 增强：`lr→learning_rate`、`hidden_sizes→hidden_units`、`model:mlp→tiny_mlp` 别名规范化 + model_type 白名单
-
-## 13. 如何运行
-
-### 安装依赖
-
-```powershell
-pip install -r requirements.txt
-```
-
-如果希望使用 `nonlinear-agent` 命令：
-
-```powershell
-pip install -e .
-```
-
-### Unified CLI
-
-不安装 package 时，最简单的入口是：
-
-```powershell
-python agent.py dashboard
-python agent.py diagnostics
-python agent.py run --provider fake --max-rounds 2 --max-experiments 1
-```
-
-安装 package 后也可以运行：
-
-```powershell
-python -m nonlinear_agent.cli run --provider fake --max-rounds 2 --max-experiments 1
-python -m nonlinear_agent.cli benchmark --output-dir benchmarks/fake-v15
-python -m nonlinear_agent.cli diagnostics
-python -m nonlinear_agent.cli dashboard
-python -m nonlinear_agent.cli serve --host 127.0.0.1 --port 8000
-```
-
-浏览器 UI：
-
-```text
-http://127.0.0.1:8000/
-```
-
-安装后：
-
-```powershell
-nonlinear-agent run --provider fake --max-rounds 2 --max-experiments 1
-nonlinear-agent benchmark --output-dir benchmarks/fake-v15
-nonlinear-agent diagnostics
-nonlinear-agent dashboard
-nonlinear-agent serve --host 127.0.0.1 --port 8000
-```
-
-### 单次训练
-
-```powershell
-python examples\nonlinear_fit\train.py --config configs\model-search\lstsq-complexmp-o12-m150.yaml
-```
-
-### Harness Runtime 单次工具链
-
-```powershell
-python examples\nonlinear_fit\run_harness.py --experiment-id harness-demo-v02 --base-config configs\model-search\lstsq-complexmp-o12-m150.yaml --output-dir reports\harness-demo-v02 --epochs 0 --nmse-threshold-db -35 --timeout-seconds 120
-```
-
-### Fake Planner Loop
-
-```powershell
-python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --max-experiments 1 --artifact-dir runs\fake-check --goal "smoke test"
-```
-
-### DeepSeek Planner Loop
-
-不要把 API key 写入代码、文档或 Git。
-
-```powershell
-$env:DEEPSEEK_API_KEY="your-key"
-python examples\nonlinear_fit\run_planner_loop.py --provider deepseek --max-rounds 10 --max-experiments 30 --timeout-seconds 10800 --nmse-threshold-db -41 --goal "Target NMSE <= -41 dB under 4000 trainable parameters."
-```
-
-### Benchmark
-
-```powershell
-python examples\nonlinear_fit\run_benchmark.py --output-dir benchmarks\fake-v08-check
-```
-
-### SSE Server
-
-```powershell
-python examples\nonlinear_fit\serve_harness.py --host 127.0.0.1 --port 8000
-```
-
-```powershell
-curl -N -X POST http://127.0.0.1:8000/runs/server-demo/events -H "Content-Type: application/json" -d "{\"epochs\":0,\"nmse_threshold_db\":-35}"
-```
-
-### MCP-compatible Tool Bridge
-
-```powershell
-python examples\nonlinear_fit\serve_mcp_tools.py
-```
-
-输入一行：
-
-```json
-{"jsonrpc":"2.0","id":1,"method":"tools/list"}
-```
-
-输出会包含 `generate_config`、`run_training`、`verify_artifacts`、`write_report` 的 MCP-style schema。
-
-### Diagnostics Dashboard
-
-```powershell
-python examples\nonlinear_fit\write_diagnostics.py
-```
-
-默认输出：
-
-```text
-docs/diagnostics/agent-runtime-dashboard.md
-```
-
-HTML dashboard：
-
-```powershell
-python -m nonlinear_agent.cli dashboard
-```
-
-默认输出：
-
-```text
-docs/diagnostics/agent-runtime-dashboard.html
-```
-
-### Tests
+## 复现与验证
 
 ```powershell
 python -m unittest discover tests
+python agent.py benchmark --output-dir benchmarks/fake-v21b
+python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1-v20000
+python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1 --output-dir benchmarks/runtime-v2
 ```
 
-当前验证记录：
+所有实验产物（trials.jsonl / summary.json / summary.csv / PNG）都随仓库提交，任何结论都可以从原始数据复算。
 
-最新验证以当前提交为准，建议每次修改后运行完整测试。
+## 文档
 
-## 14. 输出文件
-
-Planner loop 会生成：
-
-```text
-runs/<run-id>/
-  plans/
-    round-001.json
-    round-002.json
-  reflections/
-    round-001.json
-  result.json
-  leaderboard.csv
-  summary.md
-```
-
-单次训练/工具链会生成：
-
-```text
-reports/<experiment-id>/
-  metrics.json
-  psd.png
-  summary.md
-  resolved_config.yaml
-  agent-harness-report.md
-  replay.md
-
-sessions/<session-id>.json
-traces/<session-id>.jsonl
-configs/<experiment-id>.yaml
-```
-
-## 15. 面试讲法
-
-### 这个和普通自动训练脚本有什么区别？
-
-普通脚本只负责把训练跑完。本项目把实验过程拆成 Agent Runtime：
-
-- 每一步是 tool call。
-- 工具有 schema、timeout、retry、error policy。
-- Runtime 有 hook、session、trace、metric event。
-- Planner 只生成计划，不直接执行命令。
-- 失败进入 history 和 reflection，能影响下一轮计划。
-- Benchmark 可以评估 agent 改动是否有效。
-
-### Agent 调工具失败怎么办？
-
-分三层处理：
-
-1. schema/preflight 失败：进入 `rejected`，不执行工具。
-2. runtime/tool 失败：进入 `failed`，写 trace、session、history。
-3. 成功但指标弱：保留 metrics，由 planner/reflection 决定是否继续。
-
-每轮结束后，`ReflectionPolicy` 会生成 `failure_causes`、`recovery_actions`、`avoid_next`。
-
-### 怎么证明 Agent 会自我修正？
-
-真实 DeepSeek run 中出现过 `spline_range` 类型错误。Runtime 把错误写入 history，下一轮 planner 根据错误修正了参数类型，并继续实验。v1.1 又把这种能力结构化为 reflection artifact，而不是只依赖日志。
-
-### ToolSpec 和 MCP 的关系是什么？
-
-`ToolSpec` 是本项目内部的工具描述层：
-
-- name
-- description
-- input_schema
-- category
-- error_policy
-
-MCP tool schema 可以看作更标准化的跨进程工具协议。当前 v1.2 已经实现 MCP-compatible bridge：把现有 `ToolSpec` 映射为 MCP tool schema，并支持 `tools/list`、`tools/call` 两类 JSON-RPC 请求。
-
-## 16. 后续路线
-
-### 封版后维护建议
-
-这个项目功能上基本封版。后续只建议维护：
-
-- README 与最新命令是否一致。
-- Case study 是否能 2-3 分钟讲清楚。
-- 面试 Q&A 是否贴合最新面经。
-- 如果代码继续改，必须保持 `python -m unittest discover tests` 通过。
-
-## 17. 学习文档
-
-最新主学习文档：
-
-- `docs/learning/experiment-agent-harness-v1.6.2.md`
-
-v1.6.2:
-
-- `docs/learning/experiment-agent-harness-v1.6.2.md`
-
-v1.6.1:
-
-- `docs/learning/experiment-agent-harness-v1.6.1.md`
-
-历史版本文档：
-
-- `docs/learning/experiment-agent-harness-v0.1.md`
-- `docs/learning/experiment-agent-harness-v0.2.md`
-- `docs/learning/experiment-agent-harness-v0.3.md`
-- `docs/learning/experiment-agent-harness-v0.4.md`
-- `docs/learning/experiment-agent-harness-v0.5.md`
-- `docs/learning/experiment-agent-harness-v0.6.md`
-- `docs/learning/experiment-agent-harness-v0.7.md`
-- `docs/learning/experiment-agent-harness-v0.8.md`
-- `docs/learning/experiment-agent-harness-v0.9.md`
-- `docs/learning/experiment-agent-harness-v1.0.md`
-- `docs/learning/experiment-agent-harness-v1.1.md`
-- `docs/learning/experiment-agent-harness-v1.2.md`
-- `docs/learning/experiment-agent-harness-v1.3.md`
-- `docs/learning/experiment-agent-harness-v1.4.md`
-- `docs/learning/experiment-agent-harness-v1.5.md`
-- `docs/learning/experiment-agent-harness-v1.6.md`
-- `docs/learning/experiment-agent-harness-v1.6.1.md`
-
-交接文档：
-
-- `docs/handoff/deepseek-continuation-plan.md`
-
-简历包装：
-
-- `docs/resume/experiment-agent-harness-resume.md`
-
-维护计划：
-
-- `docs/handoff/deepseek-continuation-plan.md`
+- 实验报告：[v1 搜索对照](docs/experiments/nonlinear-search-ablation-v1.md) · [v2 先验注入与 Benchmark 成熟化](docs/experiments/nonlinear-search-ablation-v2.md)
+- 交接与维护：[deepseek-continuation-plan.md](docs/handoff/deepseek-continuation-plan.md)
+- 学习文档：[docs/learning/](docs/learning/)
