@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from nonlinear_agent.planner import ExperimentPlanner
+from nonlinear_agent.planner_validation import validate_planned_overrides
 from nonlinear_agent.server import HarnessRunSpec, build_harness_request, build_runtime
 
 
@@ -49,7 +50,20 @@ class ExperimentPlannerLoop:
             if plan.stop and not plan.experiments:
                 return PlannerLoopResult(status="stopped", rounds=rounds, history=history, summaries=summaries)
             for experiment in plan.experiments:
-                metrics = await self._run_experiment(experiment.experiment_id, experiment.overrides)
+                try:
+                    overrides = validate_planned_overrides(
+                        experiment.overrides,
+                        parameter_count_max=self.constraints.get("parameter_count_max"),
+                    )
+                except ValueError as exc:
+                    history.append({
+                        "id": experiment.experiment_id,
+                        "reason": experiment.reason,
+                        "run_status": "rejected",
+                        "error": str(exc),
+                    })
+                    continue
+                metrics = await self._run_experiment(experiment.experiment_id, overrides)
                 record = {"id": experiment.experiment_id, "reason": experiment.reason, **metrics}
                 history.append(record)
         return PlannerLoopResult(status="max_rounds_reached", rounds=rounds, history=history, summaries=summaries)
@@ -79,4 +93,5 @@ class ExperimentPlannerLoop:
                 metrics["run_status"] = "failed"
                 metrics["error"] = event.error
         return metrics
+
 
