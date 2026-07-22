@@ -2,6 +2,31 @@
 
 
 
+
+## 2026-07-22 更新：Experiment Agent Harness v0.4
+
+v0.4 补上 LLM Planner 和真正的 plan-run-observe loop，修正了前几版“更像 workflow/harness 底座”的问题：
+
+- `llm.py`：提供 `FakeLLMClient` 和 DeepSeek/OpenAI-compatible `OpenAICompatibleClient`。
+- `planner.py`：把自然语言目标、约束和历史结果转成结构化实验计划 JSON。
+- `loop.py`：实现 planner -> runtime -> metrics observation -> planner 的多轮循环。
+- `run_planner_loop.py`：提供 fake 离线 demo 和 DeepSeek 模式。
+
+离线 demo：
+
+```powershell
+python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2 --timeout-seconds 120
+```
+
+DeepSeek 模式读取环境变量，不保存 key：
+
+```powershell
+$env:DEEPSEEK_API_KEY="你的 key"
+python examples\nonlinear_fit\run_planner_loop.py --provider deepseek --max-rounds 2 --timeout-seconds 120
+```
+
+当前架构变为：用户目标 -> LLM Planner -> 实验计划 JSON -> Harness Runtime -> 工具执行 -> NMSE/PSD/trace/session -> observation history -> 下一轮规划或停止。
+
 ## 2026-07-22 更新：Experiment Agent Harness v0.3
 
 v0.3 增加流式服务层，把 Agent runtime 内部事件转成 SSE：
@@ -526,6 +551,7 @@ NMSE: -37.4249 dB
 
 在 4000 参数以内完成小模型搜索，将原始 CNN 思路改造成复数记忆多项式特征 + 闭式最小二乘模型，得到 3626 参数、NMSE -37.42 dB 的可解释轻量模型，并输出参数量/NMSE/PSD/配置路径对比表。
 ```
+
 
 
 

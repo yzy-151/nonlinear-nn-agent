@@ -101,3 +101,13 @@ v0.3 后可以增加流式 runtime 表述：
 面试表达：
 
 > 我把 Agent 内部执行事件做成标准 SSE 流，前端或 CLI 不需要等最终报告生成，就能实时看到正在执行哪个工具、耗时多少、是否失败、NMSE 等指标何时出现。这是长链路 Agent 从 demo 走向可调试系统的关键能力。
+
+## v0.4 新增简历证据
+
+v0.4 后可以把项目升级表述为：
+
+- 接入 DeepSeek-compatible LLM Planner，将自然语言实验目标、参数约束和历史结果转为结构化实验计划 JSON；实现 plan-run-observe 多轮循环，由 planner 设计候选实验，Harness Runtime 执行配置生成/训练/NMSE 验证/报告工具，并将 metric events 回写为下一轮 observation，支持自动停止或继续优化。
+
+更严谨的项目总表述：
+
+> 先构建可观测实验 Harness 底座，再接入 LLM Planner 形成真正 Agent loop。底座负责工具治理、session、trace、SSE 和失败处理；Planner 负责根据目标与历史结果生成下一轮实验候选，执行层仍通过受控工具链完成实验。
