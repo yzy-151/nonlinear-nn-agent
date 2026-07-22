@@ -552,3 +552,32 @@ python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2
 
 - 做 Tool Registry / Skill 化。
 - 明确工具 schema、allowed tools 渐进式披露和 tool error policy。
+
+## 2026-07-22 追加：v1.0 Tool Registry / Skill 化
+
+新增/更新：
+
+- `src/nonlinear_agent/tools.py`
+- `src/nonlinear_agent/experiment_tools.py`
+- `src/nonlinear_agent/planner.py`
+- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.0.md`
+
+能力：
+
+- `ToolSpec`
+- `ToolRegistry.describe_tools(category=...)`
+- 真实实验工具带 schema、category、error_policy
+- planner prompt 支持 ToolSpec 渐进式披露
+- unknown tool 可按 `unknown_tool_policy="return_error"` 返回结构化失败
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_harness_runtime tests.test_experiment_tools tests.test_llm_planner
+python -m unittest discover tests
+```
+
+下一步 v1.1：
+
+- Reflection + Recovery Policy。
+- 每轮结束生成失败原因、修正策略、下一轮避免项。

@@ -8,7 +8,7 @@
 
 把 `nonlinear-nn-agent` 打造成面向 Agent Harness / Runtime / Agent Coding 岗位的项目证据。
 
-当前已完成到 v0.9：
+当前已完成到 v1.0：
 
 - v0.1：Harness Runtime
 - v0.2：真实实验工具
@@ -19,6 +19,7 @@
 - v0.7：Validation Guard 强化
 - v0.8：Benchmark Evaluation
 - v0.9：Context / Memory Compression
+- v1.0：Tool Registry / Skill 化
 
 ## 开发原则
 
@@ -110,16 +111,28 @@ benchmarks/<timestamp>/
 - notable error 摘要
 - 完整 history 保留在 result/artifacts，planner prompt 只注入 summary + recent window
 
-## v1.0 计划：Tool Registry / Skill 化
+## v1.0 已完成：Tool Registry / Skill 化
 
 目标：回答工具系统和 Skill 封装问题。
 
-能力：
+已新增/支持：
 
 - ToolSpec
-- ToolRegistry schema
+- ToolRegistry schema / describe_tools
 - allowed tools 渐进式披露
 - tool error policy
+- unknown tool structured failure
+
+## v1.1 计划：Reflection + Recovery Policy
+
+目标：回答 Self-refine / 自我修正策略问题。
+
+能力：
+
+- 每轮结束生成 reflection record
+- 总结失败原因
+- 明确下一轮修正策略
+- rejected/failed history 触发 recovery policy
 
 ## 验证命令
 

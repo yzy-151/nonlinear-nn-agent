@@ -139,3 +139,7 @@ v0.4 后可以把项目升级表述为：
 ## v0.9 追加：Context Compression 表达
 
 - 为 LLM Planner Loop 增加上下文压缩机制，将完整实验历史保留在 run artifacts 中用于审计，同时只向模型注入 `history-summary` 与最近窗口，摘要保留状态统计、最佳指标和代表性错误，降低 token 成本并提升多轮实验规划的可控性。
+
+## v1.0 追加：Tool Registry / Skill 化表达
+
+- 为 Agent Harness 工具系统增加 ToolSpec 描述层，支持工具名称、用途、输入 schema、类别和错误策略的结构化注册，并通过 `ToolRegistry.describe_tools()` 向 LLM Planner 渐进式披露可用工具能力，实现工具发现、调用边界控制和 unknown tool 结构化失败处理。
