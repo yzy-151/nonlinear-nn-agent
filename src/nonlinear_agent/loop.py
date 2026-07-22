@@ -69,12 +69,14 @@ class ExperimentPlannerLoop:
         )
         request = build_harness_request(spec)
         runtime = self.runtime_factory(experiment_id)
-        metrics: dict[str, Any] = {}
+        metrics: dict[str, Any] = {"run_status": "succeeded"}
         async for event in runtime.run(request):
             if event.event_type == "metric":
                 name = event.payload.get("name")
                 if name:
                     metrics[str(name)] = event.payload.get("value")
             elif event.event_type == "error":
+                metrics["run_status"] = "failed"
                 metrics["error"] = event.error
         return metrics
+

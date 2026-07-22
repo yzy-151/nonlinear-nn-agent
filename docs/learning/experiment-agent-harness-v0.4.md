@@ -165,3 +165,45 @@ v0.5 建议做：
 2. Planner 输出 schema 校验。
 3. cancel/interrupt。
 4. MCP server。
+
+## 2026-07-22 追加：如何让 Planner 想到 spline-LUT 和多模型实验
+
+单纯告诉 LLM “优化 NMSE” 不够，它通常只会给普通 MLP/CNN 超参数。要让负责 plan 的 Agent 想到你说的物理启发方案，需要在 prompt 里明确给它四类信息：
+
+1. 可执行设计空间
+   - `model_type`: `complex_lstsq`, `linear`, `tiny_mlp`, `spline_mlp`。
+   - `feature_mode`: 推荐 `complex_mp`，保留 `legacy_abs` baseline。
+   - `activation`: `relu`, `tanh`, `silu`, `gelu`。
+   - `spline_mlp`: 一层非线性，learnable 1D LUT activation，`spline_knots=16`，一阶线性插值。
+
+2. 物理先验
+   - 非线性来自物理链路，不一定需要深层 2D Conv。
+   - 浅层非线性 + 记忆项可能比深网络更可解释。
+   - 记忆深度和多项式阶数是关键变量。
+
+3. 参数预算
+   - `parameter_count_max <= 4000`。
+   - 同 NMSE 下优先参数更少。
+   - `spline_mlp` 推荐候选：`mp_order_count=1`, `memory_depth in [24, 48, 72]`, `hidden_units in [16, 32]`, `spline_knots=16`。
+
+4. 历史结果
+   - 已知强 baseline：`complex_lstsq + complex_mp + memory_depth=150 + mp_order_count=12`，3626 参数，NMSE 约 -37.42 dB。
+   - planner 应该围绕这个 baseline 做变体，而不是随机试模型。
+
+本轮已把这些信息写入 `ExperimentPlanner._build_prompt()`。这样 DeepSeek 不需要凭空发明实验空间，而是在“可执行、可验证、符合物理先验”的边界内设计实验。
+
+## 多实验 fake planner demo 结果
+
+本轮用 fake planner 模拟 DeepSeek 一次设计三类实验，并真实执行：
+
+| Experiment | Model | Params | NMSE dB | Status | Interpretation |
+|---|---|---:|---:|---|---|
+| planner-lstsq-o10-m120 | complex_lstsq | 2422 | -37.3298 | passed | 参数更少，NMSE 接近当前最佳，是有价值候选 |
+| planner-spline-m48-h32 | spline_mlp | 3746 | -3.5603 | failed threshold | 结构可执行，但 8 epoch/2048 样本远未训练好 |
+| planner-tiny-silu-m48-h32 | tiny_mlp | 3234 | -1.4559 | failed threshold | 普通 MLP 在短训练下明显弱于闭式 MP |
+
+结论：
+
+- `complex_lstsq` 仍是当前最强、最稳路线。
+- `spline_mlp` 是值得探索的物理启发结构，但不能用 8 epoch 小样本就否定，需要更合理训练策略、归一化或初始化。
+- Planner 的价值不是保证每个实验成功，而是提出可解释候选、执行、记录失败，并把失败反馈给下一轮。

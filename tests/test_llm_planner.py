@@ -86,6 +86,49 @@ class LLMPlannerTest(unittest.TestCase):
         self.assertEqual(result.history[0]["nmse_db"], -38.0)
         self.assertEqual(result.rounds, 2)
 
+    def test_planner_prompt_exposes_physics_informed_design_space(self):
+        llm = FakeLLMClient(responses=['{"summary":"stop", "stop": true, "experiments": []}'])
+        planner = ExperimentPlanner(llm_client=llm)
+
+        planner.plan(
+            goal="Try spline LUT activation and shallow nonlinear models",
+            history=[],
+            constraints={"parameter_count_max": 4000},
+        )
+
+        self.assertIn("spline_mlp", llm.last_prompt)
+        self.assertIn("1D LUT", llm.last_prompt)
+        self.assertIn("16", llm.last_prompt)
+        self.assertIn("complex_lstsq", llm.last_prompt)
+        self.assertIn("activation", llm.last_prompt)
+    def test_planner_loop_marks_error_event_as_failed_run_status(self):
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"run weak candidate", "stop": false, "experiments": ['
+                '{"id":"weak-001", "reason":"expected to fail threshold", '
+                '"overrides":{"output_dir":"reports/weak-001", "epochs":0}}]}',
+                '{"summary":"stop", "stop": true, "experiments": []}',
+            ]
+        )
+        planner = ExperimentPlanner(llm_client=llm)
+
+        class FakeRuntime:
+            async def run(self, request):
+                yield TraceEvent(session_id=request.session_id, event_type="metric", payload={"name": "nmse_db", "value": -3.0})
+                yield TraceEvent(session_id=request.session_id, event_type="error", error="NMSE threshold failed")
+
+        with TemporaryDirectory() as tmpdir:
+            loop = ExperimentPlannerLoop(
+                planner=planner,
+                workspace=Path(tmpdir),
+                runtime_factory=lambda session_id: FakeRuntime(),
+            )
+            result = asyncio.run(loop.run(goal="test failed experiment status", max_rounds=2))
+
+        self.assertEqual(result.history[0]["run_status"], "failed")
+        self.assertEqual(result.history[0]["error"], "NMSE threshold failed")
 
 if __name__ == "__main__":
     unittest.main()
+
+
