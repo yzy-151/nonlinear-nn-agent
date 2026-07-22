@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from nonlinear_agent.context_memory import HistoryCompressor
 from nonlinear_agent.planner import ExperimentPlanner
 from nonlinear_agent.planner_validation import validate_planned_overrides
 from nonlinear_agent.run_artifacts import RunArtifactWriter, default_run_dir
@@ -31,6 +32,7 @@ class ExperimentPlannerLoop:
         constraints: dict[str, Any] | None = None,
         timeout_seconds: float = 300.0,
         artifact_dir: Path | str | None = None,
+        history_compressor: HistoryCompressor | None = None,
     ):
         self.planner = planner
         self.workspace = Path(workspace)
@@ -41,6 +43,7 @@ class ExperimentPlannerLoop:
         self.constraints = constraints or {"parameter_count_max": 4000, "metric": "nmse_db"}
         self.timeout_seconds = timeout_seconds
         self.artifact_writer = RunArtifactWriter(artifact_dir or default_run_dir(self.workspace))
+        self.history_compressor = history_compressor or HistoryCompressor()
 
     async def run(self, goal: str, max_rounds: int = 3, max_experiments: int | None = None) -> PlannerLoopResult:
         history: list[dict[str, Any]] = []
@@ -49,7 +52,8 @@ class ExperimentPlannerLoop:
         executed_experiments = 0
         for _ in range(max_rounds):
             rounds += 1
-            plan = self.planner.plan(goal=goal, history=history, constraints=self.constraints)
+            prompt_history = self.history_compressor.build_prompt_history(history)
+            plan = self.planner.plan(goal=goal, history=prompt_history, constraints=self.constraints)
             summaries.append(plan.summary)
             self.artifact_writer.write_plan(rounds, plan)
             if plan.stop and not plan.experiments:

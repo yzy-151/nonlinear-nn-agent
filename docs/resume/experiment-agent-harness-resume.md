@@ -135,3 +135,7 @@ v0.4 后可以把项目升级表述为：
 ## v0.8 追加：Benchmark Evaluation 表达
 
 - 构建 Agent 级 benchmark evaluation，设计固定 case 集覆盖目标命中、非法 planner 输出和 runtime 失败等场景，统计 target_hit_rate、rejected_rate、runtime_failure_rate、best_nmse_db 与实验预算使用量，用指标评估 planner prompt、schema guard 和 runtime 改动效果。
+
+## v0.9 追加：Context Compression 表达
+
+- 为 LLM Planner Loop 增加上下文压缩机制，将完整实验历史保留在 run artifacts 中用于审计，同时只向模型注入 `history-summary` 与最近窗口，摘要保留状态统计、最佳指标和代表性错误，降低 token 成本并提升多轮实验规划的可控性。
