@@ -495,3 +495,32 @@ python -m unittest discover tests
 1. 把 rejected/succeeded/failed 统计写进 `summary.md`。
 2. 在 planner prompt 中明确“看到 rejected history 后必须解释修正策略”。
 3. 增加自动保存 raw LLM response，便于审计 planner 输出和 parser 行为。
+
+## 2026-07-22 追加：v0.8 Benchmark Evaluation
+
+新增：
+
+- `src/nonlinear_agent/benchmark.py`
+- `examples/nonlinear_fit/run_benchmark.py`
+- `tests/test_benchmark.py`
+- 最新主学习文档：`docs/learning/experiment-agent-harness-v0.8.md`
+- 唯一维护计划：`docs/superpowers/plans/experiment-agent-harness-plan.md`
+
+能力：
+
+- 固定 benchmark case。
+- 统计 `target_hit_rate`、`rejected_rate`、`runtime_failure_rate`、`average_experiments_used`、`best_nmse_db`。
+- 生成 `results.json`、`leaderboard.csv`、`summary.md`。
+
+验证命令：
+
+```powershell
+python examples\nonlinear_fit\run_benchmark.py --output-dir benchmarks\fake-v08-check
+python -m unittest tests.test_benchmark
+python -m unittest discover tests
+```
+
+下一步 v0.9：
+
+- 做 context/memory compression。
+- 给 planner history 加窗口、压缩摘要和预算控制。
