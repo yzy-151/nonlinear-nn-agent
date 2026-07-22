@@ -200,3 +200,57 @@ python examples\nonlinear_fit\run_harness.py --experiment-id harness-demo-001 --
 - 不要重写 `experiment.py` 的训练逻辑，除非测试覆盖足够。
 - 新功能先写 `tests/test_*.py`，再实现。
 - 所有新增文档都要围绕求职证据：能力点、文件路径、测试命令、简历 bullet。
+
+## 2026-07-22 v0.2 已完成内容
+
+新增模块：
+
+- `src/nonlinear_agent/experiment_tools.py`
+  - `generate_config_tool`
+  - `run_training_tool`
+  - `verify_artifacts_tool`
+  - `write_report_tool`
+  - `build_experiment_tool_registry`
+
+- `src/nonlinear_agent/replay.py`
+  - `load_trace_events`
+  - `summarize_trace`
+  - `build_replay_markdown`
+  - `write_replay_report`
+
+- `examples/nonlinear_fit/run_harness.py`
+  - 端到端执行 generate_config -> run_training -> verify_artifacts -> write_report。
+
+新增测试：
+
+- `tests/test_experiment_tools.py`
+- `tests/test_replay.py`
+
+真实 demo 命令：
+
+```powershell
+python examples\nonlinear_fit\run_harness.py --experiment-id harness-demo-v02 --base-config configs\model-search\lstsq-complexmp-o12-m150.yaml --output-dir reports\harness-demo-v02 --epochs 0 --nmse-threshold-db -35 --timeout-seconds 120
+```
+
+真实 demo 结果：
+
+```text
+NMSE: -37.4249 dB
+parameter_count: 3626
+model_type: complex_lstsq
+feature_mode: complex_mp
+mp_order_count: 12
+```
+
+v0.3 推荐目标调整：
+
+1. 先做 FastAPI SSE，把 runtime event 变成在线流式接口。
+2. 再做 cancellation/interrupt，模拟长训练中断。
+3. 再做 MCP server，把 experiment tools 暴露成标准工具协议。
+4. 最后做 LangGraph 对照版，展示 checkpoint/resume/human interrupt。
+
+接手注意：
+
+- `reports/`、`sessions/`、`traces/` 是运行产物，不要提交。
+- `configs/harness-demo-v02.yaml` 是 demo 生成配置，除非要作为展示样例，否则不要提交。
+- 下一步优先补 `server.py` 和 `tests/test_server.py`，不要继续调模型效果。

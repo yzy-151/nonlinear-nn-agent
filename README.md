@@ -1,5 +1,23 @@
 # Nonlinear NN Experiment Agent
 
+
+## 2026-07-22 更新：Experiment Agent Harness v0.2
+
+v0.2 已把 v0.1 的抽象 runtime 接入真实非线性拟合实验：
+
+- `experiment_tools.py`：封装 `generate_config`、`run_training`、`verify_artifacts`、`write_report` 四个真实工具。
+- `run_harness.py`：通过 Agent Harness 执行配置生成、训练、验证、报告生成。
+- `replay.py`：读取 JSONL trace，生成工具耗时、重试、指标和错误的 replay 报告。
+- runtime 现在每个工具成功后保存 session，支持跨步骤读取累计 metrics/artifacts。
+
+端到端 demo：
+
+```powershell
+python examples\nonlinear_fit\run_harness.py --experiment-id harness-demo-v02 --base-config configs\model-search\lstsq-complexmp-o12-m150.yaml --output-dir reports\harness-demo-v02 --epochs 0 --nmse-threshold-db -35 --timeout-seconds 120
+```
+
+本次 demo 结果：NMSE `-37.4249 dB`，参数量 `3626`，生成 session、trace、Agent Harness report 和 replay report。
+
 ## 2026-07-21 更新：Experiment Agent Harness v0.1
 
 本项目已经从“自动训练 Runner”升级为轻量级 Agent Harness 原型，新增能力集中在 Agent Harness / Runtime 岗位需要的工程证据：
@@ -485,4 +503,5 @@ NMSE: -37.4249 dB
 
 在 4000 参数以内完成小模型搜索，将原始 CNN 思路改造成复数记忆多项式特征 + 闭式最小二乘模型，得到 3626 参数、NMSE -37.42 dB 的可解释轻量模型，并输出参数量/NMSE/PSD/配置路径对比表。
 ```
+
 
