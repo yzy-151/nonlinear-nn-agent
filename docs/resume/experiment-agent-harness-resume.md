@@ -155,3 +155,7 @@ v0.4 后可以把项目升级表述为：
 ## v1.3 追加：Async Runtime Hardening 表达
 
 - 为 Agent Harness Runtime 增加结构化错误分类、取消/中断、超时与重试策略、step-level resume 能力，使长链路工具调用具备可观测、可恢复和可控失败处理能力；错误类型贯通 ToolResult、TraceEvent、Session 和 Reflection，支持后续 benchmark 分析。
+
+## v1.4 追加：Evaluation Dashboard / Runtime Diagnostics 表达
+
+- 构建 Agent Runtime diagnostics dashboard，聚合 benchmark 与 planner-loop artifacts，统计 target_hit_rate、rejected_rate、runtime_failure_rate、error_type 分布、最佳 NMSE 和实验预算使用情况，用于评估 prompt、guardrail 与 runtime hardening 改动收益。

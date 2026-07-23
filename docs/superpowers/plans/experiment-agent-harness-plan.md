@@ -8,7 +8,7 @@
 
 把 `nonlinear-nn-agent` 打造成面向 Agent Harness / Runtime / Agent Coding 岗位的项目证据。
 
-当前已完成到 v1.3：
+当前已完成到 v1.4：
 
 - v0.1：Harness Runtime
 - v0.2：真实实验工具
@@ -23,6 +23,7 @@
 - v1.1：Reflection / Recovery Policy
 - v1.2：MCP Server / Tool Protocol
 - v1.3：Async Runtime Hardening
+- v1.4：Evaluation Dashboard / Runtime Diagnostics
 
 ## 开发原则
 
@@ -186,17 +187,39 @@ benchmarks/<timestamp>/
 - session `completed_steps`
 - trace/session/reflection 贯通 `error_type`
 
-## v1.4 计划：Evaluation Dashboard / Runtime Diagnostics
+## v1.4 已完成：Evaluation Dashboard / Runtime Diagnostics
 
 目标：回答 Agent 评估结果如何展示、如何诊断 runtime/prompt/guardrail 改动收益。
 
+已新增：
+
+- `src/nonlinear_agent/diagnostics.py`
+- `examples/nonlinear_fit/write_diagnostics.py`
+- `tests/test_diagnostics.py`
+- `docs/learning/experiment-agent-harness-v1.4.md`
+- `docs/diagnostics/agent-runtime-dashboard.md`
+
+已支持：
+
+- benchmark 多次运行聚合
+- planner loop run artifacts 聚合
+- `target_hit_rate`
+- `rejected_rate`
+- `runtime_failure_rate`
+- `best_nmse_db`
+- `error_type_counts`
+- Markdown diagnostics dashboard
+
+## v1.5 计划：Real DeepSeek Demo Replay / Case Study
+
+目标：把真实 DeepSeek planner run 写成一个能直接面试讲述的 case study。
+
 建议能力：
 
-- benchmark 多次运行对比
-- error_type 分布统计
-- prompt / guard / runtime 版本对比
-- Markdown 或 HTML dashboard
-- docs/assets 保存 dashboard 截图或结果图
+- 选择一轮真实 DeepSeek run。
+- 提取 planner plan、history、reflection、leaderboard、PSD 图。
+- 写 `docs/case-studies/deepseek-planner-self-correction.md`。
+- 说明问题、失败、修正、结果和工程价值。
 
 ## 验证命令
 
