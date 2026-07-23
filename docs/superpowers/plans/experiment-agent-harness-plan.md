@@ -8,7 +8,7 @@
 
 把 `nonlinear-nn-agent` 打造成面向 Agent Harness / Runtime / Agent Coding 岗位的项目证据。
 
-当前已完成到 v1.4：
+当前已完成到 v1.5：
 
 - v0.1：Harness Runtime
 - v0.2：真实实验工具
@@ -24,6 +24,7 @@
 - v1.2：MCP Server / Tool Protocol
 - v1.3：Async Runtime Hardening
 - v1.4：Evaluation Dashboard / Runtime Diagnostics
+- v1.5：Unified CLI / Local Dashboard Client
 
 ## 开发原则
 
@@ -210,7 +211,33 @@ benchmarks/<timestamp>/
 - `error_type_counts`
 - Markdown diagnostics dashboard
 
-## v1.5 计划：Real DeepSeek Demo Replay / Case Study
+## v1.5 已完成：Unified CLI / Local Dashboard Client
+
+目标：降低项目操作门槛，把分散脚本收敛为可展示、可复现的命令入口。
+
+已新增：
+
+- `src/nonlinear_agent/cli.py`
+- `src/nonlinear_agent/dashboard.py`
+- `tests/test_cli.py`
+- `tests/test_dashboard.py`
+- `pyproject.toml`
+- `agent.py`
+- `docs/learning/experiment-agent-harness-v1.5.md`
+- `docs/diagnostics/agent-runtime-dashboard.html`
+
+已支持：
+
+- `python -m nonlinear_agent.cli run`
+- `python -m nonlinear_agent.cli benchmark`
+- `python -m nonlinear_agent.cli diagnostics`
+- `python -m nonlinear_agent.cli dashboard`
+- `python -m nonlinear_agent.cli serve`
+- `nonlinear-agent` console script
+- `python agent.py ...` 本地免安装入口
+- standalone HTML diagnostics dashboard
+
+## v1.6 计划：Real DeepSeek Demo Replay / Case Study
 
 目标：把真实 DeepSeek planner run 写成一个能直接面试讲述的 case study。
 

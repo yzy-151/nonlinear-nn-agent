@@ -12,7 +12,9 @@ from typing import Any
 
 _EXPORTS = {
     "collect_diagnostics": ("nonlinear_agent.diagnostics", "collect_diagnostics"),
+    "render_dashboard_html": ("nonlinear_agent.dashboard", "render_dashboard_html"),
     "render_diagnostics_markdown": ("nonlinear_agent.diagnostics", "render_diagnostics_markdown"),
+    "write_dashboard_html": ("nonlinear_agent.dashboard", "write_dashboard_html"),
     "write_diagnostics_report": ("nonlinear_agent.diagnostics", "write_diagnostics_report"),
     "build_experiment_tool_registry": ("nonlinear_agent.experiment_tools", "build_experiment_tool_registry"),
     "generate_config_tool": ("nonlinear_agent.experiment_tools", "generate_config_tool"),

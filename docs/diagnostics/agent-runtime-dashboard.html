@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Runtime Dashboard</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --text: #1f2933;
+      --muted: #667085;
+      --line: #c8d0dc;
+      --accent: #0f766e;
+      --accent-2: #7c3aed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      padding: 28px 36px 18px;
+      border-bottom: 2px solid var(--line);
+      background: var(--panel);
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }
+    h2 { margin: 0 0 14px; font-size: 18px; letter-spacing: 0; }
+    p { margin: 0; color: var(--muted); line-height: 1.55; }
+    main { padding: 24px 36px 40px; display: grid; gap: 20px; }
+    section {
+      background: var(--panel);
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      min-height: 86px;
+      background: #fbfcfe;
+    }
+    .metric .label { color: var(--muted); font-size: 13px; }
+    .metric .value { margin-top: 8px; font-size: 24px; font-weight: 700; overflow-wrap: anywhere; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border: 2px solid var(--line); padding: 9px 10px; text-align: left; vertical-align: top; }
+    th { background: #eef2f7; }
+    code { font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Agent Runtime Dashboard</h1>
+    <p>Aggregated benchmark and planner-loop diagnostics for evaluating Agent Harness behavior.</p>
+  </header>
+  <main>
+    <section>
+      <h2>Aggregate Metrics</h2>
+      <div class="metrics">
+        <div class="metric"><div class="label">case_count</div><div class="value">3</div></div>
+<div class="metric"><div class="label">target_hit_rate</div><div class="value">0.3333333333333333</div></div>
+<div class="metric"><div class="label">rejected_rate</div><div class="value">0.3333333333333333</div></div>
+<div class="metric"><div class="label">runtime_failure_rate</div><div class="value">0.3333333333333333</div></div>
+<div class="metric"><div class="label">average_experiments_used</div><div class="value">0.6666666666666666</div></div>
+<div class="metric"><div class="label">best_nmse_db</div><div class="value">-36.0</div></div>
+      </div>
+    </section>
+    <section>
+      <h2>Best Candidate</h2>
+      <table><tr><th>id</th><td><code>planner-demo-001</code></td></tr>
+<tr><th>nmse_db</th><td><code>-37.42494350080102</code></td></tr>
+<tr><th>parameter_count</th><td><code>3626</code></td></tr>
+<tr><th>source</th><td><code>runs/fake-v06-check/result.json</code></td></tr></table>
+    </section>
+    <div class="grid">
+      <section>
+        <h2>Run Status Distribution</h2>
+        <table><tr><th>status</th><th>count</th></tr><tr><td>failed</td><td>3</td></tr>
+<tr><td>rejected</td><td>1</td></tr>
+<tr><td>succeeded</td><td>5</td></tr></table>
+      </section>
+      <section>
+        <h2>Error Type Distribution</h2>
+        <table><tr><th>error_type</th><th>count</th></tr><tr><td>tool_error</td><td>1</td></tr></table>
+      </section>
+    </div>
+    <section>
+      <h2>Benchmark Runs</h2>
+      <table><tr><th>source</th><th>case_count</th><th>target_hit_rate</th><th>best_nmse_db</th></tr><tr><td><code>benchmarks/fake-v08-check/results.json</code></td><td><code>3</code></td><td><code>0.3333333333333333</code></td><td><code>-36.0</code></td></tr></table>
+    </section>
+    <section>
+      <h2>Planner Loop Runs</h2>
+      <table><tr><th>source</th><th>status</th><th>rounds</th><th>history_count</th></tr><tr><td><code>runs/benchmark-invalid-plan/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/benchmark-runtime-failure/result.json</code></td><td><code>max_rounds_reached</code></td><td><code>1</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/benchmark-target-hit/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/fake-v06-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/fake-v07-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/fake-v09-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/fake-v11-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/fake-v13-check/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr>
+<tr><td><code>runs/fake-v13-check-2/result.json</code></td><td><code>stopped</code></td><td><code>2</code></td><td><code>1</code></td></tr></table>
+    </section>
+  </main>
+</body>
+</html>

@@ -708,5 +708,42 @@ python examples\nonlinear_fit\write_diagnostics.py
 
 下一步 v1.5：
 
+- Unified CLI / Local Dashboard Client。
+- 把分散脚本收敛成 `python -m nonlinear_agent.cli ...` 和 `nonlinear-agent ...`。
+
+## 2026-07-23 追加：v1.5 Unified CLI / Local Dashboard Client
+
+新增：
+
+- `src/nonlinear_agent/cli.py`
+- `src/nonlinear_agent/dashboard.py`
+- `tests/test_cli.py`
+- `tests/test_dashboard.py`
+- `pyproject.toml`
+- `agent.py`
+- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.5.md`
+- HTML dashboard：`docs/diagnostics/agent-runtime-dashboard.html`
+
+能力：
+
+- `run`：统一执行 LLM planner loop。
+- `benchmark`：统一执行内置 benchmark。
+- `diagnostics`：生成 Markdown diagnostics dashboard。
+- `dashboard`：生成 standalone HTML dashboard。
+- `serve`：启动 FastAPI SSE harness 服务。
+- 安装后支持 `nonlinear-agent` console script。
+- 未安装时支持 `python agent.py ...`。
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_cli tests.test_dashboard
+python -m unittest discover tests
+python -m nonlinear_agent.cli diagnostics
+python -m nonlinear_agent.cli dashboard
+```
+
+下一步 v1.6：
+
 - Real DeepSeek Demo Replay / Case Study。
 - 把真实 DeepSeek planner run 整理成“失败 -> 反馈 -> 修正 -> 结果”的完整故事。
