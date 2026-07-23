@@ -7,11 +7,17 @@ from typing import Any
 class ReflectionPolicy:
     def reflect(self, round_index: int, round_records: list[dict[str, Any]]) -> dict[str, Any]:
         status_counts = Counter(str(record.get("run_status", "unknown")) for record in round_records)
+        error_type_counts = Counter(
+            str(record.get("error_type"))
+            for record in round_records
+            if record.get("error_type")
+        )
         failure_causes = _failure_causes(round_records)
         return {
             "round": round_index,
             "record_count": len(round_records),
             "status_counts": dict(status_counts),
+            "error_type_counts": dict(error_type_counts),
             "best_experiment_id": _best_experiment_id(round_records),
             "best_nmse_db": _best_nmse(round_records),
             "failure_causes": failure_causes,
@@ -39,6 +45,8 @@ def _recovery_actions(causes: list[str]) -> list[str]:
         actions.append("Remove unsupported fields and keep planner overrides within the declared tool/config schema.")
     if "nmse" in text or "threshold" in text:
         actions.append("Prefer stronger baseline variants or revise the target/feature family after repeated NMSE threshold failures.")
+    if "timeout" in text:
+        actions.append("Increase the tool timeout only for expensive steps or split the run into smaller resumable steps.")
     if not actions:
         actions.append("Continue with the best observed configuration and explore one controlled variable at a time.")
     return actions

@@ -8,7 +8,7 @@
 
 把 `nonlinear-nn-agent` 打造成面向 Agent Harness / Runtime / Agent Coding 岗位的项目证据。
 
-当前已完成到 v1.2：
+当前已完成到 v1.3：
 
 - v0.1：Harness Runtime
 - v0.2：真实实验工具
@@ -22,6 +22,7 @@
 - v1.0：Tool Registry / Skill 化
 - v1.1：Reflection / Recovery Policy
 - v1.2：MCP Server / Tool Protocol
+- v1.3：Async Runtime Hardening
 
 ## 开发原则
 
@@ -164,18 +165,38 @@ benchmarks/<timestamp>/
 - stdio JSON-lines mock server
 - MCP bridge 复用现有 `ToolRegistry`
 
-## v1.3 计划：Async Runtime Hardening
+## v1.3 已完成：Async Runtime Hardening
 
 目标：回答 Agent runtime 稳定性、取消、中断、重试和恢复问题。
 
+已新增：
+
+- `src/nonlinear_agent/runtime_errors.py`
+- `src/nonlinear_agent/run_control.py`
+- `tests/test_runtime_hardening.py`
+- `docs/learning/experiment-agent-harness-v1.3.md`
+
+已支持：
+
+- structured error taxonomy
+- cancellation / interrupt
+- timeout error classification
+- `RetryPolicy.ALWAYS / NEVER / RETRY_TIMEOUT`
+- `HarnessRequest.resume_from_step`
+- session `completed_steps`
+- trace/session/reflection 贯通 `error_type`
+
+## v1.4 计划：Evaluation Dashboard / Runtime Diagnostics
+
+目标：回答 Agent 评估结果如何展示、如何诊断 runtime/prompt/guardrail 改动收益。
+
 建议能力：
 
-- cancellation / interrupt
-- per-tool timeout policy
-- retry policy 分类
-- structured error taxonomy
-- resume failed run
-- tests 覆盖 cancelled / timeout / retryable / non-retryable
+- benchmark 多次运行对比
+- error_type 分布统计
+- prompt / guard / runtime 版本对比
+- Markdown 或 HTML dashboard
+- docs/assets 保存 dashboard 截图或结果图
 
 ## 验证命令
 

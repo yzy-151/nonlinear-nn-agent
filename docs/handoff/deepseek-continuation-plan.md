@@ -646,3 +646,36 @@ python -m unittest discover tests
 - per-tool timeout policy。
 - retry policy 分类。
 - structured error taxonomy。
+
+## 2026-07-23 追加：v1.3 Async Runtime Hardening
+
+新增：
+
+- `src/nonlinear_agent/runtime_errors.py`
+- `src/nonlinear_agent/run_control.py`
+- `tests/test_runtime_hardening.py`
+- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.3.md`
+
+能力：
+
+- `ErrorType`：`validation_error`、`timeout_error`、`tool_error`、`metric_threshold_error`、`cancelled`。
+- `RunController`：支持用户取消/中断。
+- `RetryPolicy`：`always`、`never`、`retry_timeout`。
+- `ToolResult` 增加 `error_type` 和 `retryable`。
+- `TraceEvent` 增加 `error_type`。
+- `ExperimentSession` 增加 `error_types` 和 `completed_steps`。
+- `HarnessRequest.resume_from_step` 支持 step-level resume。
+- `ReflectionPolicy` 增加 `error_type_counts`。
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_runtime_hardening
+python -m unittest discover tests
+```
+
+下一步 v1.4：
+
+- Evaluation Dashboard / Runtime Diagnostics。
+- 对 benchmark 多次运行结果做汇总展示。
+- 统计 error_type 分布、target_hit_rate、runtime_failure_rate、best_nmse_db。

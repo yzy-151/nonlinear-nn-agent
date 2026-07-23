@@ -12,11 +12,13 @@ from nonlinear_agent.llm import FakeLLMClient, OpenAICompatibleClient
 from nonlinear_agent.loop import ExperimentPlannerLoop, PlannerLoopResult
 from nonlinear_agent.mcp_server import MCPToolBridge, build_mcp_tool_bridge, tool_spec_to_mcp_tool
 from nonlinear_agent.planner import ExperimentPlan, ExperimentPlanner, PlannedExperiment
+from nonlinear_agent.run_control import RunController
+from nonlinear_agent.runtime_errors import ErrorType
 from nonlinear_agent.replay import TraceSummary, build_replay_markdown, load_trace_events, summarize_trace, write_replay_report
 from nonlinear_agent.runtime import ExperimentHarnessRuntime, HarnessRequest
 from nonlinear_agent.server import HarnessRunSpec, build_harness_request, create_app, encode_sse_event, stream_sse_events
 from nonlinear_agent.session import ExperimentSession, SessionStore
-from nonlinear_agent.tools import ToolCall, ToolRegistry, ToolResult
+from nonlinear_agent.tools import RetryPolicy, ToolCall, ToolRegistry, ToolResult
 from nonlinear_agent.trace import TraceEvent, TraceLogger
 
 __all__ = [
@@ -25,6 +27,7 @@ __all__ = [
     "ExperimentPlan",
     "ExperimentPlanner",
     "ExperimentPlannerLoop",
+    "ErrorType",
     "FakeLLMClient",
     "HarnessRequest",
     "HarnessRunSpec",
@@ -33,6 +36,8 @@ __all__ = [
     "MCPToolBridge",
     "PlannedExperiment",
     "PlannerLoopResult",
+    "RunController",
+    "RetryPolicy",
     "SessionStore",
     "ToolCall",
     "ToolRegistry",
