@@ -147,3 +147,7 @@ v0.4 后可以把项目升级表述为：
 ## v1.1 追加：Reflection / Recovery Policy 表达
 
 - 为 LLM Planner Loop 增加 Reflection / Recovery Policy，在每轮实验后结构化生成失败原因、修正策略和下一轮避免项，并将 rejected/failed/succeeded 状态、最佳指标和 recovery actions 写入 run artifacts，提升 Agent 自我修正、错误复盘和面试可解释性。
+
+## v1.2 追加：MCP Server / Tool Protocol 表达
+
+- 为 Agent Harness 增加 MCP-compatible Tool Protocol Bridge，将内部 ToolSpec 映射为 MCP tool schema，并实现 tools/list、tools/call 的 JSON-RPC 处理；底层复用 ToolRegistry 和真实实验工具链，使 LLM Planner 与 MCP Client 共享同一套工具能力边界。

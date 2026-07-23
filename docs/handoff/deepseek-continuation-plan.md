@@ -613,3 +613,36 @@ python examples\nonlinear_fit\run_planner_loop.py --provider fake --max-rounds 2
 - MCP Server / Tool Protocol。
 - 把当前 `ToolSpec` 映射为标准 MCP tool schema。
 - 让项目能回答“MCP 是什么、写过哪些 MCP 工具、Skill 和 MCP 有什么区别”。
+
+## 2026-07-23 追加：v1.2 MCP Server / Tool Protocol
+
+新增：
+
+- `src/nonlinear_agent/mcp_server.py`
+- `examples/nonlinear_fit/serve_mcp_tools.py`
+- `tests/test_mcp_server.py`
+- 最新主学习文档：`docs/learning/experiment-agent-harness-v1.2.md`
+
+能力：
+
+- `ToolSpec` 映射为 MCP-compatible tool schema。
+- `MCPToolBridge.list_tools()` 支持 `tools/list`。
+- `MCPToolBridge.call_tool()` 支持 `tools/call`。
+- `MCPToolBridge.handle_json_rpc()` 支持 JSON-RPC 2.0 请求/响应。
+- stdio JSON-lines mock server 可作为后续官方 MCP SDK 接入前的协议验证层。
+- 底层复用现有 `ToolRegistry`，LLM Planner 与 MCP Client 共享同一套实验工具能力。
+
+验证命令：
+
+```powershell
+python -m unittest tests.test_mcp_server
+python -m unittest discover tests
+```
+
+下一步 v1.3：
+
+- Async Runtime Hardening。
+- cancellation / interrupt。
+- per-tool timeout policy。
+- retry policy 分类。
+- structured error taxonomy。
