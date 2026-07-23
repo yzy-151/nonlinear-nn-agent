@@ -11,6 +11,7 @@ from nonlinear_agent.runtime import ExperimentHarnessRuntime, HarnessRequest
 from nonlinear_agent.session import SessionStore
 from nonlinear_agent.tools import ToolCall
 from nonlinear_agent.trace import TraceEvent, TraceLogger
+from nonlinear_agent.web_ui import render_home_page
 
 
 @dataclass(frozen=True)
@@ -87,7 +88,7 @@ def build_runtime(workspace: Path | str, session_id: str, timeout_seconds: float
 def create_app(workspace: Path | str):
     try:
         from fastapi import FastAPI
-        from fastapi.responses import StreamingResponse
+        from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
     except ImportError as exc:  # pragma: no cover - depends on optional server deps
         raise RuntimeError("FastAPI server dependencies are not installed. Install fastapi and uvicorn.") from exc
 
@@ -97,6 +98,18 @@ def create_app(workspace: Path | str):
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/", response_class=HTMLResponse)
+    async def home():
+        return render_home_page()
+
+    @app.get("/diagnostics/{name}")
+    async def diagnostics_file(name: str):
+        path = root / "docs" / "diagnostics" / name
+        if not path.exists():
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Diagnostics file not found.")
+        return FileResponse(path)
 
     @app.post("/runs/{session_id}/events")
     async def run_events(session_id: str, body: Optional[Dict[str, Any]] = None):

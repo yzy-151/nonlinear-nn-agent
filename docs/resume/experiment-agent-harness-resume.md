@@ -163,3 +163,7 @@ v0.4 后可以把项目升级表述为：
 ## v1.5 追加：Unified CLI / Local Dashboard Client 表达
 
 - 为 Agent Harness 增加统一命令行交付面和本地 HTML diagnostics dashboard，将 planner loop、benchmark、diagnostics、SSE server 等分散入口收敛为一个 CLI，并支持一键生成可分享的 runtime dashboard，降低复现实验和展示系统可观测性的成本。
+
+## v1.6 追加：Final Docs / Onboarding / Demo UI 表达
+
+- 将 Agent Harness 项目收口为可展示交付版本，补充新人上手文档、DeepSeek self-correction case study、Agent Harness 面试 Q&A，并为 FastAPI SSE runtime 增加浏览器首页 UI，支持从页面配置实验参数并实时查看工具调用事件流。

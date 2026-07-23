@@ -83,6 +83,23 @@ class ServerStreamingTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
+    def test_create_app_home_route_exposes_demo_ui(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("FastAPI test client is not installed")
+        from nonlinear_agent.server import create_app
+
+        client = TestClient(create_app(PROJECT_ROOT))
+        response = client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response.headers["content-type"])
+        self.assertIn("Nonlinear Agent Harness", response.text)
+        self.assertIn("runForm", response.text)
+        self.assertIn("/runs/", response.text)
+        self.assertIn("agent-runtime-dashboard.html", response.text)
+
 async def _collect(stream):
     return [chunk async for chunk in stream]
 

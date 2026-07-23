@@ -106,10 +106,10 @@ python -m nonlinear_agent.cli dashboard
 
 ## 8. 下一步
 
-v1.6：Real DeepSeek Demo Replay / Case Study。
+v1.6：Final Docs / Onboarding / Demo UI。
 
 目标：
 
-- 选择一轮真实 DeepSeek planner run。
-- 提取 planner plan、history、reflection、leaderboard、PSD。
-- 写成可直接面试讲述的 case study。
+- 补新人上手文档、case study、面试 Q&A。
+- 为 FastAPI SSE runtime 增加浏览器首页。
+- 将项目收口为可展示、可复现、可交接的封版状态。
