@@ -284,7 +284,7 @@ LLM 策略当前为离线邻域采样模拟（token/cost = 0），真实 LLM 证
 
 - `README.md`
 - `docs/onboarding/newcomer-guide.md`
-- `docs/handoff/deepseek-continuation-plan.md`
+- `docs/handoff/llm-continuation-plan.md`
 - `docs/resume/experiment-agent-harness-resume.md`
 - `docs/learning/experiment-agent-harness-v*.md`
 - `docs/diagnostics/agent-runtime-dashboard.md`
@@ -295,7 +295,7 @@ LLM 策略当前为离线邻域采样模拟（token/cost = 0），真实 LLM 证
 不要再新增零散“开心型”文档。新内容优先合并到：
 
 - 上手/当前状态：`docs/onboarding/newcomer-guide.md`
-- 交接/维护/版本计划：`docs/handoff/deepseek-continuation-plan.md`
+- 交接/维护/版本计划：`docs/handoff/llm-continuation-plan.md`
 - 简历/面试表达：`docs/resume/experiment-agent-harness-resume.md`
 - 版本学习：`docs/learning/experiment-agent-harness-v*.md`
 

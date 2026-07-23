@@ -25,7 +25,7 @@ v1.6 做三件事：
 - `tests/test_server_streaming.py`
 - `README.md`
 - `docs/superpowers/plans/experiment-agent-harness-plan.md`
-- `docs/handoff/deepseek-continuation-plan.md`
+- `docs/handoff/llm-continuation-plan.md`
 - `docs/resume/experiment-agent-harness-resume.md`
 
 ## 3. UI 展示方式

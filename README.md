@@ -88,6 +88,38 @@ flowchart LR
 | `python agent.py serve` | 启动 Web UI / SSE 服务 |
 | `python agent.py dashboard` | 生成诊断 Dashboard |
 
+## 实验任务：非线性系统建模与对消
+
+项目解决的信号处理问题：射频非线性系统（记忆多项式 MPDPD）的输入 `x` 经系统产生带非线性失真的输出 `d`。任务是学习系统的校正模型，使校正后的信号逼近理想目标 `d`——即**非线性对消 / 线性化**。
+
+**指标 NMSE（归一化均方误差，dB）**：
+
+```text
+NMSE = 10 * log10( mean(|prediction - target|^2) / mean(|target|^2) )
+```
+
+- `baseline NMSE`：不建模时输入 `x` 相对目标 `d` 的误差（未对消）
+- `current NMSE`：MPDPD 模型输出相对目标的误差（对消后）
+- 提升量 = baseline − current（越大越好）
+
+**频谱证据**：PSD 图中校正后信号（绿线）与目标（橙线）重合得越好，说明非线性失真被对消得越干净：
+
+![PSD 对消结果](docs/assets/psd-exp016-best-41db-run.png)
+
+**代表性实验结果**：
+
+| 实验 | 模型 | 关键参数 | 参数量 | NMSE (dB) | 来源 |
+| --- | --- | --- | ---: | ---: | --- |
+| exp016 | complex_lstsq | mem=220 mp=9 | 3980 | -37.49 | LLM 规划 run |
+| tiny_md20_mp3_hu96 | tiny_mlp | mem=20 mp=3 hu=96 relu **epochs=10000** | 12386 | **-42.26** | 历史最优 |
+| exp_492 | spline_mlp | mem=40 mp=1 hu=180 silu epochs=4000 | 21062 | -41.99 | 历史最优 |
+| v26 LLM 设计 | tiny_mlp | mem=16 mp=3 hu=128 silu **epochs=20000** | 19490 | **-42.43** | 真实 LLM benchmark |
+
+**为什么同时存在 -37 dB 与 -42 dB 两类结果（两套实验的边界）**：
+
+- 搜索对照矩阵（`compare-search`）使用**离线模拟 LLM**（邻域采样，token=0），且为避免全矩阵训练爆炸，过滤了超长训练候选（epochs>2000），因此该矩阵只探索到 complex_lstsq 平台区（-37~-38 dB）——它回答"固定预算下哪种搜索策略更高效"；
+- 真实 LLM benchmark（36000s 训练预算）允许 epochs=10000+ 的神经模型长训练，才到达 -42 dB 区——它回答"真实 LLM 在足够预算下能否找到历史最优区域并继续改进"。
+
 ## 实验证据
 
 ### 搜索策略对照（真实训练）
@@ -106,6 +138,20 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 ![Best-so-far 对比](benchmarks/nonlinear-search-v1-v20000/best-so-far.png)
 
 ![Reflection 消融](benchmarks/nonlinear-search-v1-v20000/reflection-ablation.png)
+
+### 指标可视化
+
+![各策略 best NMSE 分布](docs/assets/experiments/strategy-best-nmse-distribution.png)
+
+![命中率与 Guard 拒绝率](docs/assets/experiments/strategy-hit-vs-rejected.png)
+
+![单 trial 训练时长](docs/assets/experiments/strategy-training-time.png)
+
+真实 LLM benchmark 逐 case：
+
+![Benchmark 逐 case NMSE](docs/assets/experiments/benchmark-per-case-nmse.png)
+
+![LLM token 用量](docs/assets/experiments/benchmark-llm-tokens.png)
 
 ### 历史先验注入：达到 -42 dB
 
@@ -164,5 +210,17 @@ python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1
 ## 文档
 
 - 实验报告：[v1 搜索对照](docs/experiments/nonlinear-search-ablation-v1.md) · [v2 先验注入与 Benchmark 成熟化](docs/experiments/nonlinear-search-ablation-v2.md)
-- 交接与维护：[deepseek-continuation-plan.md](docs/handoff/deepseek-continuation-plan.md)
+- 交接与维护：[llm-continuation-plan.md](docs/handoff/llm-continuation-plan.md)
 - 学习文档：[docs/learning/](docs/learning/)
+
+## 设计借鉴与原创性
+
+系统化借鉴了业界成熟方法，但实现均为本项目原创：
+
+| 借鉴来源 | 借鉴点 | 本项目落地 |
+| --- | --- | --- |
+| Hermes（Nous Research） | `<tools>` 内函数签名 + 精确 JSON schema | planner prompt 内置"必须照填的 JSON 模板"与字段契约 |
+| Claude Code / Claude | structured outputs、system prompt 格式契约、tool-result 错误回馈 | 强化 system prompt + Guard 拒绝后带错误重试（每轮限频 1 次） |
+| 通用 Agent 工程 | plan → execute → observe → reflect 循环 | 完整主循环 + 历史压缩 + Reflection 事实提取 |
+
+原创部分：**DomainPlugin 领域解耦**、**统一 Trial Protocol 与 bootstrap 统计**、**历史先验注入（-42 dB 候选）**、**SQLite 控制面**（幂等 / lease / SSE 重放）、**10-case Benchmark 指标体系**与**并发压测验收线**。

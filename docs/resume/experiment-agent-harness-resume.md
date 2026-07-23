@@ -198,7 +198,7 @@ v1.3 之后错误有结构化 `error_type`，例如：
 - `src/nonlinear_agent/trace.py`
 - `tests/test_harness_runtime.py`
 - `docs/learning/experiment-agent-harness-v0.1.md`
-- `docs/handoff/deepseek-continuation-plan.md`
+- `docs/handoff/llm-continuation-plan.md`
 - `docs/model-search-summary.md`
 - `docs/model-search-results.csv`
 

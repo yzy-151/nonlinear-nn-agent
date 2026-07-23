@@ -53,7 +53,7 @@ LLM planner 和手工配置都可能写出 `output_dir: exp001` 这类裸路径�
 本版本删除旧的零散 case/interview/plan 文档，把内容合并到：
 
 - `docs/onboarding/newcomer-guide.md`
-- `docs/handoff/deepseek-continuation-plan.md`
+- `docs/handoff/llm-continuation-plan.md`
 - `docs/resume/experiment-agent-harness-resume.md`
 - `docs/learning/experiment-agent-harness-v*.md`
 

@@ -136,3 +136,17 @@ python examples\nonlinear_fit\run_benchmark.py --provider deepseek --output-dir 
 # 搜索对照（20000 预算，200 有效 trial）
 python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1-v20000
 ```
+
+## 8. 指标可视化
+
+![各策略 best NMSE 分布](../assets/experiments/strategy-best-nmse-distribution.png)
+
+![命中率与 Guard 拒绝率](../assets/experiments/strategy-hit-vs-rejected.png)
+
+![单 trial 训练时长](../assets/experiments/strategy-training-time.png)
+
+真实 LLM benchmark 逐 case 与 token 用量：
+
+![Benchmark 逐 case NMSE](../assets/experiments/benchmark-per-case-nmse.png)
+
+![LLM token 用量](../assets/experiments/benchmark-llm-tokens.png)

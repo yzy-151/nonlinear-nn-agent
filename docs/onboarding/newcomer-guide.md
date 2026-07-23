@@ -50,7 +50,7 @@ http://127.0.0.1:8000/
 2. `docs/learning/experiment-agent-harness-v1.6.2.md`
 3. `docs/learning/experiment-agent-harness-v1.6.1.md`
 4. `docs/learning/experiment-agent-harness-v1.6.md`
-5. `docs/handoff/deepseek-continuation-plan.md`
+5. `docs/handoff/llm-continuation-plan.md`
 6. `docs/resume/experiment-agent-harness-resume.md`
 7. `src/nonlinear_agent/loop.py`
 8. `src/nonlinear_agent/runtime.py`
