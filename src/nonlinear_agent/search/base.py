@@ -30,8 +30,8 @@ class SearchStrategy(Protocol):
     Implementations:
       - RandomSearch: uniform sampling from domain.design_space()
       - OptunaTPESearch: tree-structured Parzen estimator
-      - LLMNoReflectionSearch: LLM planner without reflection injection
-      - LLMWithReflectionSearch: LLM planner with reflection
+      - LLMDirectSearch: LLM planner without reflection injection
+      - LLMProgramReflectionSearch: LLM planner with reflection
     """
 
     name: str

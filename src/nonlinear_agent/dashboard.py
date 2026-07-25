@@ -28,7 +28,7 @@ def _render_compare_section(summary: dict[str, Any]) -> str:
     rows_html: list[str] = []
 
     # Per-method table
-    header = "<tr><th>Method</th><th>Seeds</th><th>Effective Trials</th><th>Best NMSE (mean)</th><th>Best NMSE (95% CI)</th><th>Target Hit Rate</th><th>Rejected Rate</th><th>Runtime Failure Rate</th></tr>"
+    header = "<tr><th>Method</th><th>Seeds</th><th>Effective Trials</th><th>Best NMSE (mean)</th><th>Best NMSE (95% CI)</th><th>Target Hit Rate</th><th>Planner Success</th><th>Rejected Rate</th><th>Runtime Failure Rate</th></tr>"
     for method, stats in sorted(per_method.items()):
         best_mean = stats.get("best_nmse_db_mean")
         best_lo = stats.get("best_nmse_db_ci_95_low")
@@ -39,6 +39,8 @@ def _render_compare_section(summary: dict[str, Any]) -> str:
         hit_str = f"{float(hit)*100:.0f}%" if isinstance(hit, (int, float)) else "-"
         rej = stats.get("rejected_rate_mean")
         rej_str = f"{float(rej)*100:.0f}%" if isinstance(rej, (int, float)) else "-"
+        pso = stats.get("planner_success_rate")
+        pso_str = f"{float(pso)*100:.0f}%" if isinstance(pso, (int, float)) else "-"
         fail = stats.get("runtime_failure_rate_mean")
         fail_str = f"{float(fail)*100:.0f}%" if isinstance(fail, (int, float)) else "-"
         rows_html.append(
@@ -46,7 +48,7 @@ def _render_compare_section(summary: dict[str, Any]) -> str:
             f"<td>{stats.get('n_seeds', '-')}</td>"
             f"<td>{stats.get('n_effective_trials', '-')}</td>"
             f"<td class='good'>{nmse_str}</td><td>{ci_str}</td>"
-            f"<td>{hit_str}</td><td>{rej_str}</td><td>{fail_str}</td></tr>"
+            f"<td>{hit_str}</td><td>{pso_str}</td><td>{rej_str}</td><td>{fail_str}</td></tr>"
         )
 
     # Paired comparisons

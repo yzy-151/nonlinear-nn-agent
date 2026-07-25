@@ -2,8 +2,8 @@
 
 Wraps the ExperimentPlannerLoop into the SearchStrategy interface.
 Two variants:
-  - LLMNoReflectionSearch: planner without reflection injection into next round
-  - LLMWithReflectionSearch: planner with full reflection feedback loop
+  - LLMDirectSearch: planner without reflection injection into next round
+  - LLMProgramReflectionSearch: planner with full reflection feedback loop
 """
 
 from __future__ import annotations
@@ -19,14 +19,14 @@ from nonlinear_agent.planner import ExperimentPlanner
 from nonlinear_agent.search.base import SearchContext
 
 
-class LLMNoReflectionSearch:
+class LLMDirectSearch:
     """LLM planner without reflection context injected into subsequent rounds.
 
     The ReflectionPolicy still computes facts (for observability) but they
     are NOT passed back to the planner as context for the next round.
     """
 
-    name = "llm_no_reflection"
+    name = "llm_direct"
 
     def __init__(self, context: SearchContext, workspace: Path | str):
         self._ctx = context
@@ -48,10 +48,10 @@ class LLMNoReflectionSearch:
         pass
 
 
-class LLMWithReflectionSearch:
+class LLMProgramReflectionSearch:
     """LLM planner with full reflection feedback injected into each round."""
 
-    name = "llm_with_reflection"
+    name = "llm_program_reflection"
 
     def __init__(self, context: SearchContext, workspace: Path | str):
         self._ctx = context

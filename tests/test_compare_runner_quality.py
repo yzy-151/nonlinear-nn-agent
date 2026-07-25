@@ -2,7 +2,7 @@
 
 Covers the gaps found in the v1.7 plan audit:
   - trials must carry real config/dataset/git hashes (not "unknown")
-  - llm_with_reflection must actually consume reflection facts, so the
+  - llm_program_reflection must actually consume reflection facts, so the
     two LLM strategies are distinguishable
   - metric_threshold_error is an experiment outcome, not a runtime failure
   - missing optuna must fail loudly instead of silently degrading to random
@@ -64,17 +64,17 @@ class TestTrialHashQuality(unittest.TestCase):
 
 
 class TestReflectionAblation(unittest.TestCase):
-    """llm_with_reflection must differ from llm_no_reflection."""
+    """llm_program_reflection must differ from llm_direct."""
 
     def _failed_history(self) -> list[dict]:
         return [
             {
-                "run_id": "r0", "method": "llm_with_reflection", "seed": 7,
+                "run_id": "r0", "method": "llm_program_reflection", "seed": 7,
                 "trial_index": 0, "model_type": "spline_mlp", "rejected": False,
                 "runtime_failed": True, "nmse_db": 0.0, "reflection_used": True,
             },
             {
-                "run_id": "r1", "method": "llm_with_reflection", "seed": 7,
+                "run_id": "r1", "method": "llm_program_reflection", "seed": 7,
                 "trial_index": 1, "model_type": "complex_lstsq", "rejected": False,
                 "runtime_failed": False, "nmse_db": -36.0, "reflection_used": True,
             },
@@ -82,7 +82,7 @@ class TestReflectionAblation(unittest.TestCase):
 
     def test_with_reflection_avoids_failed_model_type(self):
         ctx = SearchContext(domain=NonlinearModelingDomain(), seed=7, trial_budget=10)
-        strategy = _LLMSearch("llm_with_reflection", ctx)
+        strategy = _LLMSearch("llm_program_reflection", ctx)
         history = self._failed_history()
         for row in history:
             strategy.observe({"model_type": row["model_type"]}, row)
@@ -95,8 +95,8 @@ class TestReflectionAblation(unittest.TestCase):
     def test_with_reflection_tracks_failed_types_but_without_does_not(self):
         ctx = SearchContext(domain=NonlinearModelingDomain(), seed=7, trial_budget=10)
         history = self._failed_history()
-        with_ref = _LLMSearch("llm_with_reflection", ctx)
-        without_ref = _LLMSearch("llm_no_reflection", ctx)
+        with_ref = _LLMSearch("llm_program_reflection", ctx)
+        without_ref = _LLMSearch("llm_direct", ctx)
         for row in history:
             with_ref.observe({"model_type": row["model_type"]}, row)
             without_ref.observe({"model_type": row["model_type"]}, row)
@@ -105,7 +105,7 @@ class TestReflectionAblation(unittest.TestCase):
 
     def test_rejected_model_type_is_remembered_and_avoided(self):
         ctx = SearchContext(domain=NonlinearModelingDomain(), seed=7, trial_budget=10)
-        strategy = _LLMSearch("llm_with_reflection", ctx)
+        strategy = _LLMSearch("llm_program_reflection", ctx)
         strategy.observe(
             {"model_type": "spline_mlp"},
             {"rejected": True, "model_type": "spline_mlp"},
@@ -119,7 +119,7 @@ class TestReflectionAblation(unittest.TestCase):
     def test_with_reflection_samples_historical_priors(self):
         """with_reflection must draw candidates from the known-best prior region."""
         ctx = SearchContext(domain=NonlinearModelingDomain(), seed=7, trial_budget=10)
-        strategy = _LLMSearch("llm_with_reflection", ctx)
+        strategy = _LLMSearch("llm_program_reflection", ctx)
         candidates = [strategy.suggest([], i) for i in range(50)]
         prior_depths = {500, 800}  # values only reachable via the prior file
         hits = [c for c in candidates if c.get("memory_depth") in prior_depths]
@@ -131,7 +131,7 @@ class TestReflectionAblation(unittest.TestCase):
     def test_without_reflection_never_samplest_prior_only_depths(self):
         """no_reflection samples only from the declared design space."""
         ctx = SearchContext(domain=NonlinearModelingDomain(), seed=7, trial_budget=10)
-        strategy = _LLMSearch("llm_no_reflection", ctx)
+        strategy = _LLMSearch("llm_direct", ctx)
         candidates = [strategy.suggest([], i) for i in range(50)]
         declared = {5, 8, 12, 24, 32, 48, 72, 100, 150, 220}
         self.assertTrue(
@@ -168,7 +168,7 @@ class TestOptunaDependency(unittest.TestCase):
 
     def test_build_strategy_returns_known_strategies(self):
         ctx = SearchContext(domain=SyntheticRegressionDomain(), seed=7, trial_budget=3)
-        for method in ("random_search", "llm_no_reflection", "llm_with_reflection"):
+        for method in ("random_search", "llm_direct", "llm_program_reflection"):
             strategy = build_strategy(method, ctx)
             self.assertEqual(strategy.name, method)
 
@@ -179,7 +179,7 @@ class TestPlotGeneration(unittest.TestCase):
     def _rows(self) -> list[dict]:
         domain = SyntheticRegressionDomain()
         protocol = EvaluationProtocol(
-            methods=["random_search", "llm_no_reflection", "llm_with_reflection"],
+            methods=["random_search", "llm_direct", "llm_program_reflection"],
             seeds=[7, 17],
             trial_budget=2,
             parameter_count_max=100,

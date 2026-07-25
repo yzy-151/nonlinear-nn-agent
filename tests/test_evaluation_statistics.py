@@ -22,10 +22,10 @@ def _fake_rows_for_methods_and_seeds() -> list[dict]:
     rows = []
     import numpy as np
     rng = np.random.default_rng(42)
-    for method in ("llm_with_reflection", "llm_no_reflection"):
+    for method in ("llm_program_reflection", "llm_direct"):
         for seed in (7, 17, 29, 43, 61):
             for trial in range(3):
-                base_nmse = -37.0 if method == "llm_with_reflection" else -36.0
+                base_nmse = -37.0 if method == "llm_program_reflection" else -36.0
                 nmse = base_nmse + rng.normal(0, 0.5)
                 rows.append(build_trial_record(
                     run_id=f"v19-{method}-seed{seed}-t{trial}",
@@ -34,7 +34,7 @@ def _fake_rows_for_methods_and_seeds() -> list[dict]:
                     trial_index=trial,
                     nmse_db=float(nmse),
                     target_hit=nmse <= -35.0,
-                    reflection_used=(method == "llm_with_reflection"),
+                    reflection_used=(method == "llm_program_reflection"),
                     model_type="complex_lstsq",
                     parameter_count=3980,
                 ))
@@ -73,7 +73,7 @@ class TestPairedDelta(unittest.TestCase):
 
     def test_paired_delta_matches_same_seed_runs(self):
         rows = _fake_rows_for_methods_and_seeds()
-        summary = paired_method_delta(rows, "llm_with_reflection", "llm_no_reflection")
+        summary = paired_method_delta(rows, "llm_program_reflection", "llm_direct")
         self.assertEqual(summary["paired_seed_count"], 5)
         self.assertIn("nmse_delta_mean_db", summary)
 
@@ -90,7 +90,7 @@ class TestPairedDelta(unittest.TestCase):
 
     def test_paired_delta_is_zero_for_identical_methods(self):
         rows = _fake_rows_for_methods_and_seeds()
-        summary = paired_method_delta(rows, "llm_with_reflection", "llm_with_reflection")
+        summary = paired_method_delta(rows, "llm_program_reflection", "llm_program_reflection")
         if summary["paired_seed_count"] > 0:
             self.assertAlmostEqual(summary["nmse_delta_mean_db"], 0.0, places=6)
 
@@ -107,8 +107,8 @@ class TestMethodStatistics(unittest.TestCase):
 
     def test_compute_method_statistics_returns_expected_keys(self):
         rows = _fake_rows_for_methods_and_seeds()
-        stats = compute_method_statistics(rows, "llm_with_reflection")
-        self.assertEqual(stats["method"], "llm_with_reflection")
+        stats = compute_method_statistics(rows, "llm_program_reflection")
+        self.assertEqual(stats["method"], "llm_program_reflection")
         self.assertEqual(stats["n_seeds"], 5)
         self.assertIn("best_nmse_db_mean", stats)
 
@@ -125,7 +125,7 @@ class TestSummaryReports(unittest.TestCase):
             path = Path(tmp) / "summary.json"
             summary = write_summary_json(
                 rows,
-                ["llm_with_reflection", "llm_no_reflection"],
+                ["llm_program_reflection", "llm_direct"],
                 path,
             )
             self.assertTrue(path.exists())
@@ -139,11 +139,11 @@ class TestSummaryReports(unittest.TestCase):
             csv_path = Path(tmp) / "summary.csv"
             summary = write_summary_json(
                 rows,
-                ["llm_with_reflection", "llm_no_reflection"],
+                ["llm_program_reflection", "llm_direct"],
                 json_path,
             )
             write_summary_csv(summary, csv_path)
             self.assertTrue(csv_path.exists())
             content = csv_path.read_text()
-            self.assertIn("llm_with_reflection", content)
-            self.assertIn("llm_no_reflection", content)
+            self.assertIn("llm_program_reflection", content)
+            self.assertIn("llm_direct", content)

@@ -2,49 +2,65 @@
 
 ## Overview
 
-- benchmark_runs: `5`
-- planner_loop_runs: `57`
+- benchmark_runs: `19`
+- planner_loop_runs: `99`
 
 ## Aggregate Metrics
 
 | metric | value |
 |---|---:|
-| case_count | `491` |
-| target_hit_rate | `0.48676171079429736` |
-| rejected_rate | `0.22810590631364563` |
-| runtime_failure_rate | `0.285132382892057` |
-| average_experiments_used | `8.614035087719298` |
-| best_nmse_db | `-40.86985111609215` |
+| case_count | `871` |
+| target_hit_rate | `0.33639494833524686` |
+| rejected_rate | `0.1928817451205511` |
+| runtime_failure_rate | `0.4707233065442021` |
+| average_experiments_used | `8.797979797979798` |
+| best_nmse_db | `-42.42519559502256` |
 
 ## Best Candidate
 
 | field | value |
 |---|---|
-| id | `exp-029` |
-| nmse_db | `-40.86985111609215` |
-| parameter_count | `21122` |
-| source | `runs/20260725-143359-planner-loop/result.json` |
+| id | `exp_002` |
+| nmse_db | `-42.42519559502256` |
+| parameter_count | `19490` |
+| source | `runs/benchmark-target-hit/result.json` |
 
 ## Run Status Distribution
 
 | status | count |
 |---|---:|
-| failed | 140 |
-| rejected | 112 |
-| succeeded | 239 |
+| failed | 410 |
+| reflection | 97 |
+| rejected | 168 |
+| succeeded | 293 |
 
 ## Error Type Distribution
 
 | error_type | count |
 |---|---:|
-| metric_threshold_error | 104 |
-| tool_error | 34 |
+| metric_threshold_error | 338 |
+| timeout_error | 2 |
+| tool_error | 69 |
 
 ## Benchmark Runs
 
 | source | cases | target_hit_rate | best_nmse_db |
 |---|---:|---:|---:|
+| `benchmarks/deepseek-v21/results.json` | 10 | 0.4 | -37.42494350080102 |
+| `benchmarks/deepseek-v21-final/results.json` | 10 | 0.5 | -37.42494350080102 |
+| `benchmarks/deepseek-v21-final2/results.json` | 10 | 0.0 | -19.694849292675865 |
+| `benchmarks/deepseek-v21b/results.json` | 10 | 0.5 | -37.42494350080102 |
+| `benchmarks/deepseek-v21c/results.json` | 10 | 0.5 | -37.42494350080102 |
+| `benchmarks/deepseek-v22/results.json` | 10 | 0.4 | -37.42494350080102 |
+| `benchmarks/deepseek-v23/results.json` | 10 | 0.4 | -37.42494350080102 |
+| `benchmarks/deepseek-v24/results.json` | 10 | 0.3 | -37.42494350080102 |
+| `benchmarks/deepseek-v25/results.json` | 10 | 0.1 | -37.57686595165717 |
+| `benchmarks/deepseek-v26/results.json` | 10 | 0.9 | -42.42519559502256 |
 | `benchmarks/fake-v08-check/results.json` | 3 | 0.3333333333333333 | -36.0 |
+| `benchmarks/fake-v16-audit/results.json` | 5 | 0.6 | -36.5 |
+| `benchmarks/fake-v16-doc-ui-check/results.json` | 5 | 0.6 | -36.5 |
+| `benchmarks/fake-v21/results.json` | 5 | 0.6 | -36.5 |
+| `benchmarks/fake-v21b/results.json` | 10 | 0.7 | -36.5 |
 | `benchmarks/web-20260724-221339/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
 | `benchmarks/web-20260724-221743/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
 | `benchmarks/web-20260725-161002/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
@@ -54,6 +70,51 @@
 
 | source | status | rounds | history_count |
 |---|---|---:|---:|
+| `runs/20260806-105749-planner-loop/result.json` | `max_rounds_reached` | 2 | 10 |
+| `runs/benchmark-parameter-budget-edge/result.json` | `max_experiments_reached` | 1 | 3 |
+| `runs/benchmark-multi-round-self-correction/result.json` | `max_experiments_reached` | 1 | 5 |
+| `runs/benchmark-long-history-compression/result.json` | `max_experiments_reached` | 3 | 11 |
+| `runs/benchmark-unknown-tool/result.json` | `max_experiments_reached` | 1 | 1 |
+| `runs/benchmark-json-tolerance/result.json` | `max_experiments_reached` | 1 | 2 |
+| `runs/benchmark-budget-stop/result.json` | `max_experiments_reached` | 1 | 1 |
+| `runs/benchmark-reflection-recovery/result.json` | `max_experiments_reached` | 1 | 2 |
+| `runs/benchmark-runtime-failure/result.json` | `max_experiments_reached` | 1 | 1 |
+| `runs/benchmark-invalid-plan/result.json` | `max_experiments_reached` | 1 | 1 |
+| `runs/benchmark-target-hit/result.json` | `max_experiments_reached` | 1 | 2 |
+| `runs/20260804-121607-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121558-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121549-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121540-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121532-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121523-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121514-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121504-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121455-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121446-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121436-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121427-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121418-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121409-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121400-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121351-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121342-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121332-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260804-121324-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260803-103958-planner-loop/result.json` | `max_experiments_reached` | 7 | 33 |
+| `runs/20260803-093815-planner-loop/result.json` | `max_experiments_reached` | 1 | 3 |
+| `runs/20260803-093327-planner-loop/result.json` | `stopped` | 2 | 2 |
+| `runs/20260802-235440-planner-loop/result.json` | `stopped` | 6 | 35 |
+| `runs/20260802-234846-planner-loop/result.json` | `max_experiments_reached` | 1 | 13 |
+| `runs/20260802-192253-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/20260727-141737-planner-loop/result.json` | `max_experiments_reached` | 9 | 48 |
+| `runs/20260727-121849-planner-loop/result.json` | `max_experiments_reached` | 11 | 50 |
+| `runs/20260727-112047-planner-loop/result.json` | `max_experiments_reached` | 9 | 48 |
+| `runs/20260727-002147-planner-loop/result.json` | `planner_error` | 5 | 22 |
+| `runs/20260726-222348-planner-loop/result.json` | `stopped` | 9 | 39 |
+| `runs/20260726-213818-planner-loop/result.json` | `max_experiments_reached` | 11 | 46 |
+| `runs/20260726-200532-planner-loop/result.json` | `max_experiments_reached` | 2 | 6 |
+| `runs/20260726-170203-planner-loop/result.json` | `max_experiments_reached` | 1 | 3 |
+| `runs/20260726-140357-planner-loop/result.json` | `planner_error` | 13 | 53 |
 | `runs/20260725-212356-planner-loop/result.json` | `planner_error` | 9 | 34 |
 | `runs/20260725-202655-planner-loop/result.json` | `planner_error` | 9 | 41 |
 | `runs/20260725-195714-planner-loop/result.json` | `stopped` | 2 | 1 |
@@ -106,9 +167,6 @@
 | `runs/fake-v13-check/result.json` | `stopped` | 2 | 1 |
 | `runs/fake-v11-check/result.json` | `stopped` | 2 | 1 |
 | `runs/fake-v09-check/result.json` | `stopped` | 2 | 1 |
-| `runs/benchmark-runtime-failure/result.json` | `max_rounds_reached` | 1 | 1 |
-| `runs/benchmark-invalid-plan/result.json` | `max_rounds_reached` | 1 | 1 |
-| `runs/benchmark-target-hit/result.json` | `stopped` | 2 | 1 |
 | `runs/fake-v07-check/result.json` | `stopped` | 2 | 1 |
 | `runs/fake-v06-check/result.json` | `stopped` | 2 | 1 |
 

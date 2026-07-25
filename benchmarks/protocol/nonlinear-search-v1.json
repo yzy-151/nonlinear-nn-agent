@@ -3,8 +3,8 @@
   "methods": [
     "random_search",
     "optuna_tpe",
-    "llm_no_reflection",
-    "llm_with_reflection"
+    "llm_direct",
+    "llm_program_reflection"
   ],
   "seeds": [7, 17, 29, 43, 61],
   "trial_budget": 10,

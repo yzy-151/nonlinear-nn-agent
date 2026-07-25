@@ -9,7 +9,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 方法 | `random_search`、`optuna_tpe`、`llm_no_reflection`、`llm_with_reflection` |
+| 方法 | `random_search`、`optuna_tpe`、`llm_direct`、`llm_program_reflection` |
 | seeds | 7, 17, 29, 43, 61 |
 | 每个 method-seed 的有效训练 trial | 10（rejected 不计入有效预算，单独统计） |
 | 有效训练 trial 总量 | 4 × 5 × 10 = 200 |
@@ -28,8 +28,8 @@
 | --- | ---: | ---: | ---: | ---: | ---: |
 | random_search | -36.07 | [-37.06, -35.05] | -36.69 | 8% [2%, 14%] | 43.9% |
 | optuna_tpe | **-37.07** | [-37.30, -36.87] | **-37.05** | 26% [16%, 34%] | 45.7% |
-| llm_no_reflection | -33.77 | [-36.93, -28.33] | -36.09 | 34% [12%, 64%] | 22.5% |
-| llm_with_reflection | -31.43 | [-37.02, -25.83] | -36.54 | 38% [6%, 70%] | 13.1% |
+| llm_direct | -33.77 | [-36.93, -28.33] | -36.09 | 34% [12%, 64%] | 22.5% |
+| llm_program_reflection | -31.43 | [-37.02, -25.83] | -36.54 | 38% [6%, 70%] | 13.1% |
 
 要点：
 
@@ -39,7 +39,7 @@
 
 ## 3. Reflection 配对消融
 
-`llm_with_reflection` vs `llm_no_reflection` 按 seed 配对（不混合不同 seed）：
+`llm_program_reflection` vs `llm_direct` 按 seed 配对（不混合不同 seed）：
 
 | 指标 | 值 |
 | --- | ---: |
@@ -50,9 +50,9 @@
 | per-seed delta | seed7: 0.0 · seed17: +12.17 · seed29: 0.0 · seed43: 0.0 · seed61: -0.45 |
 | 显著性 | **不显著（significant = false）** |
 
-结论：**未观察到 `llm_with_reflection` 对 `llm_no_reflection` 的稳定优势**。点估计反而更差，且置信区间跨 0。本报告不展示单一 seed 或单一成功案例作为“Agent 更优”的证据。
+结论：**未观察到 `llm_program_reflection` 对 `llm_direct` 的稳定优势**。点估计反而更差，且置信区间跨 0。本报告不展示单一 seed 或单一成功案例作为“Agent 更优”的证据。
 
-实现说明：本实验的 LLM 策略为离线可复现的邻域采样模拟（读历史最优 + 30% 随机探索），`llm_with_reflection` 额外消费 ReflectionPolicy 事实、避免被拒/失败的 model_type。因此 `prompt_tokens / completion_tokens / estimated_cost_usd` 均为 0——这些数字不代表真实 LLM 成本，只代表该模拟器未调用 LLM API。真实 DeepSeek 调用的证据见 `docs/handoff/llm-continuation-plan.md`（exp016 / exp_019 案例）。
+实现说明：本实验的 LLM 策略为离线可复现的邻域采样模拟（读历史最优 + 30% 随机探索），`llm_program_reflection` 额外消费 ReflectionPolicy 事实、避免被拒/失败的 model_type。因此 `prompt_tokens / completion_tokens / estimated_cost_usd` 均为 0——这些数字不代表真实 LLM 成本，只代表该模拟器未调用 LLM API。真实 DeepSeek 调用的证据见 `docs/handoff/llm-continuation-plan.md`（exp016 / exp_019 案例）。
 
 ## 4. 失败与低效 case（不删除、不美化）
 
@@ -62,10 +62,10 @@
 | --- | ---: | --- |
 | random_search | 43 | tiny_mlp ×22、spline_mlp ×19 |
 | optuna_tpe | 48 | tiny_mlp ×25、spline_mlp ×19 |
-| llm_no_reflection | 21 | spline_mlp ×13 |
-| llm_with_reflection | 8 | tiny_mlp ×4、spline_mlp ×2 |
+| llm_direct | 21 | spline_mlp ×13 |
+| llm_program_reflection | 8 | tiny_mlp ×4、spline_mlp ×2 |
 
-被拒原因集中在神经模型候选超出 4000 参数预算或字段非法，由 schema guard 在训练前拦截。`llm_with_reflection` 在被拒后不再重提同类 model_type，其 rejected 率最低（13.1%），但该“避免”行为并未转化为 best NMSE 优势。
+被拒原因集中在神经模型候选超出 4000 参数预算或字段非法，由 schema guard 在训练前拦截。`llm_program_reflection` 在被拒后不再重提同类 model_type，其 rejected 率最低（13.1%），但该“避免”行为并未转化为 best NMSE 优势。
 
 ## 5. 效率与成本
 
@@ -73,8 +73,8 @@
 | --- | ---: |
 | random_search | 23.5 |
 | optuna_tpe | 25.9 |
-| llm_no_reflection | 15.3 |
-| llm_with_reflection | 11.8 |
+| llm_direct | 15.3 |
+| llm_program_reflection | 11.8 |
 
 整体：200 个有效训练 trial + 120 个 rejected，全矩阵真实训练耗时约 65 分钟（本机单进程）。
 
@@ -92,7 +92,7 @@ python -m unittest discover tests
 
 # smoke：24 个有效训练 trial（2 seeds × 3 trials × 4 methods）
 python agent.py compare-search `
-  --methods random_search,optuna_tpe,llm_no_reflection,llm_with_reflection `
+  --methods random_search,optuna_tpe,llm_direct,llm_program_reflection `
   --seeds 7,17 --trial-budget 3 --parameter-count-max 4000 `
   --nmse-threshold-db -39.0 --output-dir benchmarks/search-smoke
 

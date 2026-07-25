@@ -308,14 +308,25 @@ pre.ev{
     </p>
     <div class="metric-list">
       <div class="metric"><code>target_hit_rate</code> = 达标 case 数 / 总 case 数，衡量目标完成率。</div>
+      <div class="metric"><code>planner_success_rate</code> = 计划通过 Guard 的比例，衡量 LLM 与 schema 的契合度。</div>
       <div class="metric"><code>rejected_rate</code> = rejected 记录数 / 全部实验记录，衡量 Guard 拦截强度。</div>
       <div class="metric"><code>runtime_failure_rate</code> = failed 记录数 / 全部实验记录，衡量工具链失败比例。</div>
+      <div class="metric"><code>self_correction_count</code> = rejected/failed 后修正成功的次数，衡量自我修正能力。</div>
       <div class="metric"><code>average_experiments_used</code> = 消耗实验数 / case 数，衡量探索效率。</div>
+      <div class="metric"><code>average_rounds</code> = 平均轮次；<code>total_prompt_tokens / estimated_cost_usd</code> = LLM 用量与估算成本。</div>
       <div class="metric"><code>best_nmse_db</code> = 全部 case 中最优 NMSE，数值越小越好。</div>
     </div>
     <label for="bmTo">Timeout (seconds)</label><input id="bmTo" type="number" min="1" value="300">
     <label for="bmThr">Threshold (dB)</label><input id="bmThr" type="number" step="0.1" value="-35">
-    <button type="button" class="btn btn-go" id="bmBtn">&#9733; Run Benchmark</button>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button type="button" class="btn btn-go" id="bmBtn" style="margin-top:0;flex:1">&#9733; Run Benchmark</button>
+      <button type="button" class="btn btn-ghost" id="bmLoadBtn" style="margin-top:0;flex:1;min-height:46px">&#128194; Load Saved Results</button>
+    </div>
+    <div id="bmResults" style="margin-top:18px;display:none">
+      <h3 style="font-size:14px;margin-bottom:10px">&#9733; Benchmark Results</h3>
+      <div id="bmSummaryWrap"></div>
+      <div id="bmTableWrap" style="overflow-x:auto;margin-top:12px"></div>
+    </div>
   </div>
 
 </div>
@@ -466,7 +477,7 @@ function fm(obj){
   if(p.metrics){appendMetrics(out,p.metrics,"session metrics");appendArtifacts(out,p.artifacts);maybeShowPreview(p.metrics,p.artifacts,"complete")}
   if(t==="metric"&&p.name&&p.value!=null){var v=p.value,nm=p.name;if(typeof v==="number"){if(nm==="nmse_db")v=Number(v).toFixed(2);else if(nm==="final_train_loss")v=Number(v).toExponential(3);else v=Number(v).toFixed(4)}out.push("  "+nm+" = "+v)}
   if(t==="benchmark_case_start")out.push("  case "+p.case_index+"/"+p.total_cases+": "+p.case_id+" | "+p.goal);
-  if(t==="benchmark_case_end")out.push("  case: "+p.case_id+" | hit="+p.target_hit+" | best_nmse="+p.best_nmse_db+" | ok="+p.succeeded+" fail="+p.failed+" rejected="+p.rejected);
+  if(t==="benchmark_case_end")out.push("  case: "+p.case_id+" | hit="+p.target_hit+" | best_nmse="+p.best_nmse_db+" | ok="+p.succeeded+" fail="+p.failed+" rejected="+p.rejected+" | planner_ok="+(p.planner_success_rate!=null?Math.round(p.planner_success_rate*100)+"%":"-")+" corr="+p.self_correction_count);
   if(t==="benchmark_complete"&&p.summary)appendMetrics(out,p.summary,"benchmark summary");
   if(t==="compare_start"){out.push("  protocol: "+p.payload.methods.join(", ")+" | "+p.payload.seeds.length+" seeds x "+p.payload.trial_budget+" trials = "+p.payload.estimated_total_trials)}
   if(t==="strategy_start")out.push("  strategy: "+p.method+" | seed="+p.seed+" | budget="+p.trial_budget+" trials");
@@ -513,6 +524,14 @@ document.getElementById("bmBtn").addEventListener("click",function(){
   var body={timeout_seconds:Number(document.getElementById("bmTo").value),nmse_threshold_db:Number(document.getElementById("bmThr").value)};
   go("/benchmark/events",body,document.getElementById("bmBtn"))
 });
+document.getElementById("bmLoadBtn").addEventListener("click",function(){
+  document.getElementById("bmResults").style.display="none";
+  fetch("/benchmark/summary").then(function(r){return r.json()}).then(function(data){
+    if(data.error){al("ERROR: "+data.error,"ev-failure");return}
+    renderBenchmarkSummary(data);
+    al("Loaded saved benchmark results","ev-success");
+  }).catch(function(e){al("ERROR: "+String(e),"ev-failure")});
+});
 // Load saved comparison results
 document.getElementById("cmpLoadBtn").addEventListener("click",function(){
   document.getElementById("cmpResults").style.display="none";
@@ -534,7 +553,7 @@ document.getElementById("cmpBtn").addEventListener("click",function(){
     nmse_threshold_db:Number(document.getElementById("cmpThr").value),
     seeds: Array.from({length:seeds_count},function(_,i){return [7,17,29,43,61][i]||(7+i*10)}),
     trial_budget:Number(document.getElementById("cmpBudget").value),
-    methods:["random_search","optuna_tpe","llm_no_reflection","llm_with_reflection"],
+    methods:["random_search","optuna_tpe","llm_direct","llm_program_reflection"],
     plan:document.getElementById("cmpPlan").value
   };
   go("/compare/events",body,document.getElementById("cmpBtn"))
@@ -544,7 +563,7 @@ document.getElementById("cmpBtn").addEventListener("click",function(){
 function renderCompareSummary(summary){
   var wrap=document.getElementById("cmpTableWrap"),pairedEl=document.getElementById("cmpPaired");
   var pm=summary.per_method||{}, rows=[];
-  rows.push("<table style='font-size:13px'><tr><th>Method</th><th>Best Metric (mean)</th><th>95% CI</th><th>Hit Rate</th><th>Rejected</th><th>Failed</th></tr>");
+  rows.push("<table style='font-size:13px'><tr><th>Method</th><th>Best Metric (mean)</th><th>95% CI</th><th>Hit Rate</th><th>Planner OK</th><th>Rejected</th><th>Failed</th><th>Effective</th></tr>");
   var metric=""; var m=Object.keys(pm); if(m.length)metric=(pm[m[0]].metric_name||"metric");
   var sorted=Object.keys(pm).sort(function(a,b){
     var va=pm[a]["best_"+metric+"_mean"],vb=pm[b]["best_"+metric+"_mean"];
@@ -553,12 +572,17 @@ function renderCompareSummary(summary){
   sorted.forEach(function(name){
     var s=pm[name],best=s["best_"+metric+"_mean"],lo=s["best_"+metric+"_ci_95_low"],hi=s["best_"+metric+"_ci_95_high"];
     var hit=s.target_hit_rate_mean!=null?(Number(s.target_hit_rate_mean)*100).toFixed(0)+"%":"-";
+    var pso=s.planner_success_rate!=null?(Number(s.planner_success_rate)*100).toFixed(0)+"%":"-";
     var rej=s.rejected_rate_mean!=null?(Number(s.rejected_rate_mean)*100).toFixed(0)+"%":"-";
     var fail=s.runtime_failure_rate_mean!=null?(Number(s.runtime_failure_rate_mean)*100).toFixed(0)+"%":"-";
+    var eff=s.n_effective_trials!=null?s.n_effective_trials:"-";
     var bStr=best!=null?Number(best).toPrecision(4):"-";
     var ciStr=(lo!=null&&hi!=null)?"["+Number(lo).toPrecision(3)+", "+Number(hi).toPrecision(3)+"]":"-";
-    var css=name==="llm_with_reflection"?"style='color:#34d399;font-weight:700'":"";
-    rows.push("<tr><td "+css+">"+name+"</td><td>"+bStr+"</td><td>"+ciStr+"</td><td>"+hit+"</td><td>"+rej+"</td><td>"+fail+"</td></tr>");
+    var css=name==="llm_program_reflection"?"style='color:#34d399;font-weight:700'":"";
+    var label=name;
+    if(name==="llm_program_reflection")label="llm_program_reflection (程序确定性反思)";
+    if(name==="llm_direct")label="llm_direct (LLM 直接决策)";
+    rows.push("<tr><td "+css+">"+label+"</td><td>"+bStr+"</td><td>"+ciStr+"</td><td>"+hit+"</td><td>"+pso+"</td><td>"+rej+"</td><td>"+fail+"</td><td>"+eff+"</td></tr>");
   });
   rows.push("</table>");
   wrap.innerHTML=rows.join("");
@@ -575,6 +599,37 @@ function renderCompareSummary(summary){
   });
   pairedEl.innerHTML=paired;
   document.getElementById("cmpResults").style.display="block";
+}
+
+// Render saved benchmark results (10-case) into the benchmark panel
+function renderBenchmarkSummary(data){
+  var s=data.summary||data, results=data.results||[];
+  var wrap=document.getElementById("bmSummaryWrap"),tbl=document.getElementById("bmTableWrap");
+  var keys=["case_count","target_hit_rate","planner_success_rate","rejected_rate","runtime_failure_rate","self_correction_count","average_rounds","average_experiments_used","best_nmse_db","total_prompt_tokens","total_completion_tokens","estimated_cost_usd"];
+  var html="<table style='font-size:13px'><tr>";
+  keys.forEach(function(k){html+="<th>"+k+"</th>"});
+  html+="</tr><tr>";
+  keys.forEach(function(k){
+    var v=s[k];
+    if(typeof v==="number"){
+      if(k.indexOf("rate")>=0)v=(v*100).toFixed(1)+"%";
+      else if(k==="best_nmse_db")v=Number(v).toFixed(2)+" dB";
+      else if(k==="estimated_cost_usd")v="$"+Number(v).toFixed(4);
+      else v=Number(v).toFixed(2);
+    }
+    html+="<td>"+(v==null?"-":v)+"</td>";
+  });
+  html+="</tr></table>";
+  wrap.innerHTML=html;
+  if(results.length){
+    var t="<table style='font-size:12px'><tr><th>Case</th><th>Hit</th><th>Best NMSE</th><th>OK</th><th>Fail</th><th>Rejected</th><th>Planner OK</th><th>Self-corr</th><th>Tokens</th><th>Cost</th></tr>";
+    results.forEach(function(r){
+      t+="<tr><td>"+r.case_id+"</td><td>"+(r.target_hit?"&#10003;":"&#10007;")+"</td><td>"+(r.best_nmse_db!=null?Number(r.best_nmse_db).toFixed(2):"-")+"</td><td>"+r.succeeded_count+"</td><td>"+r.failed_count+"</td><td>"+r.rejected_count+"</td><td>"+(r.planner_success_rate!=null?Math.round(r.planner_success_rate*100)+"%":"-")+"</td><td>"+r.self_correction_count+"</td><td>"+((r.total_prompt_tokens||0)+(r.total_completion_tokens||0))+"</td><td>$"+(r.estimated_cost_usd!=null?Number(r.estimated_cost_usd).toFixed(4):"0")+"</td></tr>";
+    });
+    t+="</table>";
+    tbl.innerHTML=t;
+  }
+  document.getElementById("bmResults").style.display="block";
 }
 console.log("UI ready")
 })();

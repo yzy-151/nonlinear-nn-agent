@@ -230,9 +230,9 @@ def write_summary_json(
         )
 
     paired: dict[str, Any] = {}
-    if "llm_with_reflection" in methods and "llm_no_reflection" in methods:
-        paired["reflection_vs_no_reflection"] = paired_method_delta(
-            trial_rows, "llm_with_reflection", "llm_no_reflection",
+    if "llm_program_reflection" in methods and "llm_direct" in methods:
+        paired["program_reflection_vs_direct"] = paired_method_delta(
+            trial_rows, "llm_program_reflection", "llm_direct",
             metric=metric, lower_is_better=lower_is_better,
         )
 

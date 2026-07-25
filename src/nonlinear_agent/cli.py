@@ -65,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     compare = subparsers.add_parser("compare-search", help="Run multi-strategy search comparison.")
     compare.add_argument("--workspace", default=str(PROJECT_ROOT))
-    compare.add_argument("--methods", default="random_search,optuna_tpe,llm_no_reflection,llm_with_reflection")
+    compare.add_argument("--methods", default="random_search,optuna_tpe,llm_direct,llm_program_reflection")
     compare.add_argument("--seeds", default="7,17,29,43,61")
     compare.add_argument("--trial-budget", type=int, default=10)
     compare.add_argument("--parameter-count-max", type=int, default=15000)

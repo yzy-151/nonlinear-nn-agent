@@ -6,7 +6,7 @@
 
 ## 1. 本次改动：Reflection 读取历史先验
 
-把项目里真实记载的历史最优候选整理成先验文件 `configs/priors/nonlinear-modeling.json`（来源：DeepSeek planner run 2026-07-22 的 exp016/exp019、`docs/model-search-results.csv`、`reports/` 扫描），`llm_with_reflection` 在建议候选时以 60% 概率从先验邻域出发；`llm_no_reflection` 不加载先验，只用当前轮 history。参数预算从 4000 提高到 **20000**（用户要求），`reports/017`（-38.56 dB @ 16034 参数）等历史最优因此进入先验。
+把项目里真实记载的历史最优候选整理成先验文件 `configs/priors/nonlinear-modeling.json`（来源：DeepSeek planner run 2026-07-22 的 exp016/exp019、`docs/model-search-results.csv`、`reports/` 扫描），`llm_program_reflection` 在建议候选时以 60% 概率从先验邻域出发；`llm_direct` 不加载先验，只用当前轮 history。参数预算从 4000 提高到 **20000**（用户要求），`reports/017`（-38.56 dB @ 16034 参数）等历史最优因此进入先验。
 
 ## 2. 结果（真实训练，200 有效 trial + 74 rejected）
 
@@ -14,8 +14,8 @@
 | --- | ---: | --- | ---: | ---: | ---: |
 | random_search | -36.02 | [-37.06, -34.85] | 10% | 32.1% | 0 |
 | optuna_tpe | -37.02 | [-37.26, -36.81] | 22% | 34.5% | 0 |
-| llm_no_reflection | -33.59 | [-37.44, -27.86] | 28% | 9.8% | 0 |
-| **llm_with_reflection** | **-37.87** | [-37.87, -37.87] | **78%** | 24.0% | 10% |
+| llm_direct | -33.59 | [-37.44, -27.86] | 28% | 9.8% | 0 |
+| **llm_program_reflection** | **-37.87** | [-37.87, -37.87] | **78%** | 24.0% | 10% |
 
 **Reflection 配对消融（5 seeds 配对）**：
 
@@ -26,7 +26,7 @@
 | significant | **true** |
 | per-seed delta | seed7: -0.87 · seed17: -5.12 · seed29: -0.57 · seed43: -14.78 · seed61: -0.04 |
 
-**结论：`llm_with_reflection` 相对 `llm_no_reflection` 出现显著且可复现的提升**（-4.28 dB，hit 率 78% vs 28%）。
+**结论：`llm_program_reflection` 相对 `llm_direct` 出现显著且可复现的提升**（-4.28 dB，hit 率 78% vs 28%）。
 
 ## 3. 指标异常分析（诚实记录）
 

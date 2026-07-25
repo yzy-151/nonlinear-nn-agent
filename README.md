@@ -19,7 +19,7 @@
 - **Planner / Runtime 解耦**：LLM 只输出结构化 JSON 实验计划，不直接执行命令；Runtime 只调用已注册工具
 - **Schema Guard 与预算控制**：白名单字段校验、结果字段黑名单、参数预算估算、`model_type` 白名单；被拒计划单独统计并回喂给 LLM 自动修正
 - **DomainPlugin 可迁移**：非线性建模与合成回归两个领域插件共用同一套 Harness，证明系统可迁移
-- **四种搜索策略统一对照**：Random Search、Optuna TPE、LLM（无/有 Reflection）在同一协议、同一数据划分下公平比较，输出 bootstrap 95% CI 与 paired delta
+- **四种搜索策略统一对照**：`random_search`、`optuna_tpe`、`llm_direct`（LLM 直接决策，无反思）、`llm_program_reflection`（程序基于实验结果做确定性反思/路由）在同一协议、同一数据划分下公平比较，输出 bootstrap 95% CI 与 paired delta
 - **历史先验注入**：把历史最优候选（-42 dB 级）作为知识注入 Reflection 策略，让 LLM 在已知最优邻域继续搜索
 - **SSE 实时观测**：事件 ID、15 秒心跳、`/cancel`、Last-Event-ID 断线重放
 - **SQLite 控制面**：请求去重、任务 lease、原子 claim、单调事件序列（WAL + busy timeout），并发压测通过
@@ -130,10 +130,16 @@ NMSE = 10 * log10( mean(|prediction - target|^2) / mean(|target|^2) )
 | --- | ---: | ---: | ---: |
 | random_search | -36.02 | 10% | 32% |
 | optuna_tpe | -37.02 | 22% | 35% |
-| llm_no_reflection | -33.59 | 28% | 10% |
-| **llm_with_reflection（含历史先验）** | **-37.87** | **78%** | 24% |
+| llm_direct | -33.59 | 28% | 10% |
+| **llm_program_reflection（含历史先验）** | **-37.87** | **78%** | 24% |
 
 Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**。
+
+**策略命名语义**：
+
+- `llm_direct`：LLM 直接根据目标/历史给出下一轮候选，不消费任何反思信息；
+- `llm_program_reflection`：**程序针对实验结果做确定性反思与路由**——由 ReflectionPolicy 规则从结果中提取失败原因/事实，结合历史先验候选注入下一轮建议；
+- LLM 自主反思（模型自己撰写反思并据此决策）是后续对照方向，当前版本以程序确定性反思为准。
 
 ![Best-so-far 对比](benchmarks/nonlinear-search-v1-v20000/best-so-far.png)
 

@@ -46,8 +46,8 @@
       "runtime_failure_rate_ci_95_low": 0.0,
       "runtime_failure_rate_ci_95_high": 0.0
     },
-    "llm_no_reflection": {
-      "method": "llm_no_reflection",
+    "llm_direct": {
+      "method": "llm_direct",
       "metric_name": "nmse_db",
       "n_seeds": 5,
       "n_total_trials": 71,
@@ -67,8 +67,8 @@
       "runtime_failure_rate_ci_95_low": 0.0,
       "runtime_failure_rate_ci_95_high": 0.0
     },
-    "llm_with_reflection": {
-      "method": "llm_with_reflection",
+    "llm_program_reflection": {
+      "method": "llm_program_reflection",
       "metric_name": "nmse_db",
       "n_seeds": 5,
       "n_total_trials": 58,
@@ -90,7 +90,7 @@
     }
   },
   "paired_comparisons": {
-    "reflection_vs_no_reflection": {
+    "program_reflection_vs_direct": {
       "paired_seed_count": 5,
       "nmse_db_delta_mean": 2.3445543864910654,
       "nmse_db_delta_median": 0.0,

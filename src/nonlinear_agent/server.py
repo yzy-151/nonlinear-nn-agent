@@ -708,7 +708,7 @@ def create_app(workspace: Path | str):
 
         from nonlinear_agent.evaluation_protocol import EvaluationProtocol
 
-        methods = payload.get("methods", ["random_search", "optuna_tpe", "llm_no_reflection", "llm_with_reflection"])
+        methods = payload.get("methods", ["random_search", "optuna_tpe", "llm_direct", "llm_program_reflection"])
         seeds = payload.get("seeds", [7, 17])
         trial_budget = int(payload.get("trial_budget", 3))
         param_count_max = int(payload.get("parameter_count_max", 15000))
@@ -758,17 +758,48 @@ def create_app(workspace: Path | str):
         """Return the most recent comparison summary.json for loading saved results."""
         from fastapi.responses import Response
         import glob as _glob
-        candidates = sorted(_glob.glob(str(root / "benchmarks" / "compare-*" / "summary.json")))
-        candidates += sorted(_glob.glob(str(root / "benchmarks" / "search-smoke" / "summary.json")))
-        candidates += sorted(_glob.glob(str(root / "benchmarks" / "nonlinear-real-v*" / "summary.json")))
+        patterns = [
+            "benchmarks/nonlinear-search-v1-v20000/summary.json",
+            "benchmarks/nonlinear-search-v1/summary.json",
+            "benchmarks/compare-*/summary.json",
+            "benchmarks/search-smoke*/summary.json",
+            "benchmarks/nonlinear-real-v*/summary.json",
+        ]
+        candidates = [
+            Path(p)
+            for pattern in patterns
+            for p in _glob.glob(str(root / pattern))
+            if Path(p).is_file()
+        ]
         if candidates:
-            path = Path(candidates[-1])
+            # 按修改时间取最新结果，避免加载旧产物
+            path = max(candidates, key=lambda p: p.stat().st_mtime)
             return Response(
                 content=path.read_bytes(),
                 media_type="application/json",
                 headers={"Cache-Control": "no-cache"},
             )
         return {"error": "No comparison results found. Run compare-search first."}
+
+    @app.get("/benchmark/summary")
+    async def benchmark_summary():
+        """Return the most recent saved benchmark results.json (10-case summary)."""
+        from fastapi.responses import Response
+        import glob as _glob
+
+        candidates = [
+            Path(p)
+            for p in _glob.glob(str(root / "benchmarks" / "*" / "results.json"))
+            if Path(p).is_file()
+        ]
+        if candidates:
+            path = max(candidates, key=lambda p: p.stat().st_mtime)
+            return Response(
+                content=path.read_bytes(),
+                media_type="application/json",
+                headers={"Cache-Control": "no-cache"},
+            )
+        return {"error": "No benchmark results found. Run a benchmark first."}
 
     @app.post("/cancel/{session_id}")
     async def cancel_run(session_id: str):
@@ -803,128 +834,22 @@ async def stream_benchmark_events(
     timeout_seconds: float = 300.0,
     nmse_threshold_db: float = -35.0,
 ):
-    """依次执行 Benchmark Case，每个 case 的事件通过 SSE 流式输出。
+    """10-case Agent Benchmark streamed as SSE events with extended metrics.
 
-    这些 case 的 Fake Plans 是精心设计的：
-      case 1：正常跑 → target hit（complex_lstsq 能达标）
-      case 2：先输出非法字段(rank=200) → rejected → 再输出合法 → 观察 recovery
-      case 3：用 linear 模型 + -60 dB 的不可能阈值 → target miss → 观察失败处理
-      case 4：先触发 schema reflection，再用安全候选恢复
-      case 5：一次只允许一个实验，观察预算耗尽停止
+    Case definitions are shared with the CLI (nonlinear_agent.benchmark_cases)
+    so the Web UI and the CLI always evaluate the same cases. Each case
+    yields start/end events; the final event carries the full summary
+    (target_hit_rate, planner_success_rate, self_correction_count, tokens,
+    estimated cost, ...).
     """
     from nonlinear_agent.benchmark import (
-        BenchmarkCase, BenchmarkCaseResult, build_benchmark_summary,
-        run_benchmark_cases, summarize_loop_result, write_benchmark_artifacts,
+        BenchmarkCaseResult, build_benchmark_summary,
+        summarize_loop_result, write_benchmark_artifacts,
     )
-    from nonlinear_agent.llm import FakeLLMClient
-    from nonlinear_agent.loop import ExperimentPlannerLoop, PlannerLoopResult
-    from nonlinear_agent.planner import ExperimentPlanner
+    from nonlinear_agent.benchmark_cases import build_cases, execute_case
 
     root = Path(workspace)
-
-    cases = [
-        BenchmarkCase(
-            case_id="target-under-budget",
-            goal="Find NMSE <= -35 dB under 4000 params.",
-            constraints={"parameter_count_max": 4000},
-            max_rounds=2, max_experiments=3,
-            target_nmse_db=-35.0,
-        ),
-        BenchmarkCase(
-            case_id="invalid-plan-recovery",
-            goal="Recover from invalid planner output.",
-            constraints={"parameter_count_max": 4000},
-            max_rounds=2, max_experiments=2,
-            target_nmse_db=-35.0,
-        ),
-        BenchmarkCase(
-            case_id="runtime-failure-handling",
-            goal="Handle runtime tool failure gracefully.",
-            constraints={"parameter_count_max": 4000},
-            max_rounds=2, max_experiments=2,
-            target_nmse_db=-60.0,  # 不可能达标 → 测试失败处理
-        ),
-        BenchmarkCase(
-            case_id="reflection-recovery",
-            goal="Recover after rejected planner output using reflection.",
-            constraints={"parameter_count_max": 4000},
-            max_rounds=2, max_experiments=2,
-            target_nmse_db=-35.0,
-        ),
-        BenchmarkCase(
-            case_id="budget-stop",
-            goal="Stop cleanly when experiment budget is exhausted.",
-            constraints={"parameter_count_max": 4000},
-            max_rounds=1, max_experiments=1,
-            target_nmse_db=-35.0,
-        ),
-    ]
-
-    plan_map = {
-        "target-under-budget": [
-            '{"summary":"Run complex_lstsq baseline.","stop":false,'
-            '"experiments":[{"id":"bm001","reason":"complex_lstsq base.",'
-            '"overrides":{"model_type":"complex_lstsq","feature_mode":"complex_mp",'
-            '"memory_depth":150,"mp_order_count":12,"epochs":0}}]}',
-            '{"summary":"Stop after demo.","stop":true,"experiments":[]}',
-        ],
-        "invalid-plan-recovery": [
-            '{"summary":"Run invalid then valid.","stop":false,'
-            '"experiments":[{"id":"bm002","reason":"bad plan.",'
-            '"overrides":{"model_type":"complex_lstsq","rank":200}},'
-            '{"id":"bm003","reason":"valid plan.",'
-            '"overrides":{"model_type":"complex_lstsq","feature_mode":"complex_mp",'
-            '"memory_depth":150,"mp_order_count":12,"epochs":0}}]}',
-            '{"summary":"Stop.","stop":true,"experiments":[]}',
-        ],
-        "runtime-failure-handling": [
-            '{"summary":"Test runtime failure.","stop":false,'
-            '"experiments":[{"id":"bm004","reason":"push threshold.",'
-            '"overrides":{"model_type":"linear","epochs":0}}]}',
-            '{"summary":"Stop.","stop":true,"experiments":[]}',
-        ],
-        "reflection-recovery": [
-            '{"summary":"Trigger schema reflection.","stop":false,'
-            '"experiments":[{"id":"bm005","reason":"bad spline range.",'
-            '"overrides":{"model_type":"spline_mlp","feature_mode":"complex_mp",'
-            '"memory_depth":24,"mp_order_count":1,"hidden_units":16,'
-            '"spline_knots":16,"spline_range":null,"epochs":50}}]}',
-            '{"summary":"Recover after reflection.","stop":false,'
-            '"experiments":[{"id":"bm006","reason":"safe closed-form candidate.",'
-            '"overrides":{"model_type":"complex_lstsq","feature_mode":"complex_mp",'
-            '"memory_depth":150,"mp_order_count":12,"epochs":0}}]}',
-        ],
-        "budget-stop": [
-            '{"summary":"Two candidates but one-slot budget.","stop":false,'
-            '"experiments":[{"id":"bm007","reason":"first candidate.",'
-            '"overrides":{"model_type":"complex_lstsq","feature_mode":"complex_mp",'
-            '"memory_depth":150,"mp_order_count":12,"epochs":0}},'
-            '{"id":"bm008","reason":"should not run after budget.",'
-            '"overrides":{"model_type":"complex_lstsq","feature_mode":"complex_mp",'
-            '"memory_depth":120,"mp_order_count":10,"epochs":0}}]}',
-        ],
-    }
-
-    async def _run_one(case: BenchmarkCase) -> PlannerLoopResult:
-        """对每个 case 创建独立的 FakeLLM + Loop 实例。"""
-        llm = FakeLLMClient(responses=list(plan_map[case.case_id]))
-        loop = ExperimentPlannerLoop(
-            planner=ExperimentPlanner(llm_client=llm),
-            workspace=root,
-            base_config="configs/baselines/lstsq-complexmp-o12-m150.yaml",
-            constraints={
-                "parameter_count_max": case.constraints.get("parameter_count_max", 4000),
-                "metric": "nmse_db",
-                "nmse_threshold_db": case.target_nmse_db or nmse_threshold_db,
-            },
-            timeout_seconds=timeout_seconds,
-        )
-        return await loop.run(
-            goal=case.goal,
-            max_rounds=case.max_rounds,
-            max_experiments=case.max_experiments,
-        )
-
+    cases = build_cases()
     results: list[BenchmarkCaseResult] = []
     for i, case in enumerate(cases):
         # 通知前端：开始一个 case
@@ -941,7 +866,10 @@ async def stream_benchmark_events(
         ), event_id=_next_event_id("benchmark"))
 
         try:
-            loop_result = await _run_one(case)
+            loop_result = await execute_case(
+                case, provider="fake", workspace=root,
+                timeout_seconds=timeout_seconds,
+            )
             result = summarize_loop_result(case, loop_result)
         except Exception as exc:
             # Benchmark case 内部异常 → 记录为 error，继续下一个 case
@@ -964,6 +892,12 @@ async def stream_benchmark_events(
                 "rejected": result.rejected_count,
                 "failed": result.failed_count,
                 "succeeded": result.succeeded_count,
+                "planner_success_rate": result.planner_success_rate,
+                "self_correction_count": result.self_correction_count,
+                "rounds": result.rounds,
+                "total_prompt_tokens": result.total_prompt_tokens,
+                "total_completion_tokens": result.total_completion_tokens,
+                "estimated_cost_usd": result.estimated_cost_usd,
             },
         ), event_id=_next_event_id("benchmark"))
 

@@ -241,7 +241,7 @@ docs/experiments/nonlinear-search-ablation-v1.md
 关键结论（诚实口径）：
 
 - Optuna TPE best NMSE 均值最高（-37.07 dB，std 0.27 dB）。
-- `llm_with_reflection` 相对 `llm_no_reflection` paired delta = +2.34 dB，**不显著**，未观察到稳定优势。
+- `llm_program_reflection` 相对 `llm_direct` paired delta = +2.34 dB，**不显著**，未观察到稳定优势。
 - 每条 trial 记录真实 `config_hash` / `dataset_hash` / `git_commit`；rejected 单独统计、不占用有效预算。
 
 LLM 策略当前为离线邻域采样模拟（token/cost = 0），真实 LLM 证据仍以 DeepSeek case study（exp016 / exp_019）为准。
@@ -337,5 +337,5 @@ v2.0.0 验证记录：
 v2.1.0 验证记录：
 
 - `python -m unittest discover tests`：227 tests OK。
-- 20000 参数预算 + 历史先验注入：`llm_with_reflection` paired delta **-4.28 dB（显著）**，hit 78% vs 28%（`benchmarks/nonlinear-search-v1-v20000/`，报告 `docs/experiments/nonlinear-search-ablation-v2.md`）。
+- 20000 参数预算 + 历史先验注入：`llm_program_reflection` paired delta **-4.28 dB（显著）**，hit 78% vs 28%（`benchmarks/nonlinear-search-v1-v20000/`，报告 `docs/experiments/nonlinear-search-ablation-v2.md`）。
 - Benchmark 10 case：fake 模式 hit 7/10；DeepSeek 模式 hit 5/10，但 Guard 拦截率 80–98%（模型 schema 遵从性不稳定，已知边界）。

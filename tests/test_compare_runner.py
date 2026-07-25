@@ -20,7 +20,7 @@ class TestCompareRunner(unittest.TestCase):
 
     def _smoke_protocol(self) -> EvaluationProtocol:
         return EvaluationProtocol(
-            methods=["random_search", "optuna_tpe", "llm_no_reflection", "llm_with_reflection"],
+            methods=["random_search", "optuna_tpe", "llm_direct", "llm_program_reflection"],
             seeds=[7, 17],
             trial_budget=3,
             parameter_count_max=100,
@@ -82,13 +82,13 @@ class TestCompareRunner(unittest.TestCase):
 
     def test_optuna_strategy_isolation(self):
         """If one strategy fails, others still produce trials."""
-        # llm_with_reflection should still run even if something is odd
+        # llm_program_reflection should still run even if something is odd
         with tempfile.TemporaryDirectory() as tmp:
             rows, _, _ = asyncio.run(run_compare_protocol(
                 self._smoke_protocol(), self.domain, Path(tmp),
             ))
             methods = set(r["method"] for r in rows)
-            self.assertEqual(methods, {"random_search", "optuna_tpe", "llm_no_reflection", "llm_with_reflection"})
+            self.assertEqual(methods, {"random_search", "optuna_tpe", "llm_direct", "llm_program_reflection"})
 
 
 class TestBackwardCompatTrialRecord(unittest.TestCase):

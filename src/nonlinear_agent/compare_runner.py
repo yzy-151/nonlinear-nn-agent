@@ -1,12 +1,12 @@
 """compare_runner — 真实执行四种搜索策略的对照协议。
 
-对每种策略（random_search / optuna_tpe / llm_no_reflection /
-llm_with_reflection）在相同的 seeds × trial_budget 网格下，真实执行
+对每种策略（random_search / optuna_tpe / llm_direct /
+llm_program_reflection）在相同的 seeds × trial_budget 网格下，真实执行
 domain 的工具链，收集 trial 结果并生成统计报告。
 
 LLM 策略用动态候选生成器模拟"LLM 读历史后设计下一步"的行为：
-- llm_no_reflection：围绕历史最优邻域采样，不注入反思
-- llm_with_reflection：用 ReflectionPolicy 提取事实/失败原因，注入下一轮
+- llm_direct：围绕历史最优邻域采样，不注入反思
+- llm_program_reflection：用 ReflectionPolicy 提取事实/失败原因，注入下一轮
 """
 
 from __future__ import annotations
@@ -146,14 +146,14 @@ def write_reflection_ablation_plot(
     metric = rows[0]["metric_name"] if rows else "nmse_db"
 
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    for method in ("llm_no_reflection", "llm_with_reflection"):
+    for method in ("llm_direct", "llm_program_reflection"):
         curve = curves.get(method)
         if curve is not None:
             ax.plot(range(len(curve)), curve, marker="o", label=method)
 
-    title = "Reflection ablation: llm_with_reflection vs llm_no_reflection"
+    title = "Reflection ablation: llm_program_reflection vs llm_direct"
     paired = (
-        summary.get("paired_comparisons", {}).get("reflection_vs_no_reflection") or {}
+        summary.get("paired_comparisons", {}).get("program_reflection_vs_direct") or {}
     )
     delta = paired.get(f"{metric}_delta_mean") or paired.get("nmse_delta_mean_db")
     if delta is not None:
@@ -183,7 +183,7 @@ def build_strategy(method: str, context: SearchContext) -> Any:
                 "optuna_tpe requires optuna; install it with: "
                 "pip install 'optuna>=4,<5'"
             ) from exc
-    if method in ("llm_no_reflection", "llm_with_reflection"):
+    if method in ("llm_direct", "llm_program_reflection"):
         return _LLMSearch(method, context)
     raise ValueError(f"Unknown search method: {method}")
 
@@ -202,7 +202,7 @@ class _LLMSearch:
         self._ctx = context
         self._rng = random.Random(context.seed)
         self._seen_hashes: set[str] = set()
-        self._reflection = ReflectionPolicy() if method == "llm_with_reflection" else None
+        self._reflection = ReflectionPolicy() if method == "llm_program_reflection" else None
         self._reflection_record: dict[str, Any] | None = None
         self._failed_model_types: set[str] = set()
         self._priors = (
@@ -211,7 +211,7 @@ class _LLMSearch:
                 for prior in self._ctx.domain.historical_priors()
                 if not prior.slow  # full matrix must stay feasible (~seconds/trial)
             ]
-            if method == "llm_with_reflection"
+            if method == "llm_program_reflection"
             else []
         )
 
@@ -220,7 +220,7 @@ class _LLMSearch:
         metric = self._ctx.domain.primary_metric()
 
         # Reflection 知识库：以较高概率从历史最优先验邻域出发。
-        # llm_no_reflection 不加载 priors，因此两者在"是否利用历史知识"上被区分开。
+        # llm_direct 不加载 priors，因此两者在"是否利用历史知识"上被区分开。
         if self._priors and self._rng.random() < 0.6:
             for _ in range(20):
                 prior = self._rng.choice(self._priors)
@@ -379,7 +379,7 @@ async def _execute_trial(
         config_hash=_config_hash(workspace, session_id, overrides),
         dataset_hash=domain.dataset_fingerprint(),
         git_commit=_git_head(),
-        reflection_used=(method == "llm_with_reflection"),
+        reflection_used=(method == "llm_program_reflection"),
     )
 
 

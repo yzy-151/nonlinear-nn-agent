@@ -42,7 +42,7 @@
   输出 24 个 trial，包含 trials.jsonl + summary.json + summary.csv
 - 展示每种方法的统计：best NMSE、target hit rate、rejected rate、runtime failure rate——
   全部带 95% bootstrap CI（固定 seed=20260802，2000 次重采样）
-- 展示 Reflection paired delta：`llm_with_reflection` vs `llm_no_reflection`，
+- 展示 Reflection paired delta：`llm_program_reflection` vs `llm_direct`，
   delta 按 seed 配对计算，不混合不同 seed
 - **核心论点**：如果 CI 跨零，如实报告"未观察到稳定优势"，不挑最好 seed 展示。
 - 打开 Dashboard：展示 Strategy Comparison 区块（对照表 + paired delta 说明）

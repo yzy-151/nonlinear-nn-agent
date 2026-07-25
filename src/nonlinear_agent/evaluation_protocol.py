@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 
-METHODS = ["random_search", "optuna_tpe", "llm_no_reflection", "llm_with_reflection"]
+METHODS = ["random_search", "optuna_tpe", "llm_direct", "llm_program_reflection"]
 SEEDS_FULL = [7, 17, 29, 43, 61]
 SEEDS_SMOKE = [7, 17]
 

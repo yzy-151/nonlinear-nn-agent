@@ -2,7 +2,7 @@
 
 Loads hand-verified best candidates (from prior DeepSeek runs, model-search
 results, and reports) so that knowledge-based strategies (e.g.
-llm_with_reflection) can start from known-good regions instead of exploring
+llm_program_reflection) can start from known-good regions instead of exploring
 from scratch. Priors are filtered by the active parameter budget and sorted
 best-first by the known metric.
 """

@@ -9,7 +9,7 @@ from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDoma
 from nonlinear_agent.search.base import SearchContext, SearchStrategy
 from nonlinear_agent.search.random_search import RandomSearch
 from nonlinear_agent.search.optuna_search import OptunaTPESearch
-from nonlinear_agent.search.llm_search import LLMNoReflectionSearch, LLMWithReflectionSearch
+from nonlinear_agent.search.llm_search import LLMDirectSearch, LLMProgramReflectionSearch
 
 
 class TestSearchStrategies(unittest.TestCase):
@@ -56,14 +56,14 @@ class TestSearchStrategies(unittest.TestCase):
 
     def test_llm_search_names(self):
         ctx = self._make_context()
-        self.assertEqual(LLMNoReflectionSearch.name, "llm_no_reflection")
-        self.assertEqual(LLMWithReflectionSearch.name, "llm_with_reflection")
+        self.assertEqual(LLMDirectSearch.name, "llm_direct")
+        self.assertEqual(LLMProgramReflectionSearch.name, "llm_program_reflection")
 
     def test_all_strategies_have_distinct_names(self):
         names = {
             "random_search",
             "optuna_tpe",
-            "llm_no_reflection",
-            "llm_with_reflection",
+            "llm_direct",
+            "llm_program_reflection",
         }
         self.assertEqual(len(names), 4)
