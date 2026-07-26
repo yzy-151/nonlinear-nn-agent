@@ -62,16 +62,20 @@ header{
 /* ── TABS ── */
 nav.tabs{
   position:relative;z-index:1;
-  display:flex;gap:0;padding:0 36px;
+  display:flex;flex-wrap:wrap;gap:2px 0;padding:0 24px;
   background:rgba(3,7,18,.78);border-bottom:1px solid var(--border);
 }
 nav.tabs .tab{
-  padding:16px 32px;cursor:pointer;font-weight:650;font-size:14px;
+  padding:14px 20px;cursor:pointer;font-weight:650;font-size:13.5px;
   color:var(--muted);border-bottom:3px solid transparent;user-select:none;
-  transition:all .15s;
+  transition:all .15s;white-space:nowrap;line-height:1.2;flex-shrink:0;
 }
 nav.tabs .tab:hover{color:var(--text)}
 nav.tabs .tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+@media(max-width:900px){
+  nav.tabs{flex-wrap:nowrap;overflow-x:auto;padding:0 10px;-webkit-overflow-scrolling:touch}
+  nav.tabs .tab{padding:13px 15px;font-size:13px}
+}
 
 /* ── MAIN ── */
 main{
@@ -389,6 +393,7 @@ document.querySelectorAll(".tab").forEach(function(t){t.addEventListener("click"
   document.getElementById("panel-agent").style.display=(m==="agent")?"":"none";
   document.getElementById("panel-benchmark").style.display=(m==="benchmark")?"":"none";
   document.getElementById("panel-compare").style.display=(m==="compare")?"":"none";
+  try{history.replaceState(null,"","?tab="+m)}catch(_){}
 })});
 
 document.getElementById("agProv").addEventListener("change",function(){
@@ -631,6 +636,15 @@ function renderBenchmarkSummary(data){
   }
   document.getElementById("bmResults").style.display="block";
 }
+// URL tab support: open a tab via ?tab=workflow|agent|benchmark|compare.
+// benchmark/compare auto-load saved results so shared links show data.
+(function(){
+  var m=(location.search.match(/[?&]tab=([a-z]+)/)||[])[1]||"workflow";
+  var t=document.querySelector('.tab[data-tab="'+m+'"]');
+  if(t)t.click();
+  if(m==="compare"&&document.getElementById("cmpLoadBtn"))document.getElementById("cmpLoadBtn").click();
+  if(m==="benchmark"&&document.getElementById("bmLoadBtn"))document.getElementById("bmLoadBtn").click();
+})();
 console.log("UI ready")
 })();
 </script>

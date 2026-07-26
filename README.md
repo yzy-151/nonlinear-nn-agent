@@ -10,6 +10,14 @@
 
 ![Web UI 操作面板](docs/assets/screenshots/web-ui-home.png)
 
+Benchmark 页签（10-case 评估，含 planner 成功率、自我修正、token/成本指标）：
+
+![Benchmark 页签](docs/assets/screenshots/web-ui-benchmark.png)
+
+Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
+
+![Strategy Comparison 页签](docs/assets/screenshots/web-ui-compare.png)
+
 本地诊断 Dashboard（聚合全部实验指标、错误分布与策略对照）：
 
 ![Diagnostics Dashboard](docs/assets/screenshots/dashboard.png)
