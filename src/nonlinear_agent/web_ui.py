@@ -62,19 +62,19 @@ header{
 /* ── TABS ── */
 nav.tabs{
   position:relative;z-index:1;
-  display:flex;flex-wrap:wrap;gap:2px 0;padding:0 24px;
+  display:flex;flex-wrap:nowrap;justify-content:space-between;padding:0 16px;
   background:rgba(3,7,18,.78);border-bottom:1px solid var(--border);
 }
 nav.tabs .tab{
-  padding:14px 20px;cursor:pointer;font-weight:650;font-size:13.5px;
+  flex:1 1 0;min-width:0;padding:14px 10px;cursor:pointer;font-weight:650;font-size:13px;
   color:var(--muted);border-bottom:3px solid transparent;user-select:none;
-  transition:all .15s;white-space:nowrap;line-height:1.2;flex-shrink:0;
+  transition:all .15s;white-space:nowrap;text-align:center;line-height:1.2;
 }
 nav.tabs .tab:hover{color:var(--text)}
 nav.tabs .tab.active{color:var(--blue);border-bottom-color:var(--blue)}
-@media(max-width:900px){
-  nav.tabs{flex-wrap:nowrap;overflow-x:auto;padding:0 10px;-webkit-overflow-scrolling:touch}
-  nav.tabs .tab{padding:13px 15px;font-size:13px}
+@media(max-width:760px){
+  nav.tabs{justify-content:flex-start;overflow-x:auto;padding:0 8px;-webkit-overflow-scrolling:touch}
+  nav.tabs .tab{flex:0 0 auto;padding:13px 16px;font-size:12.5px}
 }
 
 /* ── MAIN ── */
