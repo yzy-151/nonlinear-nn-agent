@@ -62,20 +62,26 @@ header{
 /* ── TABS ── */
 nav.tabs{
   position:relative;z-index:1;
-  display:flex;flex-wrap:nowrap;justify-content:space-between;padding:0 16px;
+  display:flex;gap:0;padding:0 36px;
   background:rgba(3,7,18,.78);border-bottom:1px solid var(--border);
 }
 nav.tabs .tab{
-  flex:1 1 0;min-width:0;padding:14px 10px;cursor:pointer;font-weight:650;font-size:13px;
+  padding:16px 32px;cursor:pointer;font-weight:650;font-size:14px;
   color:var(--muted);border-bottom:3px solid transparent;user-select:none;
-  transition:all .15s;white-space:nowrap;text-align:center;line-height:1.2;
+  transition:all .15s;
 }
 nav.tabs .tab:hover{color:var(--text)}
 nav.tabs .tab.active{color:var(--blue);border-bottom-color:var(--blue)}
-@media(max-width:760px){
-  nav.tabs{justify-content:flex-start;overflow-x:auto;padding:0 8px;-webkit-overflow-scrolling:touch}
-  nav.tabs .tab{flex:0 0 auto;padding:13px 16px;font-size:12.5px}
-}
+
+/* ── RESULT TABLES / METRIC CHIPS ── */
+.r-table{width:100%;border-collapse:collapse;font-size:12px;background:#020617}
+.r-table th{color:var(--muted);font-weight:700;text-align:left;padding:7px 8px;border-bottom:1px solid rgba(148,163,184,.28);white-space:nowrap}
+.r-table td{padding:7px 8px;border-bottom:1px solid rgba(148,163,184,.12);white-space:nowrap;vertical-align:top}
+.r-table tr:last-child td{border-bottom:none}
+.r-table td.mname{white-space:normal;max-width:230px;line-height:1.3}
+.chip{display:inline-flex;flex-direction:column;gap:2px;min-width:104px;padding:8px 12px;
+  border:1px solid var(--border);border-radius:10px;background:#0b1120;font-size:11px;color:var(--muted)}
+.chip b{font-size:14px;color:var(--text);font-weight:700}
 
 /* ── MAIN ── */
 main{
@@ -568,7 +574,7 @@ document.getElementById("cmpBtn").addEventListener("click",function(){
 function renderCompareSummary(summary){
   var wrap=document.getElementById("cmpTableWrap"),pairedEl=document.getElementById("cmpPaired");
   var pm=summary.per_method||{}, rows=[];
-  rows.push("<table style='font-size:13px'><tr><th>Method</th><th>Best Metric (mean)</th><th>95% CI</th><th>Hit Rate</th><th>Planner OK</th><th>Rejected</th><th>Failed</th><th>Effective</th></tr>");
+  rows.push("<table class='r-table'><tr><th>Method</th><th>Best Metric (mean)</th><th>95% CI</th><th>Hit Rate</th><th>Planner OK</th><th>Rejected</th><th>Failed</th><th>Effective</th></tr>");
   var metric=""; var m=Object.keys(pm); if(m.length)metric=(pm[m[0]].metric_name||"metric");
   var sorted=Object.keys(pm).sort(function(a,b){
     var va=pm[a]["best_"+metric+"_mean"],vb=pm[b]["best_"+metric+"_mean"];
@@ -587,7 +593,7 @@ function renderCompareSummary(summary){
     var label=name;
     if(name==="llm_program_reflection")label="llm_program_reflection (程序确定性反思)";
     if(name==="llm_direct")label="llm_direct (LLM 直接决策)";
-    rows.push("<tr><td "+css+">"+label+"</td><td>"+bStr+"</td><td>"+ciStr+"</td><td>"+hit+"</td><td>"+pso+"</td><td>"+rej+"</td><td>"+fail+"</td><td>"+eff+"</td></tr>");
+    rows.push("<tr><td class='mname' "+css+">"+label+"</td><td>"+bStr+"</td><td>"+ciStr+"</td><td>"+hit+"</td><td>"+pso+"</td><td>"+rej+"</td><td>"+fail+"</td><td>"+eff+"</td></tr>");
   });
   rows.push("</table>");
   wrap.innerHTML=rows.join("");
@@ -597,7 +603,8 @@ function renderCompareSummary(summary){
     var d=pc[k];
     if(d.paired_seed_count>0){
       var dm=d[metric+"_delta_mean"];var dl=d[metric+"_delta_ci_95_low"],dh=d[metric+"_delta_ci_95_high"];
-      paired+=k+": paired "+d.paired_seed_count+" seeds, delta="+(dm!=null?Number(dm).toPrecision(3):"-")+
+      var pname=k.replace(/_/g," ").replace(/program reflection vs direct/,"program reflection vs direct");
+      paired+=pname+": paired "+d.paired_seed_count+" seeds, delta="+(dm!=null?Number(dm).toPrecision(3):"-")+
         (dl!=null?" 95%CI ["+Number(dl).toPrecision(3)+", "+Number(dh).toPrecision(3)+"]":"")+
         " — "+(d.significant?"<b style='color:#34d399'>significant</b>":"<span style='color:#fbbf24'>no stable advantage</span>")+"<br>";
     }
@@ -611,9 +618,7 @@ function renderBenchmarkSummary(data){
   var s=data.summary||data, results=data.results||[];
   var wrap=document.getElementById("bmSummaryWrap"),tbl=document.getElementById("bmTableWrap");
   var keys=["case_count","target_hit_rate","planner_success_rate","rejected_rate","runtime_failure_rate","self_correction_count","average_rounds","average_experiments_used","best_nmse_db","total_prompt_tokens","total_completion_tokens","estimated_cost_usd"];
-  var html="<table style='font-size:13px'><tr>";
-  keys.forEach(function(k){html+="<th>"+k+"</th>"});
-  html+="</tr><tr>";
+  var html="<div style='display:flex;flex-wrap:wrap;gap:8px'>";
   keys.forEach(function(k){
     var v=s[k];
     if(typeof v==="number"){
@@ -622,12 +627,12 @@ function renderBenchmarkSummary(data){
       else if(k==="estimated_cost_usd")v="$"+Number(v).toFixed(4);
       else v=Number(v).toFixed(2);
     }
-    html+="<td>"+(v==null?"-":v)+"</td>";
+    html+="<div class='chip'><span>"+k+"</span><b>"+(v==null?"-":v)+"</b></div>";
   });
-  html+="</tr></table>";
+  html+="</div>";
   wrap.innerHTML=html;
   if(results.length){
-    var t="<table style='font-size:12px'><tr><th>Case</th><th>Hit</th><th>Best NMSE</th><th>OK</th><th>Fail</th><th>Rejected</th><th>Planner OK</th><th>Self-corr</th><th>Tokens</th><th>Cost</th></tr>";
+    var t="<table class='r-table'><tr><th>Case</th><th>Hit</th><th>Best NMSE</th><th>OK</th><th>Fail</th><th>Rejected</th><th>Planner OK</th><th>Self-corr</th><th>Tokens</th><th>Cost</th></tr>";
     results.forEach(function(r){
       t+="<tr><td>"+r.case_id+"</td><td>"+(r.target_hit?"&#10003;":"&#10007;")+"</td><td>"+(r.best_nmse_db!=null?Number(r.best_nmse_db).toFixed(2):"-")+"</td><td>"+r.succeeded_count+"</td><td>"+r.failed_count+"</td><td>"+r.rejected_count+"</td><td>"+(r.planner_success_rate!=null?Math.round(r.planner_success_rate*100)+"%":"-")+"</td><td>"+r.self_correction_count+"</td><td>"+((r.total_prompt_tokens||0)+(r.total_completion_tokens||0))+"</td><td>$"+(r.estimated_cost_usd!=null?Number(r.estimated_cost_usd).toFixed(4):"0")+"</td></tr>";
     });
