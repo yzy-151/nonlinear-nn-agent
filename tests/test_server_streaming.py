@@ -17,6 +17,19 @@ from nonlinear_agent.trace import TraceEvent
 
 
 class ServerStreamingTest(unittest.TestCase):
+    def test_load_domain_defaults_to_nonlinear_for_blank_name(self):
+        """An empty/None domain_name must fall back to the nonlinear domain,
+        otherwise the planner loses the prompt contract and the guard
+        rejects most real-LLM plans."""
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+        from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
+        from nonlinear_agent.server import _load_domain
+
+        self.assertIsInstance(_load_domain(""), NonlinearModelingDomain)
+        self.assertIsInstance(_load_domain(None), NonlinearModelingDomain)
+        self.assertIsInstance(_load_domain("nonlinear"), NonlinearModelingDomain)
+        self.assertIsInstance(_load_domain("synthetic"), SyntheticRegressionDomain)
+
     def test_encode_sse_event_uses_event_type_and_json_payload(self):
         event = TraceEvent(
             session_id="sse-demo",

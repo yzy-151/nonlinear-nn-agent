@@ -261,7 +261,7 @@ pre.ev{
     <div class="note" id="noteDp">Reads <code>DEEPSEEK_API_KEY</code> from <code>.env.local</code></div>
     <label for="agDom">Domain</label>
       <select id="agDom">
-        <option value="">Nonlinear Modeling</option>
+        <option value="nonlinear">Nonlinear Modeling</option>
         <option value="synthetic">Synthetic Regression</option>
       </select>
       <label for="agGoal">Goal</label>

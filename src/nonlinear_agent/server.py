@@ -378,31 +378,17 @@ async def stream_agent_events(
             ))
             return
 
-        # ── 加载 domain（如果指定）──
-        domain = None
-        if domain_name == "synthetic":
-            from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
-            domain = SyntheticRegressionDomain()
-        elif domain_name:
-            from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
-            domain = NonlinearModelingDomain()
+        # ── 加载 domain（空/未知 → 默认非线性建模，保证 prompt 契约）──
+        domain = _load_domain(domain_name)
 
         # ── 创建 Agent Loop ──
         constraints = {"parameter_count_max": parameter_count_max}
-        if domain is not None:
-            constraints.update(domain.default_constraints())
-            constraints["parameter_count_max"] = parameter_count_max
-        else:
-            constraints.update({
-                "metric": "nmse_db",
-                "nmse_threshold_db": nmse_threshold_db,
-            })
+        constraints.update(domain.default_constraints())
+        constraints["parameter_count_max"] = parameter_count_max
         loop = ExperimentPlannerLoop(
             planner=ExperimentPlanner(llm_client=llm, domain=domain),
             workspace=root,
-            base_config=base_config if base_config and not domain else (
-                domain.default_base_config() if domain else base_config
-            ),
+            base_config=domain.default_base_config(),
             constraints=constraints,
             timeout_seconds=timeout_seconds,
             artifact_dir=artifact_dir,
@@ -823,6 +809,23 @@ def _short_ts() -> str:
     """生成简短时间戳，用于 benchmark 产物目录名。"""
     from datetime import datetime
     return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def _load_domain(domain_name: str | None):
+    """Resolve the DomainPlugin for a request.
+
+    Blank/unknown names fall back to the default nonlinear-modeling domain so
+    the planner always receives the full prompt contract (known bests,
+    JSON template, allowed fields, model_type whitelist). Otherwise the LLM
+    free-forms plans and the guard rejects most of them.
+    """
+    if domain_name == "synthetic":
+        from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
+
+        return SyntheticRegressionDomain()
+    from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
+    return NonlinearModelingDomain()
 
 
 # ============================================================
