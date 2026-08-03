@@ -50,6 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--timeout-seconds", type=float, default=300.0)
     run.add_argument("--artifact-dir")
     run.add_argument("--fake-plan")
+    run.add_argument("--multi-stage", action="store_true",
+        help="Two-stage LLM planning: analyze first, then emit the JSON plan.")
 
     benchmark = subparsers.add_parser("benchmark", help="Run the built-in Agent benchmark cases.")
     benchmark.add_argument("--workspace", default=str(PROJECT_ROOT))
@@ -132,17 +134,22 @@ async def _run_planner(args: argparse.Namespace) -> int:
         raise ValueError(f"Unsupported provider: {args.provider}")
 
     workspace = Path(args.workspace)
+    from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
+    domain = NonlinearModelingDomain()
+    constraints = domain.default_constraints()
+    constraints["parameter_count_max"] = args.parameter_count_max
+    constraints["nmse_threshold_db"] = args.nmse_threshold_db
     loop = ExperimentPlannerLoop(
-        planner=ExperimentPlanner(llm_client=llm),
+        planner=ExperimentPlanner(
+            llm_client=llm, domain=domain, multi_stage=args.multi_stage
+        ),
         workspace=workspace,
         base_config=args.base_config,
-        constraints={
-            "parameter_count_max": args.parameter_count_max,
-            "metric": "nmse_db",
-            "nmse_threshold_db": args.nmse_threshold_db,
-        },
+        constraints=constraints,
         timeout_seconds=args.timeout_seconds,
         artifact_dir=args.artifact_dir,
+        domain=domain,
     )
     result = await loop.run(goal=args.goal, max_rounds=args.max_rounds, max_experiments=args.max_experiments)
     print(json.dumps(result.__dict__, ensure_ascii=False, indent=2))
