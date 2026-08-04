@@ -50,7 +50,6 @@ async def run(args) -> None:
             workspace=PROJECT_ROOT,
             timeout_seconds=args.timeout_seconds,
             planner_retries=2 if args.provider == "deepseek" else 0,
-            multi_stage=args.multi_stage,
         ),
     )
     output_dir = Path(args.output_dir)
@@ -73,8 +72,6 @@ def main() -> None:
                         help="LLM provider: fake (offline) or deepseek (real LLM + real training)")
     parser.add_argument("--timeout-seconds", type=float, default=36000.0,
                         help="Per-trial training timeout (default 36000s).")
-    parser.add_argument("--multi-stage", action="store_true",
-                        help="Two-stage LLM planning (analyze first, then plan).")
     args = parser.parse_args()
     asyncio.run(run(args))
 

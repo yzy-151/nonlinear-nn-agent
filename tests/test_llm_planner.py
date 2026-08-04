@@ -17,35 +17,6 @@ from nonlinear_agent.trace import TraceEvent
 
 
 class LLMPlannerTest(unittest.TestCase):
-    def test_planner_multi_stage_runs_analysis_before_final_plan(self):
-        """multi_stage=True issues two LLM calls: analysis first, then the JSON plan."""
-        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
-
-        llm = FakeLLMClient(responses=[
-            "Known best region: tiny_mlp mem=20 mp=3. Failed types: lstm. "
-            "Next: explore hidden_units around 96-128.",
-            '{"summary":"go", "stop":true, "experiments":[]}',
-        ])
-        planner = ExperimentPlanner(
-            llm_client=llm,
-            domain=NonlinearModelingDomain(),
-            multi_stage=True,
-        )
-
-        plan = planner.plan(goal="reach -41 dB", history=[], constraints={})
-
-        self.assertEqual(len(llm.prompts), 2)
-        self.assertIn("analysis", llm.prompts[0].lower())
-        self.assertNotIn('"experiments"', llm.prompts[0].lower())
-        self.assertIn("analysis so far", llm.prompts[1].lower())
-        self.assertTrue(plan.stop)
-
-    def test_planner_single_stage_keeps_one_call(self):
-        llm = FakeLLMClient(responses=['{"summary":"s", "stop":true, "experiments":[]}'])
-        planner = ExperimentPlanner(llm_client=llm)
-        planner.plan(goal="g", history=[], constraints={})
-        self.assertEqual(len(llm.prompts), 1)
-
     def test_deepseek_client_defaults_to_openai_compatible_endpoint(self):
         client = OpenAICompatibleClient.deepseek(api_key="test-key")
 

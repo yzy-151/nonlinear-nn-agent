@@ -86,13 +86,11 @@ class ExperimentPlanner:
         llm_client: LLMClient,
         allowed_tools: list[str] | None = None,
         domain: DomainPlugin | None = None,
-        multi_stage: bool = False,
     ):
         """allowed_tools 会嵌入 prompt，告诉 LLM 它能用哪些工具。
         如果提供了 domain，指令和工具列表从 domain 获取。"""
         self.llm_client = llm_client
         self.domain = domain
-        self.multi_stage = multi_stage
         if allowed_tools:
             self.allowed_tools = allowed_tools
         elif domain is not None:
@@ -126,44 +124,9 @@ class ExperimentPlanner:
             history=history or [],
             constraints=constraints or {},
         )
-        if self.multi_stage:
-            # 多阶段推理：先让 LLM 分析目标/历史/已知最优，再把分析拼回
-            # 最终 prompt，最后才输出 JSON 计划。能显著提升 schema 遵从
-            # 与计划质量（Claude extended thinking 的轻量实现）。
-            analysis = self.llm_client.complete(
-                self._build_analysis_prompt(
-                    goal=goal,
-                    history=history or [],
-                    constraints=constraints or {},
-                )
-            )
-            prompt = (
-                prompt
-                + "\nYour analysis so far:\n"
-                + analysis
-                + "\nNow return the final JSON plan only."
-            )
         raw = self.llm_client.complete(prompt)     # 发 prompt，拿 JSON 字符串
         payload = _parse_json_object(raw)           # 解析 JSON（容错：处理 LLM 多输出文字的情况）
         return self._parse_plan(payload)            # 转成结构化的 ExperimentPlan
-
-    def _build_analysis_prompt(
-        self,
-        goal: str,
-        history: list[dict[str, Any]],
-        constraints: dict[str, Any],
-    ) -> str:
-        """第一阶段 prompt：只要求分析，不要求输出实验计划。"""
-        return (
-            "You are planning the next experiments. Before producing any "
-            "experiment plan, analyze the situation:\n"
-            f"Goal: {goal}\n"
-            f"Constraints: {json.dumps(constraints, ensure_ascii=False)}\n"
-            f"History: {json.dumps(history, ensure_ascii=False)}\n"
-            "Output ONLY a concise analysis (3-6 bullets): what worked, what "
-            "failed, which known-best region to explore next, and which "
-            "configurations to avoid. Do NOT output the experiment JSON yet."
-        )
 
     # ── Prompt 构造 ──────────────────────────────────────
     def _build_prompt(

@@ -96,15 +96,6 @@ flowchart LR
 | `python agent.py serve` | 启动 Web UI / SSE 服务 |
 | `python agent.py dashboard` | 生成诊断 Dashboard |
 
-### 多阶段推理（multi-stage planning）
-
-Planner 支持两阶段推理：先让 LLM 分析目标 / 历史 / 已知最优区域，再把分析拼回 prompt 输出最终 JSON 计划——能显著提升 schema 遵从与计划质量：
-
-```powershell
-python agent.py run --provider deepseek --multi-stage
-python examples\nonlinear_fit\run_benchmark.py --provider deepseek --multi-stage
-```
-
 ## 实验任务：非线性系统建模与对消
 
 项目解决的信号处理问题：射频非线性系统（记忆多项式 MPDPD）的输入 `x` 经系统产生带非线性失真的输出 `d`。任务是学习系统的校正模型，使校正后的信号逼近理想目标 `d`——即**非线性对消 / 线性化**。
@@ -218,37 +209,6 @@ benchmarks/                实验与 Benchmark 产物（trials/summary/PNG/stres
 docs/                      UI 截图、实验报告、交接文档
 tests/                     单元测试（230+）
 ```
-
-## 扩展新实验领域（SimpleDomain）
-
-换一个实验任务不需要改 Harness 主链路——实现一个 `DomainPlugin` 即可。最轻量的方式是 `SimpleDomain`：只需提供**设计空间 + 一个执行函数**，prompt / Guard / 工具 / 指标语义自动生成。
-
-示例：信道估计 / 极化阵列扫描。信道矩阵 H 按约定展开为向量（**先所有阵元的第一个极化方向，再所有阵元的第二个极化方向**，依此类推），该约定可作为领域说明注入 prompt：
-
-```python
-from nonlinear_agent.domains.simple import SimpleDomain
-
-def run_candidate(n_rx=8, n_pol=2, oversample=2, **kw):
-    H = _measure_channel(n_rx, n_pol, oversample)   # shape (n_rx, n_pol, taps)
-    h_vec = H.reshape(-1)                            # 展开：先极化1 → 再极化2 …
-    est_mse_db = _fit_and_eval(h_vec)
-    return {"est_mse_db": est_mse_db, "n_rx": n_rx, "n_pol": n_pol, "oversample": oversample}
-
-scan = SimpleDomain(
-    name="channel-scan",
-    design_space={"n_rx": [4, 8, 16], "n_pol": [1, 2], "oversample": [1, 2, 4]},
-    run_candidate=run_candidate,
-    primary_metric="est_mse_db",
-    lower_is_better=True,
-    instructions=(
-        "Channel matrix H is vectorized with all antenna elements' first "
-        "polarization first, then the second polarization, and so on. "
-        "Design experiments over the antenna/polarization grid."
-    ),
-)
-```
-
-随后把它交给 planner/loop 或注册进 `server._load_domain()` 即可在 Web UI 使用。
 
 ## 复现与验证
 

@@ -286,7 +286,6 @@ async def execute_case(
     workspace: Path | str | None = None,
     timeout_seconds: float = 36000.0,
     planner_retries: int = 0,
-    multi_stage: bool = False,
 ):
     """Execute one benchmark case.
 
@@ -304,9 +303,7 @@ async def execute_case(
         from nonlinear_agent.server import build_runtime
 
         domain = NonlinearModelingDomain()
-        planner = ExperimentPlanner(
-            _deepseek_client(), domain=domain, multi_stage=multi_stage
-        )
+        planner = ExperimentPlanner(_deepseek_client(), domain=domain)
 
         def runtime_factory(session_id):
             return build_runtime(
