@@ -44,13 +44,16 @@ class ExperimentConfig:
     plot_title: str = "complex CNN"
     spline_knots: int = 16
     spline_range: float = 3.0
+    kernel_size: int = 3       # ComplexCNN 卷积核长度（可优化）
+    num_layers: int = 3        # ComplexCNN 卷积层数（可优化）
 
 
 class ComplexConv2d(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3):
         super().__init__()
-        self.conv_real = nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)
-        self.conv_imag = nn.Conv2d(in_channels, out_channels, kernel_size, padding=1)
+        padding = kernel_size // 2  # 保持特征图尺寸不变
+        self.conv_real = nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding)
+        self.conv_imag = nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding)
 
     def forward(self, real: torch.Tensor, imag: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         real_out = self.conv_real(real) - self.conv_imag(imag)
@@ -59,31 +62,30 @@ class ComplexConv2d(nn.Module):
 
 
 class ComplexCNN(nn.Module):
-    def __init__(self, memory_depth: int):
+    def __init__(self, memory_depth: int, kernel_size: int = 3, num_layers: int = 3):
         super().__init__()
         width = memory_depth + 1
         self.memory_depth = memory_depth
-        self.conv1 = ComplexConv2d(1, 16)
-        self.conv2 = ComplexConv2d(16, 32)
-        self.conv3 = ComplexConv2d(32, 64)
-        self.relu1 = nn.ReLU()
-        self.relu2 = nn.ReLU()
-        self.relu3 = nn.ReLU()
-        self.fc = nn.Linear(64 * 4 * width * 2, 2)
+        self.kernel_size = kernel_size
+        self.num_layers = num_layers
+        channels = [16 * (2 ** i) for i in range(num_layers)]
+        self.convs = nn.ModuleList()
+        self.rels = nn.ModuleList()
+        in_ch = 1
+        for out_ch in channels:
+            self.convs.append(ComplexConv2d(in_ch, out_ch, kernel_size))
+            self.rels.append(nn.ReLU())
+            in_ch = out_ch
+        self.fc = nn.Linear(channels[-1] * 4 * width * 2, 2)
 
     def forward(self, real: torch.Tensor, imag: torch.Tensor) -> torch.Tensor:
         width = self.memory_depth + 1
         real = real.view(-1, 1, 4, width)
         imag = imag.view(-1, 1, 4, width)
-        real, imag = self.conv1(real, imag)
-        real = self.relu1(real)
-        imag = self.relu1(imag)
-        real, imag = self.conv2(real, imag)
-        real = self.relu2(real)
-        imag = self.relu2(imag)
-        real, imag = self.conv3(real, imag)
-        real = self.relu3(real)
-        imag = self.relu3(imag)
+        for conv, relu in zip(self.convs, self.rels):
+            real, imag = conv(real, imag)
+            real = relu(real)
+            imag = relu(imag)
         features = torch.cat((real, imag), dim=1)
         return self.fc(features.view(features.shape[0], -1))
 
@@ -162,7 +164,11 @@ def make_activation(name: str) -> nn.Module:
 def build_model(config: ExperimentConfig) -> nn.Module:
     input_dim = 2 * get_feature_width(config)
     if config.model_type == "complex_cnn":
-        return ComplexCNN(config.memory_depth)
+        return ComplexCNN(
+            config.memory_depth,
+            kernel_size=config.kernel_size,
+            num_layers=config.num_layers,
+        )
     if config.model_type == "tiny_mlp":
         return TinyMLP(input_dim, config.hidden_units, config.activation)
     if config.model_type == "spline_mlp":

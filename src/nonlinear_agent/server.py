@@ -335,6 +335,7 @@ async def stream_agent_events(
     artifact_dir: str | None = None,
     fake_plan: str | None = None,
     domain_name: str | None = None,
+    enabled_fields: list[str] | None = None,
 ):
     """Agent Planner Loop 的完整 SSE 流。
 
@@ -380,6 +381,10 @@ async def stream_agent_events(
 
         # ── 加载 domain（空/未知 → 默认非线性建模，保证 prompt 契约）──
         domain = _load_domain(domain_name)
+        if enabled_fields:
+            from nonlinear_agent.domains.filtered import FilteredDomain
+
+            domain = FilteredDomain(domain, enabled_fields)
 
         # ── 创建 Agent Loop ──
         constraints = {"parameter_count_max": parameter_count_max}
@@ -472,6 +477,19 @@ def create_app(workspace: Path | str):
     async def health() -> dict[str, str]:
         """返回 {"status": "ok"}，用于监控和 readiness probe。"""
         return {"status": "ok"}
+
+    @app.get("/domains/{domain_name}/fields")
+    async def domain_fields(domain_name: str):
+        """Return the optimizable fields (whitelist) for a domain, used by the
+        Web UI to let users enable/disable tuning directions."""
+        domain = _load_domain(domain_name)
+        return {
+            "name": domain.name,
+            "fields": [
+                {"name": key, "values": list(values)}
+                for key, values in domain.design_space().items()
+            ],
+        }
 
     # ── GET / — 浏览器首页 ──────────────────────────────
     @app.get("/", response_class=HTMLResponse)
@@ -622,6 +640,7 @@ def create_app(workspace: Path | str):
         artifact_dir = payload.get("artifact_dir")
         fake_plan = payload.get("fake_plan")
         domain_name = payload.get("domain")
+        enabled_fields = payload.get("enabled_fields")
 
         async def agent_stream():
             async for chunk in stream_agent_events(
@@ -630,7 +649,7 @@ def create_app(workspace: Path | str):
                 base_config=base_config, parameter_count_max=parameter_count_max,
                 nmse_threshold_db=nmse_threshold_db, timeout_seconds=timeout_seconds,
                 artifact_dir=artifact_dir, fake_plan=fake_plan,
-                domain_name=domain_name,
+                domain_name=domain_name, enabled_fields=enabled_fields,
             ):
                 yield chunk
             # Agent Loop 完成后自动刷新 Dashboard

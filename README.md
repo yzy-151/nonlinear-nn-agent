@@ -1,6 +1,6 @@
 # Nonlinear NN Agent Harness
 
-基于 LLM 的自动化实验系统（Agent Harness Runtime），把非线性系统建模（RF MPDPD）实验组织为 **plan → validate → execute → observe → reflect** 的可复现工作流：LLM 负责设计实验，Harness 负责受控工具调用、Schema Guard、参数预算、真实训练、指标验证、SSE 实时观测与结果落盘。
+基于 LLM 的**超参数寻优提效工具**（Agent Harness Runtime）：把人工遍历超参（卷积核长度、网络层数、学习率、scheduler、epoch 等）的实验组织为 **plan → validate → execute → observe → reflect** 的可复现工作流——LLM 负责设计实验，Harness 负责受控工具调用、Schema Guard、可定制白名单、真实训练、指标验证、SSE 实时观测与结果落盘。
 
 项目把"让模型做实验"这件事工程化：**计划与执行解耦**、**领域知识插件化**、**四种搜索策略可公平对照**、**运行可靠性可压测**。所有结论都能从 JSON/CSV 复算。
 
@@ -26,6 +26,7 @@ Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 
 - **Planner / Runtime 解耦**：LLM 只输出结构化 JSON 实验计划，不直接执行命令；Runtime 只调用已注册工具
 - **Schema Guard 与预算控制**：白名单字段校验、结果字段黑名单、参数预算估算、`model_type` 白名单；被拒计划单独统计并回喂给 LLM 自动修正
+- **可定制可优化方向（3.0）**：Web UI 可逐个开启/关闭可优化的超参（卷积核 `kernel_size`、层数 `num_layers`、`learning_rate`、`scheduler`、`epochs` 等），开关实时更新 Guard 白名单与 LLM 设计空间——关闭的方向被固定，只搜开启的方向
 - **DomainPlugin 可迁移**：非线性建模与合成回归两个领域插件共用同一套 Harness，证明系统可迁移
 - **四种搜索策略统一对照**：`random_search`、`optuna_tpe`、`llm_direct`（LLM 直接决策，无反思）、`llm_program_reflection`（程序基于实验结果做确定性反思/路由）在同一协议、同一数据划分下公平比较，输出 bootstrap 95% CI 与 paired delta
 - **历史先验注入**：把历史最优候选（-42 dB 级）作为知识注入 Reflection 策略，让 LLM 在已知最优邻域继续搜索

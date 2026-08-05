@@ -49,6 +49,7 @@ NEURAL_MODEL_TYPES: set[str] = {"tiny_mlp", "spline_mlp", "linear", "complex_cnn
 POSITIVE_INT_FIELDS: tuple[str, ...] = (
     "memory_depth", "mp_order_count", "hidden_units",
     "spline_knots", "batch_size", "max_train_samples",
+    "kernel_size", "num_layers",
 )
 
 # Fields that must be numbers
@@ -104,7 +105,7 @@ class NonlinearModelingDomain:
 
     def design_space(self) -> dict[str, list[object]]:
         return {
-            "model_type": ["complex_lstsq", "linear", "tiny_mlp", "spline_mlp"],
+            "model_type": ["complex_lstsq", "linear", "tiny_mlp", "spline_mlp", "complex_cnn"],
             "feature_mode": ["complex_mp", "legacy_abs"],
             "activation": ["relu", "tanh", "silu", "gelu"],
             "optimizer": ["adam", "sgd", "adamw"],
@@ -113,6 +114,9 @@ class NonlinearModelingDomain:
             "hidden_units": [16, 32, 48, 64],
             "spline_knots": [8, 12, 16, 24, 32],
             "epochs": [0, 50, 100, 200, 400, 600],
+            "learning_rate": [1e-5, 1e-4, 5e-4, 1e-3, 5e-3, 1e-2],
+            "kernel_size": [3, 5, 7],
+            "num_layers": [2, 3, 4],
         }
 
     def validate_candidate(

@@ -264,6 +264,10 @@ pre.ev{
         <option value="nonlinear">Nonlinear Modeling</option>
         <option value="synthetic">Synthetic Regression</option>
       </select>
+      <label for="agTune">Optimizable Directions <span style="color:var(--muted);font-weight:400;text-transform:none">(取消勾选 = 固定该超参，不进白名单)</span></label>
+      <div id="agTune" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0b1120">
+        <span style="color:var(--muted);font-size:12px">loading…</span>
+      </div>
       <label for="agGoal">Goal</label>
     <textarea id="agGoal">Find a low-NMSE nonlinear model under 4000 parameters.</textarea>
     <div class="card-grid">
@@ -406,6 +410,19 @@ document.getElementById("agProv").addEventListener("change",function(){
   document.getElementById("noteFake").classList.toggle("on",this.value==="fake");
   document.getElementById("noteDp").classList.toggle("on",this.value==="deepseek");
 });
+function loadTuneFields(domain){
+  var wrap=document.getElementById("agTune");
+  wrap.innerHTML="<span style='color:var(--muted);font-size:12px'>loading…</span>";
+  fetch("/domains/"+encodeURIComponent(domain)+"/fields").then(function(r){return r.json()}).then(function(data){
+    var html="";
+    (data.fields||[]).forEach(function(f){
+      var vals=(f.values||[]).map(String).slice(0,5).join(", ")+(f.values.length>5?"…":"");
+      html+="<label style='display:inline-flex;align-items:center;gap:6px;font-size:12px;margin:0;text-transform:none;letter-spacing:0;color:var(--text);cursor:pointer' title='["+vals+"]'><input type='checkbox' class='tune-f' value='"+f.name+"' checked style='width:auto;margin:0'>"+f.name+"</label>";
+    });
+    wrap.innerHTML=html;
+  }).catch(function(){wrap.innerHTML="<span style='color:var(--red);font-size:12px'>failed to load fields</span>"});
+}
+document.getElementById("agDom").addEventListener("change",function(){loadTuneFields(this.value)});
 document.getElementById("clearBtn").addEventListener("click",function(){eb.textContent="Ready.\n";c=0;ec.textContent="0"});
 
 function ts(s){return new Date(s*1000).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
@@ -528,7 +545,8 @@ document.getElementById("wfBtn").addEventListener("click",function(){
   go("/runs/"+encodeURIComponent(sid)+"/events",body,document.getElementById("wfBtn"))
 });
 document.getElementById("agBtn").addEventListener("click",function(){
-  var body={provider:document.getElementById("agProv").value,goal:document.getElementById("agGoal").value,max_rounds:Number(document.getElementById("agRnd").value),max_experiments:Number(document.getElementById("agExp").value),parameter_count_max:Number(document.getElementById("agPm").value),nmse_threshold_db:Number(document.getElementById("agThr").value),timeout_seconds:Number(document.getElementById("agTo").value),artifact_dir:null,domain:document.getElementById("agDom").value};
+  var enabled=[].slice.call(document.querySelectorAll(".tune-f:checked")).map(function(x){return x.value});
+  var body={provider:document.getElementById("agProv").value,goal:document.getElementById("agGoal").value,max_rounds:Number(document.getElementById("agRnd").value),max_experiments:Number(document.getElementById("agExp").value),parameter_count_max:Number(document.getElementById("agPm").value),nmse_threshold_db:Number(document.getElementById("agThr").value),timeout_seconds:Number(document.getElementById("agTo").value),artifact_dir:null,domain:document.getElementById("agDom").value,enabled_fields:enabled};
   go("/agent/ui-agent-"+Date.now()+"/events",body,document.getElementById("agBtn"))
 });
 document.getElementById("bmBtn").addEventListener("click",function(){
@@ -647,6 +665,7 @@ function renderBenchmarkSummary(data){
   var m=(location.search.match(/[?&]tab=([a-z]+)/)||[])[1]||"workflow";
   var t=document.querySelector('.tab[data-tab="'+m+'"]');
   if(t)t.click();
+  loadTuneFields(document.getElementById("agDom").value);
   if(m==="compare"&&document.getElementById("cmpLoadBtn"))document.getElementById("cmpLoadBtn").click();
   if(m==="benchmark"&&document.getElementById("bmLoadBtn"))document.getElementById("bmLoadBtn").click();
 })();
