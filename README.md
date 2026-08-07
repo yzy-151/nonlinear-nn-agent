@@ -14,6 +14,14 @@ Benchmark 页签（10-case 评估，含 planner 成功率、自我修正、token
 
 ![Benchmark 页签](docs/assets/screenshots/web-ui-benchmark.png)
 
+可优化方向白名单（3.0）：勾选/取消勾选可寻优超参，实时更新 Guard 白名单与 LLM 设计空间（未勾选的超参被固定、不再被搜索）：
+
+![可优化方向白名单勾选](docs/assets/screenshots/web-ui-optimize-1.png)
+
+Agent Loop 实际运行的 SSE 事件日志（plan → tool → metric → complete 实时流）：
+
+![运行日志](docs/assets/screenshots/web-ui-optimize-2.png)
+
 Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 
 ![Strategy Comparison 页签](docs/assets/screenshots/web-ui-compare.png)
