@@ -1,0 +1,23 @@
+data_path: examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat
+output_dir: reports/exp_492
+memory_depth: 40
+max_train_samples: null
+train_ratio: 1.0
+seed: 42
+epochs: 4000
+batch_size: 512
+learning_rate: 0.0008
+optimizer: adam
+scheduler_step_size: 1000
+scheduler_gamma: 1.0
+nfft: 1024
+sample_rate_hz: 491520000.0
+model_type: spline_mlp
+hidden_units: 180
+activation: silu
+target_mode: direct
+feature_mode: complex_mp
+mp_order_count: 1
+plot_title: Complex MP LSTSQ
+spline_knots: 32
+spline_range: 3.0

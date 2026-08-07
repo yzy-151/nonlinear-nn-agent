@@ -1,0 +1,15 @@
+{
+  "status": "succeeded",
+  "samples": 16164,
+  "train_samples": 16164,
+  "evaluation_samples": 16164,
+  "epochs": 0,
+  "final_train_loss": 8.330699297378714e-06,
+  "nmse_db": -37.48745590710582,
+  "model_type": "complex_lstsq",
+  "parameter_count": 3980,
+  "target_mode": "direct",
+  "feature_mode": "complex_mp",
+  "mp_order_count": 9,
+  "rank": 1990
+}

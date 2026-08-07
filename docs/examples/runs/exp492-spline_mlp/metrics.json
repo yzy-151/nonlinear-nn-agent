@@ -1,0 +1,14 @@
+{
+  "status": "succeeded",
+  "samples": 16344,
+  "train_samples": 16343,
+  "evaluation_samples": 16344,
+  "epochs": 4000,
+  "final_train_loss": 1.5243353459516804e-06,
+  "nmse_db": -41.99216949165327,
+  "model_type": "spline_mlp",
+  "parameter_count": 21062,
+  "target_mode": "direct",
+  "feature_mode": "complex_mp",
+  "mp_order_count": 1
+}

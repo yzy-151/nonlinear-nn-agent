@@ -36,6 +36,7 @@ configs/lstsq_*.yaml
 !configs/baselines/
 !configs/examples/
 exp[0-9]*/
+!docs/examples/runs/exp[0-9]*/
 /exp*/
 /experiment*/
 /experiments/
