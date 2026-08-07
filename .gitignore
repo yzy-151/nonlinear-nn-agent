@@ -35,6 +35,12 @@ configs/lstsq_*.yaml
 # Keep baselines and examples tracked
 !configs/baselines/
 !configs/examples/
+# Internal docs not meant for the public repo
+docs/resume/
+docs/handoff/
+docs/onboarding/
+docs/nonlinear-agent-*.pdf
+docs/nonlinear-agent-*_txt.txt
 exp[0-9]*/
 !docs/examples/runs/exp[0-9]*/
 /exp*/

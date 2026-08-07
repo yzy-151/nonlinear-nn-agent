@@ -233,7 +233,6 @@ python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1
 ## 文档
 
 - 实验报告：[v1 搜索对照](docs/experiments/nonlinear-search-ablation-v1.md) · [v2 先验注入与 Benchmark 成熟化](docs/experiments/nonlinear-search-ablation-v2.md)
-- 交接与维护：[llm-continuation-plan.md](docs/handoff/llm-continuation-plan.md)
 - 学习文档：[docs/learning/](docs/learning/)
 
 ## 设计借鉴与原创性
