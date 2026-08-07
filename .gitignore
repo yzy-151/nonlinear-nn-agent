@@ -44,4 +44,5 @@ exp[0-9]*/
 /outputs/
 /results/
 runs/
+!docs/examples/runs/
 benchmarks/
