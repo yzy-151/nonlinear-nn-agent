@@ -1,0 +1,17 @@
+{
+  "status": "succeeded",
+  "samples": 16364,
+  "train_samples": 16363,
+  "evaluation_samples": 16364,
+  "epochs": 10000,
+  "final_train_loss": 1.459424240241707e-06,
+  "nmse_db": -42.26426827395959,
+  "model_type": "tiny_mlp",
+  "parameter_count": 12386,
+  "target_mode": "direct",
+  "feature_mode": "complex_mp",
+  "mp_order_count": 3,
+  "baseline_name": "No-DPD input x",
+  "baseline_nmse_db": -21.824745025068705,
+  "nmse_improvement_db": 20.439523248890882
+}

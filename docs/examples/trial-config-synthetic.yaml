@@ -1,0 +1,3 @@
+# Synthetic Regression Domain — Minimal Base Config
+degree: 2
+reg_strength: 0.001
