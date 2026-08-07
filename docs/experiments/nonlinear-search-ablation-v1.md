@@ -52,7 +52,7 @@
 
 结论：**未观察到 `llm_program_reflection` 对 `llm_direct` 的稳定优势**。点估计反而更差，且置信区间跨 0。本报告不展示单一 seed 或单一成功案例作为“Agent 更优”的证据。
 
-实现说明：本实验的 LLM 策略为离线可复现的邻域采样模拟（读历史最优 + 30% 随机探索），`llm_program_reflection` 额外消费 ReflectionPolicy 事实、避免被拒/失败的 model_type。因此 `prompt_tokens / completion_tokens / estimated_cost_usd` 均为 0——这些数字不代表真实 LLM 成本，只代表该模拟器未调用 LLM API。真实 DeepSeek 调用的证据见 `docs/handoff/llm-continuation-plan.md`（exp016 / exp_019 案例）。
+实现说明：本实验的 LLM 策略为离线可复现的邻域采样模拟（读历史最优 + 30% 随机探索），`llm_program_reflection` 额外消费 ReflectionPolicy 事实、避免被拒/失败的 model_type。因此 `prompt_tokens / completion_tokens / estimated_cost_usd` 均为 0——这些数字不代表真实 LLM 成本，只代表该模拟器未调用 LLM API。真实 LLM 调用的证据见 `docs/examples/runs/exp016-complex_lstsq/`（exp016 / exp_019 案例）。
 
 ## 4. 失败与低效 case（不删除、不美化）
 
