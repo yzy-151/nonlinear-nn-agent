@@ -1,4 +1,15 @@
-# Nonlinear NN Agent Harness
+# Agent Engineering Portfolio — Nonlinear NN Agent Harness
+
+两个从零实现的 **Agent 工程**项目的作品集入口，覆盖 Agentic Loop、Tool Calling、Schema Guard、Eval Harness、Runtime 可靠性、RAG、Memory、Multi-Agent 与 Web UI。
+
+| 项目 | 一句话 | 技术栈 | 链接 |
+| --- | --- | --- | --- |
+| **Nonlinear NN Agent Harness**（本仓库） | LLM 自动设计并执行非线性建模实验的超参寻优 Agent | Planner / Guard / ToolRegistry / DomainPlugin / Optuna / SSE / SQLite | 本仓库 |
+| **PaperStorm** | 中文论文调研与知识库 Agent（STORM 二次开发） | LangGraph / RAG / Memory / Multi-Agent / Eval / Dashboard | [paperstorm-agent](https://github.com/yzy-151/paperstorm-agent) |
+
+---
+
+# 项目一：Nonlinear NN Agent Harness
 
 基于 LLM 的**超参数寻优提效工具**（Agent Harness Runtime）：把人工遍历超参（卷积核长度、网络层数、学习率、scheduler、epoch 等）的实验组织为 **plan → validate → execute → observe → reflect** 的可复现工作流——LLM 负责设计实验，Harness 负责受控工具调用、Schema Guard、可定制白名单、真实训练、指标验证、SSE 实时观测与结果落盘。
 
@@ -246,3 +257,46 @@ python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1
 | 通用 Agent 工程 | plan → execute → observe → reflect 循环 | 完整主循环 + 历史压缩 + Reflection 事实提取 |
 
 原创部分：**DomainPlugin 领域解耦**、**统一 Trial Protocol 与 bootstrap 统计**、**历史先验注入（-42 dB 候选）**、**SQLite 控制面**（幂等 / lease / SSE 重放）、**10-case Benchmark 指标体系**与**并发压测验收线**。
+
+---
+
+# 项目二：PaperStorm — 中文论文调研与知识库 Agent
+
+> [GitHub](https://github.com/yzy-151/paperstorm-agent) · 基于 Stanford STORM 二次开发，面向 RAG、Memory、Tool Calling、Multi-Agent、Eval 与 Dashboard 的完整 Agent 工程。
+
+![PaperStorm Chat](docs/assets/screenshots/paperstorm-dashboard-chat.png)
+
+![PaperStorm Research](docs/assets/screenshots/paperstorm-research.png)
+
+![Workflow](docs/assets/screenshots/paperstorm-workflow.jpg)
+
+**核心能力**：
+
+- **RAG 检索链路**：arXiv / 本地 PDF / Zotero 论文检索，query 清洗、领域消歧、BM25 + Dense + RRF 混合召回、Cross-Encoder 重排、引用回答
+- **Agent Runtime**：LangGraph 状态图编排（意图分类 → 记忆召回 → 检索 → 证据门控 → 深度调研 → 引用回答），SQLite checkpoint、节点级重试、span trace、请求幂等
+- **Context / Memory**：可恢复上下文压缩引擎（token 双阈值、工具输出 artifact 化）+ 可治理跨会话长期记忆（写入门控、冲突 supersede、namespace ACL）
+- **生产治理**：SQLite WAL 控制面（ACL / 审计 / 事务幂等 / TTL 缓存 / 持久任务 / 熔断）
+- **网页端**：面向用户的产品界面与面向开发的调试控制台分离，一键运行全部 Benchmark
+
+**关键数字（Benchmark 佐证）**：
+
+| 指标 | 结果 |
+| --- | ---: |
+| 检索 Recall@K（legacy → 真实向量） | 0.3625 → **0.9875（+172%）** |
+| Context 压缩 token 节省 | **66.11%**，恢复正确率 100% |
+| Memory 写入/召回契约 | 100%，泄漏 / 重复为 0 |
+| 自动化测试 | 191 项全链路回归 |
+
+# Agent 工程能力一览
+
+| 能力 | Nonlinear NN Agent Harness | PaperStorm |
+| --- | --- | --- |
+| Agentic Loop（plan → validate → execute → observe → reflect） | ✅ | ✅（LangGraph 状态图） |
+| Tool Calling / Tool Registry / MCP-style Tools | ✅ | ✅ |
+| Schema Guard / 预算控制 | ✅ | ✅ |
+| Eval Harness / Benchmark（契约 + 统计） | ✅（10-case + 搜索对照 + bootstrap） | ✅（契约 Benchmark） |
+| Runtime 可靠性（retry / 幂等 / checkpoint / SSE） | ✅ | ✅ |
+| RAG（混合检索 + 重排 + 引用） | — | ✅ |
+| 跨会话 Memory / ACL | — | ✅ |
+| Web UI / Dashboard / 实时事件流 | ✅ | ✅ |
+| 自动化测试规模 | 230+ | 191 |
