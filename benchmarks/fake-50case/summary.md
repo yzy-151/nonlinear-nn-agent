@@ -1,0 +1,61 @@
+# Agent Benchmark Summary
+
+- case_count: `50`
+- target_hit_rate: `0.38`
+- rejected_rate: `0.21978021978021978`
+- runtime_failure_rate: `0.06593406593406594`
+- average_experiments_used: `1.42`
+- best_nmse_db: `-36.5`
+
+## Cases
+
+- `target-hit`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `invalid-plan`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `runtime-failure`: hit=False, best_nmse=-20.0, rejected=0, failed=1, succeeded=0
+- `reflection-recovery`: hit=True, best_nmse=-36.5, rejected=1, failed=0, succeeded=1
+- `budget-stop`: hit=True, best_nmse=-35.5, rejected=0, failed=0, succeeded=1
+- `json-tolerance`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `parameter-budget-edge`: hit=True, best_nmse=-35.8, rejected=0, failed=0, succeeded=1
+- `unknown-tool`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `long-history-compression`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=6
+- `multi-round-self-correction`: hit=True, best_nmse=-36.0, rejected=1, failed=1, succeeded=2
+- `target-hit-v1`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `invalid-plan-v2`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `runtime-failure-v3`: hit=False, best_nmse=None, rejected=0, failed=0, succeeded=0
+- `reflection-recovery-v4`: hit=True, best_nmse=-36.5, rejected=1, failed=0, succeeded=1
+- `budget-stop-v5`: hit=True, best_nmse=-35.5, rejected=0, failed=0, succeeded=1
+- `json-tolerance-v6`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `parameter-budget-edge-v7`: hit=True, best_nmse=-35.8, rejected=0, failed=0, succeeded=1
+- `unknown-tool-v8`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `long-history-compression-v9`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=6
+- `multi-round-self-correction-v10`: hit=True, best_nmse=-36.0, rejected=1, failed=1, succeeded=2
+- `target-hit-v11`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `invalid-plan-v12`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `runtime-failure-v13`: hit=False, best_nmse=None, rejected=0, failed=0, succeeded=0
+- `reflection-recovery-v14`: hit=True, best_nmse=-36.5, rejected=1, failed=0, succeeded=1
+- `budget-stop-v15`: hit=False, best_nmse=-35.5, rejected=0, failed=0, succeeded=1
+- `json-tolerance-v16`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `parameter-budget-edge-v17`: hit=False, best_nmse=-35.8, rejected=0, failed=0, succeeded=1
+- `unknown-tool-v18`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `long-history-compression-v19`: hit=True, best_nmse=-36.0, rejected=0, failed=0, succeeded=6
+- `multi-round-self-correction-v20`: hit=True, best_nmse=-36.0, rejected=1, failed=1, succeeded=2
+- `target-hit-v21`: hit=False, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `invalid-plan-v22`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `runtime-failure-v23`: hit=False, best_nmse=None, rejected=0, failed=0, succeeded=0
+- `reflection-recovery-v24`: hit=False, best_nmse=-36.5, rejected=1, failed=0, succeeded=1
+- `budget-stop-v25`: hit=False, best_nmse=-35.5, rejected=0, failed=0, succeeded=1
+- `json-tolerance-v26`: hit=False, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `parameter-budget-edge-v27`: hit=False, best_nmse=-35.8, rejected=0, failed=0, succeeded=1
+- `unknown-tool-v28`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `long-history-compression-v29`: hit=False, best_nmse=-36.0, rejected=0, failed=0, succeeded=6
+- `multi-round-self-correction-v30`: hit=False, best_nmse=-36.0, rejected=1, failed=1, succeeded=2
+- `target-hit-v31`: hit=False, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `invalid-plan-v32`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `runtime-failure-v33`: hit=False, best_nmse=None, rejected=0, failed=0, succeeded=0
+- `reflection-recovery-v34`: hit=False, best_nmse=-36.5, rejected=1, failed=0, succeeded=1
+- `budget-stop-v35`: hit=False, best_nmse=-35.5, rejected=0, failed=0, succeeded=1
+- `json-tolerance-v36`: hit=False, best_nmse=-36.0, rejected=0, failed=0, succeeded=1
+- `parameter-budget-edge-v37`: hit=False, best_nmse=-35.8, rejected=0, failed=0, succeeded=1
+- `unknown-tool-v38`: hit=False, best_nmse=None, rejected=1, failed=0, succeeded=0
+- `long-history-compression-v39`: hit=False, best_nmse=-36.0, rejected=0, failed=0, succeeded=6
+- `multi-round-self-correction-v40`: hit=False, best_nmse=-36.0, rejected=1, failed=1, succeeded=2
