@@ -189,11 +189,11 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 | 方法 | best val_mse mean | 平均收敛 trial（0-based） |
 | --- | ---: | ---: |
 | random_search | 0.0434 | 18.6 |
-| optuna_tpe | 0.0593 | 26.0 |
+| optuna_tpe | 0.0434 | 13.4 |
 | llm_direct | 0.0434 | **11.4** |
 | **llm_program_reflection** | **0.0434** | **11.4** |
 
-**LLM 式策略（邻域采样 + exploitation）收敛最快**；Optuna TPE 在小设计空间上因前期建模样本反而最慢。合成域无历史先验可注入，reflection 与 direct 等价（paired delta = 0）——reflection 的增益来自知识注入，见上节真实非线性域 -4.28 dB 的显著提升。
+**LLM 式策略（邻域采样 + exploitation）收敛最快（11.4），Optuna 次之（13.4），Random 最慢（18.6）**。四策略最终都收敛到全局最优 0.0434——因为合成域只有 50 个合法组合、50 trial 无放回 ≈ 全枚举，真正的差异体现在收敛速度；本表早期版本中 Optuna 更差，根因是 Optuna 适配器把离散枚举当连续区间采样（已修复，详见 [v3 报告](docs/experiments/nonlinear-search-ablation-v3.md)）。合成域无历史先验可注入，reflection 与 direct 等价（paired delta = 0）——reflection 的增益来自知识注入，见上节真实非线性域 -4.28 dB 的显著提升。
 
 ![四策略收敛速度对比](docs/assets/experiments/strategy-convergence-speed.png)
 

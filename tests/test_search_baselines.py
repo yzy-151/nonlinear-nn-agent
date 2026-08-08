@@ -54,6 +54,58 @@ class TestSearchStrategies(unittest.TestCase):
         except ImportError:
             self.skipTest("optuna not installed")
 
+    def test_optuna_respects_discrete_enum_values(self):
+        """Optuna must sample from the design-space whitelist, not a continuous
+        range — otherwise it can never hit the true discrete optimum."""
+        try:
+            ctx = self._make_context()
+            s = OptunaTPESearch(ctx)
+        except ImportError:
+            self.skipTest("optuna not installed")
+        design = ctx.domain.design_space()
+        for i in range(80):
+            candidate = s.suggest([], i)
+            for field, choices in design.items():
+                self.assertIn(
+                    candidate[field],
+                    choices,
+                    f"{field} sampled {candidate[field]!r}, not in whitelist",
+                )
+
+    def test_optuna_synthetic_reaches_global_optimum(self):
+        """On the 50-point synthetic domain, categorical sampling must let TPE
+        converge to the known global optimum (degree=5, reg=1e-4)."""
+        try:
+            from nonlinear_agent.domains.synthetic_regression import (
+                SyntheticRegressionDomain,
+                _evaluate_candidate_tool,
+                _fit_candidate_tool,
+            )
+
+            ctx = SearchContext(
+                domain=SyntheticRegressionDomain(),
+                seed=7,
+                trial_budget=50,
+                parameter_count_max=100,
+            )
+            s = OptunaTPESearch(ctx)
+        except ImportError:
+            self.skipTest("optuna not installed")
+
+        design = ctx.domain.design_space()
+        best = float("inf")
+        for i in range(50):
+            candidate = s.suggest([], i)
+            state = _fit_candidate_tool(
+                degree=candidate["degree"],
+                reg_strength=candidate["reg_strength"],
+            )["model_state"]
+            val_mse = _evaluate_candidate_tool(state)["val_mse"]
+            s.observe(candidate, {"val_mse": val_mse})
+            best = min(best, val_mse)
+
+        self.assertLess(best, 0.0434 + 1e-6)
+
     def test_llm_search_names(self):
         ctx = self._make_context()
         self.assertEqual(LLMDirectSearch.name, "llm_direct")
