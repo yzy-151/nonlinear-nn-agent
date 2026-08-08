@@ -336,6 +336,7 @@ async def stream_agent_events(
     fake_plan: str | None = None,
     domain_name: str | None = None,
     enabled_fields: list[str] | None = None,
+    data_file: str | None = None,
 ):
     """Agent Planner Loop 的完整 SSE 流。
 
@@ -390,6 +391,8 @@ async def stream_agent_events(
         constraints = {"parameter_count_max": parameter_count_max}
         constraints.update(domain.default_constraints())
         constraints["parameter_count_max"] = parameter_count_max
+        if data_file:
+            constraints["data_file"] = data_file
         loop = ExperimentPlannerLoop(
             planner=ExperimentPlanner(llm_client=llm, domain=domain),
             workspace=root,
@@ -490,6 +493,16 @@ def create_app(workspace: Path | str):
                 for key, values in domain.design_space().items()
             ],
         }
+
+    @app.get("/data/mat-files")
+    async def mat_files():
+        """Scan data/ and examples/*/data/ for .mat experiment datasets."""
+        found: list[str] = []
+        for base in (root / "data", root / "examples"):
+            if base.is_dir():
+                for p in sorted(base.rglob("*.mat")):
+                    found.append(str(p.relative_to(root)).replace("\\", "/"))
+        return {"files": found}
 
     # ── GET / — 浏览器首页 ──────────────────────────────
     @app.get("/", response_class=HTMLResponse)
@@ -641,6 +654,7 @@ def create_app(workspace: Path | str):
         fake_plan = payload.get("fake_plan")
         domain_name = payload.get("domain")
         enabled_fields = payload.get("enabled_fields")
+        data_file = payload.get("data_file")
 
         async def agent_stream():
             async for chunk in stream_agent_events(
@@ -650,6 +664,7 @@ def create_app(workspace: Path | str):
                 nmse_threshold_db=nmse_threshold_db, timeout_seconds=timeout_seconds,
                 artifact_dir=artifact_dir, fake_plan=fake_plan,
                 domain_name=domain_name, enabled_fields=enabled_fields,
+                data_file=data_file,
             ):
                 yield chunk
             # Agent Loop 完成后自动刷新 Dashboard
@@ -842,6 +857,14 @@ def _load_domain(domain_name: str | None):
         from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
 
         return SyntheticRegressionDomain()
+    if domain_name == "pim-cancellation":
+        from nonlinear_agent.domains.pim_cancellation import PIMCancellationDomain
+
+        return PIMCancellationDomain()
+    if domain_name == "register-config":
+        from nonlinear_agent.domains.register_config import RegisterConfigDomain
+
+        return RegisterConfigDomain()
     from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
 
     return NonlinearModelingDomain()

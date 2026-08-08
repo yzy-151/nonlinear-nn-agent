@@ -263,6 +263,12 @@ pre.ev{
       <select id="agDom">
         <option value="nonlinear">Nonlinear Modeling</option>
         <option value="synthetic">Synthetic Regression</option>
+        <option value="pim-cancellation">PIM Cancellation</option>
+        <option value="register-config">Register Config</option>
+      </select>
+      <label for="agData">Experiment Data (.mat) <span style="color:var(--muted);font-weight:400;text-transform:none">(自动扫描 data/ 与 examples/*/data/)</span></label>
+      <select id="agData">
+        <option value="">auto</option>
       </select>
       <label for="agTune">Optimizable Directions <span style="color:var(--muted);font-weight:400;text-transform:none">(取消勾选 = 固定该超参，不进白名单)</span></label>
       <div id="agTune" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0b1120">
@@ -422,6 +428,16 @@ function loadTuneFields(domain){
     wrap.innerHTML=html;
   }).catch(function(){wrap.innerHTML="<span style='color:var(--red);font-size:12px'>failed to load fields</span>"});
 }
+function loadMatFiles(){
+  var sel=document.getElementById("agData");
+  fetch("/data/mat-files").then(function(r){return r.json()}).then(function(data){
+    var html="<option value=''>auto</option>";
+    (data.files||[]).forEach(function(f){
+      html+="<option value='"+f+"'>"+f+"</option>";
+    });
+    sel.innerHTML=html;
+  }).catch(function(){});
+}
 document.getElementById("agDom").addEventListener("change",function(){loadTuneFields(this.value)});
 document.getElementById("clearBtn").addEventListener("click",function(){eb.textContent="Ready.\n";c=0;ec.textContent="0"});
 
@@ -546,7 +562,7 @@ document.getElementById("wfBtn").addEventListener("click",function(){
 });
 document.getElementById("agBtn").addEventListener("click",function(){
   var enabled=[].slice.call(document.querySelectorAll(".tune-f:checked")).map(function(x){return x.value});
-  var body={provider:document.getElementById("agProv").value,goal:document.getElementById("agGoal").value,max_rounds:Number(document.getElementById("agRnd").value),max_experiments:Number(document.getElementById("agExp").value),parameter_count_max:Number(document.getElementById("agPm").value),nmse_threshold_db:Number(document.getElementById("agThr").value),timeout_seconds:Number(document.getElementById("agTo").value),artifact_dir:null,domain:document.getElementById("agDom").value,enabled_fields:enabled};
+  var body={provider:document.getElementById("agProv").value,goal:document.getElementById("agGoal").value,max_rounds:Number(document.getElementById("agRnd").value),max_experiments:Number(document.getElementById("agExp").value),parameter_count_max:Number(document.getElementById("agPm").value),nmse_threshold_db:Number(document.getElementById("agThr").value),timeout_seconds:Number(document.getElementById("agTo").value),artifact_dir:null,domain:document.getElementById("agDom").value,enabled_fields:enabled,data_file:document.getElementById("agData").value};
   go("/agent/ui-agent-"+Date.now()+"/events",body,document.getElementById("agBtn"))
 });
 document.getElementById("bmBtn").addEventListener("click",function(){
@@ -666,6 +682,7 @@ function renderBenchmarkSummary(data){
   var t=document.querySelector('.tab[data-tab="'+m+'"]');
   if(t)t.click();
   loadTuneFields(document.getElementById("agDom").value);
+  loadMatFiles();
   if(m==="compare"&&document.getElementById("cmpLoadBtn"))document.getElementById("cmpLoadBtn").click();
   if(m==="benchmark"&&document.getElementById("bmLoadBtn"))document.getElementById("bmLoadBtn").click();
 })();

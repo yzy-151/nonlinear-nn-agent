@@ -43,6 +43,17 @@ Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 - **层级 Trace**：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token/cost` 全链路
 - **Web UI + CLI + Dashboard** 三套交付面，浏览器一键跑实验并实时看事件流
 
+## 内置实验领域（3.1）
+
+Web UI 的 Agent Planner 可直接切换以下领域，且自动扫描 `data/` 与 `examples/*/data/` 下的 `.mat` 文件，在"Experiment Data"下拉框中选择本次实验的数据集：
+
+| 领域 | 实验内容 | 可寻优参数 | 主指标 |
+| --- | --- | --- | --- |
+| Nonlinear Modeling | RF MPDPD 非线性建模 | model_type / memory_depth / learning_rate / kernel_size / num_layers 等 | nmse_db |
+| PIM Cancellation | 三阶 PIM 对消：`tx(32×L)` 拟合 `rx(32×L)` | model_type / memory_depth / reg / normalize_power | res_db（残余，含参数量/每通道最大功率/参数分布等中间变量） |
+| Register Config | 寄存器表单配置实验 | mu / optimizer(adam\|sgd) / data_choice / lut_choice | final_mse_db |
+| Synthetic Regression | 合成回归演示 | degree / reg_strength | val_mse |
+
 ## 快速开始
 
 环境要求：Python 3.9+，Windows / Linux / macOS。
