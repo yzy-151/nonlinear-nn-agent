@@ -20,11 +20,14 @@ LLM 客户端抽象层 ====================================================
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
@@ -100,6 +103,13 @@ class FakeLLMClient:
         return self.responses.pop(0)
 
 
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+class _RetryableRequestError(Exception):
+    """可重试的 LLM 请求错误（限流 / 服务端瞬时错误 / 网络中断）。"""
+
+
 # ============================================================
 # OpenAICompatibleClient — 真实 LLM API（生产用）
 # ============================================================
@@ -122,8 +132,11 @@ class OpenAICompatibleClient:
     model: str
     temperature: float = 0.2        # 低温度 → 输出更稳定、更少随机性
     timeout_seconds: float = 60.0
+    max_retries: int = 3            # 可重试错误（429/5xx/网络）的最大重试次数
+    retry_backoff: float = 1.0      # 指数退避基数（秒）
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
+    _conn: Any = field(default=None, init=False, repr=False)  # http.client 连接池
 
     # ── 工厂方法：快速创建 DeepSeek 客户端 ──────────────────
     @classmethod
@@ -150,24 +163,37 @@ class OpenAICompatibleClient:
         )
 
     # ── 核心方法：发请求，拿回复 ─────────────────────────────
-    def complete(self, prompt: str) -> str:
+    def complete(
+        self, prompt: str, stream: bool = False, on_token: Any = None
+    ) -> str:
         """发送 prompt 给 LLM，返回模型生成的文本。
 
-        请求格式：OpenAI Chat Completions API
-          POST {base_url}/chat/completions
-          Body: {model, messages, temperature, response_format}
-
-        response_format: {"type": "json_object"} 保证模型返回合法 JSON，
-        这样 Planner 解析 ExperimentPlan 时不会遇到格式错误。
+        支持自动重试（429 / 5xx / 网络中断，指数退避）与可选流式输出：
+        - stream=True 时逐 token 累积并通过 on_token 回调。
+        - response_format: {"type": "json_object"} 保证 JSON 输出。
         """
-        # ── 构造请求体 ──
+        payload = self._build_payload(prompt, stream=stream)
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                if stream:
+                    return self._complete_stream(payload, on_token)
+                return self._complete_once(payload)
+            except _RetryableRequestError as exc:
+                last_error = exc
+                if attempt == self.max_retries:
+                    break
+                time.sleep(self.retry_backoff * (2 ** attempt))
+        raise RuntimeError(
+            f"LLM request failed after {self.max_retries + 1} attempts: {last_error}"
+        ) from last_error
+
+    def _build_payload(self, prompt: str, stream: bool) -> dict[str, Any]:
         payload = {
             "model": self.model,
             "messages": [
                 {
                     "role": "system",
-                    # system prompt 只给最基本指令："输出简洁 JSON"
-                    # 详细的实验设计指引由 planner.py 构造在 user prompt 里
                     "content": (
                         "You are an experiment-planning agent. You output ONLY a "
                         "valid JSON object matching the user-provided schema. "
@@ -180,43 +206,211 @@ class OpenAICompatibleClient:
                 {"role": "user", "content": prompt},
             ],
             "temperature": self.temperature,
-            "response_format": {"type": "json_object"},  # 强制 JSON 输出
+            "response_format": {"type": "json_object"},
         }
+        if stream:
+            payload["stream"] = True
+        return payload
 
-        # ── 构造 HTTP 请求 ──
-        # 用标准库 urllib 而不是 requests/httpx——零额外依赖
-        request = urllib.request.Request(
-            url=f"{self.base_url}/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
+    def _get_connection(self):
+        if self._conn is None:
+            parsed = urllib.parse.urlparse(self.base_url)
+            conn_cls = (
+                http.client.HTTPSConnection
+                if parsed.scheme == "https"
+                else http.client.HTTPConnection
+            )
+            self._conn = conn_cls(parsed.netloc, timeout=self.timeout_seconds)
+        return self._conn
 
-        # ── 发送请求 ──
+    def _request_once(self, payload: dict[str, Any]) -> dict[str, Any]:
+        body = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        conn = self._get_connection()
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                body = json.loads(response.read().decode("utf-8"))
+            conn.request("POST", "/chat/completions", body=body, headers=headers)
+            resp = conn.getresponse()
+            raw = resp.read()
+        except (http.client.HTTPException, OSError) as exc:
+            self._conn = None  # 连接失效 → 重连
+            raise _RetryableRequestError(f"connection error: {exc}") from exc
 
-        except urllib.error.HTTPError as exc:
-            # HTTP 错误（401 密钥无效、429 限流、500 服务端错误等）
-            detail = exc.read().decode("utf-8", errors="replace")
+        if resp.status in _RETRYABLE_STATUS:
+            self._conn = None
+            raise _RetryableRequestError(f"HTTP {resp.status}: {raw[:200]!r}")
+        if resp.status >= 400:
             raise RuntimeError(
-                f"LLM request failed with HTTP {exc.code}: {detail}"
-            ) from exc
+                f"LLM request failed with HTTP {resp.status}: {raw[:300]!r}"
+            )
+        return json.loads(raw.decode("utf-8"))
 
-        except urllib.error.URLError as exc:
-            # 网络错误（DNS 解析失败、连接超时、拒绝连接等）
-            raise RuntimeError(f"LLM request failed: {exc.reason}") from exc
+    def _request_stream(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        body = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        conn = self._get_connection()
+        try:
+            conn.request("POST", "/chat/completions", body=body, headers=headers)
+            resp = conn.getresponse()
+            chunks: list[dict[str, Any]] = []
+            while True:
+                line = resp.readline()
+                if not line:
+                    break
+                line = line.decode("utf-8", errors="replace").strip()
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    chunks.append(json.loads(data))
+                except json.JSONDecodeError:
+                    continue
+            return chunks
+        except (http.client.HTTPException, OSError) as exc:
+            self._conn = None
+            raise _RetryableRequestError(f"stream error: {exc}") from exc
 
-        # ── 提取回复文本 ──
-        # OpenAI 格式：choices[0].message.content
+    def _complete_once(self, payload: dict[str, Any]) -> str:
+        body = self._request_once(payload)
         content = str(body["choices"][0]["message"]["content"])
-
-        # ── 累计 token 用量（用于 benchmark 成本统计）──
         usage = body.get("usage") or {}
         self.total_prompt_tokens += int(usage.get("prompt_tokens", 0))
         self.total_completion_tokens += int(usage.get("completion_tokens", 0))
         return content
+
+    def _complete_stream(
+        self, payload: dict[str, Any], on_token: Any = None
+    ) -> str:
+        content = ""
+        for chunk in self._request_stream(payload):
+            choices = chunk.get("choices") or []
+            delta = ""
+            if choices:
+                delta = (choices[0].get("delta") or {}).get("content") or ""
+            if delta:
+                content += delta
+                if on_token:
+                    on_token(delta)
+        return content
+
+
+# ============================================================
+# OpenAISDKClient — 官方 OpenAI SDK 适配层（可选）
+# ============================================================
+@dataclass
+class OpenAISDKClient:
+    """基于官方 openai SDK 的客户端（生产/流式路径）。
+
+    与 OpenAICompatibleClient 提供相同的 complete(prompt) 接口，
+    但由官方 SDK 管理重试、连接与流式，适合接入 OpenAI 官方模型
+    或需要使用 SDK 特性的场景。默认路径仍是手写的
+    OpenAICompatibleClient（零依赖）。
+    """
+
+    api_key: str
+    base_url: str
+    model: str
+    temperature: float = 0.2
+    timeout_seconds: float = 60.0
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    _client: Any = field(default=None, init=False, repr=False)
+
+    @classmethod
+    def deepseek_sdk(
+        cls,
+        api_key: str | None = None,
+        base_url: str = "https://api.deepseek.com",
+        model: str = "deepseek-v4-flash",
+        timeout_seconds: float = 60.0,
+    ) -> "OpenAISDKClient":
+        key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+        if not key:
+            raise RuntimeError("DEEPSEEK_API_KEY is not set.")
+        return cls(
+            api_key=key,
+            base_url=base_url.rstrip("/"),
+            model=model,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def complete(
+        self, prompt: str, stream: bool = False, on_token: Any = None
+    ) -> str:
+        from openai import OpenAI
+
+        if self._client is None:
+            self._client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=self.timeout_seconds,
+            )
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are an experiment-planning agent. You output ONLY a "
+                    "valid JSON object matching the user-provided schema. "
+                    "Never add prose, markdown, code fences, or nested objects."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ]
+        response = self._client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            response_format={"type": "json_object"},
+            stream=stream,
+        )
+
+        if stream:
+            content = ""
+            for chunk in response:
+                delta = ""
+                if chunk.choices:
+                    delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    content += delta
+                    if on_token:
+                        on_token(delta)
+            return content
+
+        content = response.choices[0].message.content or ""
+        if response.usage:
+            self.total_prompt_tokens += response.usage.prompt_tokens or 0
+            self.total_completion_tokens += response.usage.completion_tokens or 0
+        return content
+
+
+def create_llm_client(
+    kind: str = "compat",
+    api_key: str | None = None,
+    base_url: str = "https://api.deepseek.com",
+    model: str = "deepseek-v4-flash",
+    timeout_seconds: float = 60.0,
+):
+    """LLM 客户端工厂：kind='compat'（手写，默认）或 'sdk'（官方 SDK）。"""
+    key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+    if not key:
+        raise RuntimeError("DEEPSEEK_API_KEY is not set.")
+    if kind == "sdk":
+        return OpenAISDKClient(
+            api_key=key,
+            base_url=base_url.rstrip("/"),
+            model=model,
+            timeout_seconds=timeout_seconds,
+        )
+    return OpenAICompatibleClient(
+        api_key=key,
+        base_url=base_url.rstrip("/"),
+        model=model,
+        timeout_seconds=timeout_seconds,
+    )

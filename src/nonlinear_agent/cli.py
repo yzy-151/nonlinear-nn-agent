@@ -50,6 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--timeout-seconds", type=float, default=300.0)
     run.add_argument("--artifact-dir")
     run.add_argument("--fake-plan")
+    run.add_argument("--llm-kind", choices=["compat", "sdk"], default="compat",
+        help="LLM client: compat (hand-written HTTP, default) or sdk (official OpenAI SDK).")
 
     benchmark = subparsers.add_parser("benchmark", help="Run the built-in Agent benchmark cases.")
     benchmark.add_argument("--workspace", default=str(PROJECT_ROOT))
@@ -127,7 +129,9 @@ async def _run_planner(args: argparse.Namespace) -> int:
             ]
         )
     elif args.provider == "deepseek":
-        llm = OpenAICompatibleClient.deepseek()
+        from nonlinear_agent.llm import create_llm_client
+
+        llm = create_llm_client(kind=args.llm_kind)
     else:
         raise ValueError(f"Unsupported provider: {args.provider}")
 
