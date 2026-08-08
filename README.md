@@ -117,8 +117,9 @@ flowchart LR
 | --- | --- |
 | `python agent.py run --provider fake` | 离线 Agent Loop（预设计划） |
 | `python agent.py run --provider deepseek` | 真实 LLM Agent Loop（需 `DEEPSEEK_API_KEY`） |
-| `python agent.py benchmark` | 10-case Agent 行为回归 Benchmark（离线 fake） |
-| `python examples\nonlinear_fit\run_benchmark.py --provider deepseek` | 真实 LLM + 真实训练的 10-case Benchmark |
+| `python agent.py benchmark` | Agent 行为回归 Benchmark（离线 fake，默认 10 case） |
+| `python examples\nonlinear_fit\run_benchmark.py --provider fake --case-count 50` | 参数化 **50-case** 对比（10 类型 × 5 阈值变体），[报告](docs/experiments/nonlinear-benchmark-50case.md) |
+| `python examples\nonlinear_fit\run_benchmark.py --provider deepseek` | 真实 LLM + 真实训练的 Benchmark（可 `--case-count` 扩展） |
 | `python agent.py compare-search` | 四种搜索策略真实对照 |
 | `python agent.py stress-runtime` | SQLite 控制面并发压测 |
 | `python agent.py serve` | 启动 Web UI / SSE 服务 |

@@ -20,6 +20,17 @@ from nonlinear_agent.loop import PlannerLoopResult
 
 
 class BenchmarkTest(unittest.TestCase):
+    def test_build_extended_cases_generates_50_with_threshold_variants(self):
+        from nonlinear_agent.benchmark_cases import build_extended_cases
+
+        cases = build_extended_cases(50)
+        self.assertEqual(len(cases), 50)
+        target_variants = [
+            c for c in cases if c.case_id.startswith("target-hit")
+        ]
+        thresholds = {c.target_nmse_db for c in target_variants}
+        self.assertGreaterEqual(len(thresholds), 4)
+
     def test_summarize_loop_result_counts_statuses_and_target_hit(self):
         case = BenchmarkCase(
             case_id="target-hit",

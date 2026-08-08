@@ -7,6 +7,7 @@ this module so they always evaluate the same cases with the same metrics.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -269,7 +270,9 @@ def build_cases() -> list[BenchmarkCase]:
 
 def build_fake_plans(case_id: str) -> list[str]:
     """Turn CASE_PLANS into the FakeLLM response queue."""
-    raw_plans = CASE_PLANS[case_id]
+    # Variant case ids like "target-hit-v7" reuse the base template's plans.
+    base_id = re.sub(r"-v\d+$", "", case_id)
+    raw_plans = CASE_PLANS.get(base_id) or CASE_PLANS[case_id]
     if case_id == "json-tolerance":
         return [
             "Here is the plan JSON:\n"
@@ -278,6 +281,37 @@ def build_fake_plans(case_id: str) -> list[str]:
             json.dumps(raw_plans[1], ensure_ascii=False),
         ]
     return [json.dumps(plan, ensure_ascii=False) for plan in raw_plans]
+
+
+def build_extended_cases(count: int = 50) -> list[BenchmarkCase]:
+    """Parameterized benchmark set: 10 canonical cases + threshold/budget variants.
+
+    Variants sweep the target threshold and experiment budget so the comparison
+    also covers behavior consistency across different operating points.
+    """
+    base = build_cases()
+    cases = list(base)
+    thresholds = [-34.0, -36.0, -37.0, -38.0, -40.0]
+    idx = 0
+    base_len = len(base)
+    while len(cases) < count:
+        for t in base:
+            if len(cases) >= count:
+                break
+            # 每轮（base 全遍历一次）用同一个阈值，轮间轮换
+            th = thresholds[(idx // base_len) % len(thresholds)]
+            idx += 1
+            rounds = min(t.max_rounds + (idx % 2), 4)
+            cases.append(
+                BenchmarkCase(
+                    case_id=f"{t.case_id}-v{idx}",
+                    goal=f"{t.goal} (variant threshold {th:.0f} dB)",
+                    target_nmse_db=th,
+                    max_rounds=rounds,
+                    max_experiments=t.max_experiments,
+                )
+            )
+    return cases[:count]
 
 
 async def execute_case(

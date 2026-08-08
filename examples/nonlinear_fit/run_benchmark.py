@@ -22,7 +22,10 @@ from nonlinear_agent.benchmark import (  # noqa: E402
     run_benchmark_cases,
     write_benchmark_artifacts,
 )
-from nonlinear_agent.benchmark_cases import build_cases, execute_case  # noqa: E402
+from nonlinear_agent.benchmark_cases import (  # noqa: E402
+    build_extended_cases,
+    execute_case,
+)
 
 
 def _load_env(workspace: Path) -> None:
@@ -41,7 +44,7 @@ def _load_env(workspace: Path) -> None:
 
 
 async def run(args) -> None:
-    cases = build_cases()
+    cases = build_extended_cases(args.case_count)
     results, summary = await run_benchmark_cases(
         cases,
         lambda case: execute_case(
@@ -72,6 +75,8 @@ def main() -> None:
                         help="LLM provider: fake (offline) or deepseek (real LLM + real training)")
     parser.add_argument("--timeout-seconds", type=float, default=36000.0,
                         help="Per-trial training timeout (default 36000s).")
+    parser.add_argument("--case-count", type=int, default=50,
+                        help="Number of benchmark cases (10 canonical + parameterized variants).")
     args = parser.parse_args()
     asyncio.run(run(args))
 
