@@ -10,6 +10,32 @@ from nonlinear_agent.search.base import SearchContext, SearchStrategy
 from nonlinear_agent.search.random_search import RandomSearch
 from nonlinear_agent.search.optuna_search import OptunaTPESearch
 from nonlinear_agent.search.llm_search import LLMDirectSearch, LLMProgramReflectionSearch
+from nonlinear_agent.domains.synthetic_regression import SyntheticHardDomain
+
+
+class TestSyntheticHardDomain(unittest.TestCase):
+    """synthetic-hard: 2500 combos with a single-point optimum threshold."""
+
+    def test_design_space_size(self):
+        dom = SyntheticHardDomain()
+        space = dom.design_space()
+        self.assertEqual(len(space["degree"]), 50)
+        self.assertEqual(len(space["reg_strength"]), 50)
+
+    def test_single_point_threshold(self):
+        dom = SyntheticHardDomain()
+        constraints = dom.default_constraints()
+        self.assertIn("val_mse_threshold", constraints)
+        self.assertLess(constraints["val_mse_threshold"], 0.0434)
+
+    def test_validate_range(self):
+        dom = SyntheticHardDomain()
+        self.assertEqual(
+            dom.validate_candidate({"degree": 50, "reg_strength": 100.0}), []
+        )
+        self.assertTrue(
+            dom.validate_candidate({"degree": 51, "reg_strength": 1e-4})
+        )
 
 
 class TestSearchStrategies(unittest.TestCase):

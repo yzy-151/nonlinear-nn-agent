@@ -254,6 +254,54 @@ class SyntheticLargeDomain(SyntheticRegressionDomain):
         ]
 
 
+class SyntheticHardDomain(SyntheticLargeDomain):
+    """Harder strategy-comparison domain: 2500 combos, single-point optimum.
+
+    50 degrees x 50 log-spaced regs = 2500 combinations. The optimum region
+    (degree=5 + small reg) is ~0.7% of the space and the exact optimum is a
+    single point, so a 50-trial budget gives random/TPE almost no chance of
+    hitting it — search quality becomes the deciding factor, not luck.
+    default_constraints() sets a val_mse_threshold just above the exact
+    optimum so target_hit_rate measures precise single-point hits.
+    """
+
+    name = "synthetic-hard"
+
+    def design_space(self) -> dict[str, list[object]]:
+        import numpy as np
+
+        return {
+            "degree": list(range(1, 51)),
+            "reg_strength": [float(x) for x in np.logspace(-4, 2, 50)],
+        }
+
+    def validate_candidate(
+        self, overrides: dict[str, object], parameter_count_max: int = 100
+    ) -> list[str]:
+        errors: list[str] = []
+        degree = overrides.get("degree", 1)
+        if (
+            not isinstance(degree, int)
+            or isinstance(degree, bool)
+            or degree < 1
+            or degree > 50
+        ):
+            errors.append("degree must be an integer in [1, 50].")
+        reg = overrides.get("reg_strength", 1e-3)
+        if not isinstance(reg, (int, float)) or isinstance(reg, bool):
+            errors.append("reg_strength must be a number.")
+        elif float(reg) < 1e-4 or float(reg) > 100:
+            errors.append("reg_strength must be in [1e-4, 100].")
+        return errors
+
+    def default_constraints(self) -> dict:
+        return {
+            "parameter_count_max": 100,
+            "metric": "val_mse",
+            "val_mse_threshold": 0.0433716,  # 全局最优 0.0433606 + 1.1e-5 容差
+        }
+
+
 # ── Tool implementations ────────────────────────────────────────────
 
 _GLOBAL_MODEL: dict[str, Any] = {}  # Simple in-memory store for demo

@@ -75,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--output-dir", default="benchmarks/nonlinear-search-v1")
     compare.add_argument("--protocol",
         help="JSON protocol file (methods/seeds/trial_budget). Takes precedence over --methods/--seeds/--trial-budget.")
-    compare.add_argument("--domain", choices=["nonlinear", "synthetic", "synthetic-large"], default="nonlinear",
+    compare.add_argument("--domain", choices=["nonlinear", "synthetic", "synthetic-large", "synthetic-hard"], default="nonlinear",
         help="Which DomainPlugin to execute (default: nonlinear).")
     compare.add_argument("--llm-provider", choices=["simulated", "deepseek"], default="simulated",
         help="LLM strategy backend: simulated (offline neighborhood sampling) or deepseek (real chat API).")
@@ -201,6 +201,10 @@ def _run_compare_search(args: argparse.Namespace) -> int:
         from nonlinear_agent.domains.synthetic_regression import SyntheticLargeDomain
 
         domain = SyntheticLargeDomain()
+    elif args.domain == "synthetic-hard":
+        from nonlinear_agent.domains.synthetic_regression import SyntheticHardDomain
+
+        domain = SyntheticHardDomain()
     else:
         from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
 

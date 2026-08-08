@@ -225,6 +225,21 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 
 ![先验注入版收敛速度对比](docs/assets/experiments/strategy-convergence-speed-real-priors.png)
 
+**更难的域（synthetic-hard，2500 组合 + 单点命中指标）**：400 点空间里 random 靠"最优区域占 3.2% + 无放回 50 次"仍能摸到区域边缘；升级到 2500 组合（最优区域 0.6%）后运气因素被消除：
+
+| 方法 | 单点命中（250 trial） | seed 命中 | 平均首命 trial |
+| --- | ---: | ---: | --- |
+| random_search | 1（0.4%） | 1/5 | 24.8 |
+| optuna_tpe | 1（0.4%） | 1/5 | 23.8 |
+| llm_direct（真实 API） | 64（26%） | 3/5 | 14.8 |
+| **llm_program_reflection（真实 API + 先验）** | **131（52%）** | **5/5** | **2.6** |
+
+**random/optuna 250 次采样各只命中单点最优 1 次；reflection 5/5 seed 命中、命中率是它们的约 130 倍**。单点命中指标把"碰运气"和"真找到"区分开。
+
+![synthetic-hard 收敛对比](docs/assets/experiments/strategy-convergence-speed-hard.png)
+
+![单点最优命中率](docs/assets/experiments/strategy-single-point-hit-rate.png)
+
 ### 指标可视化
 
 ![各策略 best NMSE 分布](docs/assets/experiments/strategy-best-nmse-distribution.png)

@@ -124,6 +124,28 @@ RandomSearch 内置**去重**（SHA-256 去重 + 重采样，等价于无放回�
 
 **llm_program_reflection 平均 2.4 个 trial 收敛（每个 seed 都在前 4 个 trial 内命中全局最优）**：比 direct 快 5 倍（12.0）、比 Optuna 快约 11 倍（26.2）、比 Random 快约 10 倍（23.0）。先验注入让模型首轮即给出 degree=5 + 小正则的候选，且 per-seed 波动最小（1~4）。这证明 v2 的核心机制在真实 API 下依然成立：**reflection 的增益来自历史知识注入，注入后收敛效率显著优于无知识策略**。
 
+### 6.6 更难的域：2500 组合 + 单点命中（synthetic-hard）
+
+6.5 中 random 的 best 仍能到 0.0434——因为 400 点空间里最优区域（degree=5 + 小/中正则）占 **3.2%**，50 trial 无放回摸到的概率约 83%/seed，random 靠运气也能到"区域边缘"。为彻底消除运气因素，新增 `SyntheticHardDomain`：
+
+- **2500 组合**（50 degree × 50 对数 reg），最优区域占 1.36%；
+- **单点命中指标**：`val_mse_threshold = 0.0433716`（全局最优 0.0433606 + 容差），覆盖 15 个点（0.6%）；random 50 trial 命中该区域的概率 26%/seed，**5 个 seed 全中的概率仅 0.12%**。
+
+结果（4 策略 × 5 seeds × 50 trial，1007 行含 rejected，真实 API）：
+
+| 方法 | best val_mse | 单点命中（250 trial） | seed 命中 | 平均首命 trial | 成本 |
+| --- | ---: | ---: | --- | ---: | ---: |
+| random_search | 0.043362 | 1（0.4%） | 1/5 | 24.8 | $0 |
+| optuna_tpe | 0.043369 | 1（0.4%） | 1/5 | 23.8 | $0 |
+| llm_direct（真实 API） | 0.043361 | 64（26%） | 3/5 | 14.8 | $0.161 |
+| **llm_program_reflection（真实 API + 先验）** | **0.043361** | **131（52%）** | **5/5** | **2.6** | $0.177 |
+
+![synthetic-hard 收敛对比](../assets/experiments/strategy-convergence-speed-hard.png)
+
+![单点最优命中率](../assets/experiments/strategy-single-point-hit-rate.png)
+
+**这次 random/optuna 现原形**：250 次采样各只命中单点最优 1 次（0.4%），5 个 seed 里 4 个全程没摸到；而 reflection **5/5 seed 命中**、52% 的 trial 都落在单点最优上（先验让它首轮命中后持续在最优邻域采样），direct 3/5 seed、26%。**reflection 的命中率是 random/optuna 的约 130 倍**。单点命中率把"碰运气"和"真找到"区分开了。
+
 ## 7. Reflection 消融
 
 paired delta = 0，5 个 seed 完全一致，**不显著**。原因：合成域没有可注入的历史先验（`historical_priors()` 为空），`llm_direct` 与 `llm_program_reflection` 的采样行为相同——这符合设计预期：**reflection 的增益来自历史知识注入，没有知识可注入时两者等价**。真实非线性域的 reflection 增益见 v2（-4.28 dB、hit 78% vs 28%）。
