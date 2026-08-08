@@ -182,6 +182,21 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 
 ![Reflection 消融](benchmarks/nonlinear-search-v1-v20000/reflection-ablation.png)
 
+### 大规模策略对比（合成域，1000 trial）
+
+把"固定预算下哪种搜索策略收敛更快"放大到 1000 trial（4 策略 × 5 seeds × 50 trial，合成回归域、真实计算、零 LLM 成本、零拒绝）。详见 [v3 报告](docs/experiments/nonlinear-search-ablation-v3.md)。
+
+| 方法 | best val_mse mean | 平均收敛 trial（0-based） |
+| --- | ---: | ---: |
+| random_search | 0.0434 | 18.6 |
+| optuna_tpe | 0.0593 | 26.0 |
+| llm_direct | 0.0434 | **11.4** |
+| **llm_program_reflection** | **0.0434** | **11.4** |
+
+**LLM 式策略（邻域采样 + exploitation）收敛最快**；Optuna TPE 在小设计空间上因前期建模样本反而最慢。合成域无历史先验可注入，reflection 与 direct 等价（paired delta = 0）——reflection 的增益来自知识注入，见上节真实非线性域 -4.28 dB 的显著提升。
+
+![四策略收敛速度对比](docs/assets/experiments/strategy-convergence-speed.png)
+
 ### 指标可视化
 
 ![各策略 best NMSE 分布](docs/assets/experiments/strategy-best-nmse-distribution.png)
@@ -218,6 +233,7 @@ benchmarks/deepseek-v26/results.json
 benchmarks/fake-v21b/results.json
 docs/experiments/nonlinear-search-ablation-v1.md
 docs/experiments/nonlinear-search-ablation-v2.md
+docs/experiments/nonlinear-search-ablation-v3.md
 ```
 
 ## 可靠性压测
@@ -245,6 +261,7 @@ tests/                     单元测试（230+）
 python -m unittest discover tests
 python agent.py benchmark --output-dir benchmarks/fake-v21b
 python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1-v20000
+python agent.py compare-search --domain synthetic --methods random_search,optuna_tpe,llm_direct,llm_program_reflection --seeds 7,17,29,43,61 --trial-budget 50 --parameter-count-max 100 --output-dir benchmarks/synthetic-compare-v1000
 python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1 --output-dir benchmarks/runtime-v2
 ```
 
@@ -252,7 +269,7 @@ python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1
 
 ## 文档
 
-- 实验报告：[v1 搜索对照](docs/experiments/nonlinear-search-ablation-v1.md) · [v2 先验注入与 Benchmark 成熟化](docs/experiments/nonlinear-search-ablation-v2.md)
+- 实验报告：[v1 搜索对照](docs/experiments/nonlinear-search-ablation-v1.md) · [v2 先验注入与 Benchmark 成熟化](docs/experiments/nonlinear-search-ablation-v2.md) · [v3 合成域 1000-trial 策略对比](docs/experiments/nonlinear-search-ablation-v3.md)
 - 学习文档：[docs/learning/](docs/learning/)
 
 ## 设计借鉴与原创性
