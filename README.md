@@ -6,9 +6,9 @@
 
 ## 界面预览
 
-浏览器操作面板（Workflow / Agent Planner / Benchmark / Strategy Comparison 四页签）：
+Agent Planner 界面——内置多种任务 Domain（非线性建模 / PIM 对消 / 寄存器配置 / 合成回归），切换即更新可寻优白名单：
 
-![Web UI 操作面板](docs/assets/screenshots/web-ui-home.png)
+![Agent Planner 界面](docs/assets/screenshots/web-ui-agent-planner.png)
 
 Benchmark 页签（10-case 评估，含 planner 成功率、自我修正、token/成本指标）：
 
@@ -53,6 +53,14 @@ Web UI 的 Agent Planner 可直接切换以下领域，且自动扫描 `data/` �
 | PIM Cancellation | 三阶 PIM 对消：`tx(32×L)` 拟合 `rx(32×L)` | model_type / memory_depth / reg / normalize_power | res_db（残余，含参数量/每通道最大功率/参数分布等中间变量） |
 | Register Config | 寄存器表单配置实验 | mu / optimizer(adam\|sgd) / data_choice / lut_choice | final_mse_db |
 | Synthetic Regression | 合成回归演示 | degree / reg_strength | val_mse |
+
+任务 Domain 与实验数据选择：
+
+![Domain 选择](docs/assets/screenshots/web-ui-domain-picker.png)
+
+![实验数据选择](docs/assets/screenshots/web-ui-data-picker.png)
+
+> 扩展接口：通过 `DomainPlugin` 接入新实验领域——实现 `design_space` / `validate_candidate` / `build_tool_registry` 等方法后，Planner、Guard、搜索策略与前端自动获得支持，无需改动 Harness 主链路；也可以用 `SimpleDomain`（设计空间 + 一个执行函数）零样板接入。
 
 ## 快速开始
 
