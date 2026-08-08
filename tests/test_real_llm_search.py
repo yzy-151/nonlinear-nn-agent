@@ -80,6 +80,22 @@ class TestRealLLMSearch(unittest.TestCase):
         self.assertIn("planner_latency_ms", result)
         self.assertIn("estimated_cost_usd", result)
 
+    def test_reflection_prompt_injects_historical_priors(self):
+        s_ref = self._make(
+            ['{"overrides": {"degree": 5, "reg_strength": 0.001}, "reason": "x"}'],
+            method="llm_program_reflection",
+        )
+        prompt_ref = s_ref._build_prompt([], retry_error=None)
+        self.assertIn("Known best candidates from project history", prompt_ref)
+        self.assertIn("synthetic-prior-b", prompt_ref)
+
+        s_dir = self._make(
+            ['{"overrides": {"degree": 5, "reg_strength": 0.001}, "reason": "x"}'],
+            method="llm_direct",
+        )
+        prompt_dir = s_dir._build_prompt([], retry_error=None)
+        self.assertNotIn("Known best candidates from project history", prompt_dir)
+
 
 class TestProviderRouting(unittest.TestCase):
     def test_deepseek_provider_routes_to_real_llm(self):

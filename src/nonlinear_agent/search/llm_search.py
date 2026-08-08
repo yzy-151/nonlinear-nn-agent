@@ -93,6 +93,11 @@ class RealLLMSearch:
         self._reflection = (
             ReflectionPolicy() if method == "llm_program_reflection" else None
         )
+        self._priors = (
+            self._ctx.domain.historical_priors()
+            if method == "llm_program_reflection"
+            else []
+        )
         self._facts: list[dict[str, Any]] = []
         self._last_prompt_tokens = 0
         self._last_completion_tokens = 0
@@ -203,6 +208,20 @@ class RealLLMSearch:
             parts.append(
                 "Reflection facts from previous trials:\n"
                 + json.dumps(self._facts, ensure_ascii=False)
+            )
+        if self._priors:
+            prior_lines = []
+            for prior in self._priors:
+                ov = prior.overrides
+                prior_lines.append(
+                    f"- {prior.id}: degree={ov.get('degree')} "
+                    f"reg_strength={ov.get('reg_strength')} "
+                    f"-> val_mse={prior.known_nmse_db:.6f}"
+                )
+            parts.append(
+                "Known best candidates from project history (design "
+                "experiments near these regions, improve on them):\n"
+                + "\n".join(prior_lines)
             )
         if recent:
             parts.append(

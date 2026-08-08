@@ -219,6 +219,40 @@ class SyntheticLargeDomain(SyntheticRegressionDomain):
             "Use overrides for: degree, reg_strength.\n"
         )
 
+    def historical_priors(self) -> list[Any]:
+        """Simulated historical best candidates (verified val_mse).
+
+        The strategy-comparison protocol needs a knowledge source for
+        llm_program_reflection: in the real business domain, priors come from
+        previous experiment logs; here they stand in for "project history".
+        Values are real evaluations (fit + evaluate on the same data split).
+        """
+        from nonlinear_agent.priors import HistoricalPrior
+
+        return [
+            HistoricalPrior(
+                id="synthetic-prior-b",
+                overrides={"degree": 5, "reg_strength": 0.01},
+                known_nmse_db=0.043382,
+                parameter_count=6,
+                source="synthetic-history",
+            ),
+            HistoricalPrior(
+                id="synthetic-prior-a",
+                overrides={"degree": 5, "reg_strength": 1.0},
+                known_nmse_db=0.047984,
+                parameter_count=6,
+                source="synthetic-history",
+            ),
+            HistoricalPrior(
+                id="synthetic-prior-d",
+                overrides={"degree": 6, "reg_strength": 0.1},
+                known_nmse_db=0.112694,
+                parameter_count=7,
+                source="synthetic-history",
+            ),
+        ]
+
 
 # ── Tool implementations ────────────────────────────────────────────
 

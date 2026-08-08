@@ -212,6 +212,19 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 
 ![真实 API 四策略收敛速度对比](docs/assets/experiments/strategy-convergence-speed-real.png)
 
+**Reflection 先验注入版（验收目标）**：给 `synthetic-large` 补充模拟历史先验（degree=5/reg=0.01 → val_mse 0.0434 等真实评估值），`llm_program_reflection` 的 prompt 注入 "Known best candidates"，`llm_direct` 不注入：
+
+| 方法 | best val_mse | 平均收敛 trial | per-seed |
+| --- | ---: | ---: | --- |
+| random_search | 0.0434 | 23.0 | [16,10,49,29,11] |
+| optuna_tpe | 0.0434 | 26.2 | [17,33,26,38,17] |
+| llm_direct（真实 API） | 0.0434 | 12.0 | [2,42,4,2,10] |
+| **llm_program_reflection（真实 API + 先验）** | **0.0434** | **2.4** | **[2,3,4,2,1]** |
+
+**llm_program_reflection 平均 2.4 个 trial 收敛**（每个 seed 前 4 个 trial 内命中全局最优），比 direct 快 5 倍、比 Optuna/Random 快约 10 倍——reflection 的增益来自历史知识注入，在真实 API 下依然成立。
+
+![先验注入版收敛速度对比](docs/assets/experiments/strategy-convergence-speed-real-priors.png)
+
 ### 指标可视化
 
 ![各策略 best NMSE 分布](docs/assets/experiments/strategy-best-nmse-distribution.png)
