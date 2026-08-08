@@ -23,7 +23,6 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
 from nonlinear_agent.artifact_paths import normalize_experiment_output_dir
-from nonlinear_agent.experiment import ExperimentConfig
 
 if TYPE_CHECKING:
     from nonlinear_agent.domains.base import DomainPlugin
@@ -82,6 +81,9 @@ def allowed_override_fields() -> set[str]:
       白名单比黑名单更安全——新增配置字段后自动允许，不需要改 Guard 代码。
       ExperimentConfig 是唯一真相来源（single source of truth）。
     """
+    # 延迟导入：合成域等无 domain 的路径不需要加载 torch
+    from nonlinear_agent.experiment import ExperimentConfig
+
     return set(ExperimentConfig.__dataclass_fields__)
 
 

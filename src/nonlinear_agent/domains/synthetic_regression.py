@@ -115,7 +115,6 @@ class SyntheticRegressionDomain:
     def historical_priors(self) -> list[Any]:
         """No historical priors exist for the synthetic demo domain."""
         return []
-
     # ── v2.1: Execution workflow ────────────────────────────────
     def build_harness_spec(
         self, session_id: str, base_config: str, overrides: dict,
@@ -164,6 +163,61 @@ class SyntheticRegressionDomain:
 
     def planner_allowed_tools(self) -> list[str]:
         return ["fit_candidate", "evaluate_candidate"]
+
+
+class SyntheticLargeDomain(SyntheticRegressionDomain):
+    """Enlarged synthetic regression design space for strategy comparison.
+
+    50-point space (5 degrees x 10 regs) is too small: with a 50-trial budget
+    any dedup'd strategy nearly enumerates it, so strategy differences only
+    show up in convergence speed. This domain grows the space to
+    20 degrees x 20 log-spaced regs = 400 combinations, so a 50-trial budget
+    covers only ~12% of the space and search quality actually matters.
+
+    Validation stays range-based (like the parent): reg_strength is a
+    continuous L2 penalty in [1e-4, 100], so a real LLM may propose any
+    value in range; the design_space list drives the offline samplers.
+    """
+
+    name = "synthetic-large"
+
+    def design_space(self) -> dict[str, list[object]]:
+        import numpy as np
+
+        return {
+            "degree": list(range(1, 21)),
+            "reg_strength": [float(x) for x in np.logspace(-4, 2, 20)],
+        }
+
+    def validate_candidate(
+        self, overrides: dict[str, object], parameter_count_max: int = 100
+    ) -> list[str]:
+        errors: list[str] = []
+        degree = overrides.get("degree", 1)
+        if (
+            not isinstance(degree, int)
+            or isinstance(degree, bool)
+            or degree < 1
+            or degree > 20
+        ):
+            errors.append("degree must be an integer in [1, 20].")
+        reg = overrides.get("reg_strength", 1e-3)
+        if not isinstance(reg, (int, float)) or isinstance(reg, bool):
+            errors.append("reg_strength must be a number.")
+        elif float(reg) < 1e-4 or float(reg) > 100:
+            errors.append("reg_strength must be in [1e-4, 100].")
+        return errors
+
+    def planner_instructions(self) -> str:
+        return (
+            "Design polynomial regression experiments for synthetic data.\n"
+            "- degree: polynomial degree (1-20). The true function is "
+            "degree-5; lower degrees underfit, very high degrees may overfit.\n"
+            "- reg_strength: L2 regularization strength (1e-4 to 100). "
+            "Small values are usually best; too-large values add bias.\n"
+            "- Prefer simpler models (lower degree) when MSE is similar.\n"
+            "Use overrides for: degree, reg_strength.\n"
+        )
 
 
 # ── Tool implementations ────────────────────────────────────────────

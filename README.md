@@ -197,6 +197,21 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 
 ![四策略收敛速度对比](docs/assets/experiments/strategy-convergence-speed.png)
 
+### 真实 API 策略对比（synthetic-large，400 组合空间）
+
+把 LLM 策略换成**真实 DeepSeek 调用**（deepseek-v4-flash，prompt+Guard 重试+token/成本统计），并把空间放大到 20 degree × 20 reg = 400 组合（50 trial 只覆盖约 12%）。4 策略 × 5 seeds × 50 trial，LLM 总成本约 $0.34：
+
+| 方法 | best val_mse | 平均收敛 trial | token 用量 | 成本 |
+| --- | ---: | ---: | ---: | ---: |
+| random_search | 0.0434 | 23.0 | 0 | $0 |
+| optuna_tpe | 0.0434 | 26.2 | 0 | $0 |
+| **llm_direct（真实 API）** | **0.0434** | **3.8** | 293,843 | $0.165 |
+| **llm_program_reflection（真实 API）** | **0.0434** | **4.2** | 309,987 | $0.171 |
+
+**真实 LLM 收敛快约 6 倍**：模型从 prompt 直接推理出"真函数是 degree-5、小正则最优"，首轮即给出 degree≈5 候选；Optuna/Random 需 20+ 次采样。flash 在 `json_object`+低温度下会输出空串，已通过关 json_mode、temperature=0.7、max_tokens=512 稳定到 3~6s/次（详见 [v3 报告](docs/experiments/nonlinear-search-ablation-v3.md)）。
+
+![真实 API 四策略收敛速度对比](docs/assets/experiments/strategy-convergence-speed-real.png)
+
 ### 指标可视化
 
 ![各策略 best NMSE 分布](docs/assets/experiments/strategy-best-nmse-distribution.png)
@@ -262,6 +277,7 @@ python -m unittest discover tests
 python agent.py benchmark --output-dir benchmarks/fake-v21b
 python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1-v20000
 python agent.py compare-search --domain synthetic --methods random_search,optuna_tpe,llm_direct,llm_program_reflection --seeds 7,17,29,43,61 --trial-budget 50 --parameter-count-max 100 --output-dir benchmarks/synthetic-compare-v1000
+python agent.py compare-search --domain synthetic-large --llm-provider deepseek --seeds 7,17,29,43,61 --trial-budget 50 --parameter-count-max 100 --output-dir benchmarks/synthetic-real-v1000
 python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1 --output-dir benchmarks/runtime-v2
 ```
 

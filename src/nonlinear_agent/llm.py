@@ -134,6 +134,8 @@ class OpenAICompatibleClient:
     timeout_seconds: float = 60.0
     max_retries: int = 3            # 可重试错误（429/5xx/网络）的最大重试次数
     retry_backoff: float = 1.0      # 指数退避基数（秒）
+    max_tokens: int | None = None   # 限制 completion 长度；None 表示不限制
+    json_mode: bool = True          # response_format=json_object；推理模型下会吃掉 token，可关闭
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
     _conn: Any = field(default=None, init=False, repr=False)  # http.client 连接池
@@ -206,8 +208,11 @@ class OpenAICompatibleClient:
                 {"role": "user", "content": prompt},
             ],
             "temperature": self.temperature,
-            "response_format": {"type": "json_object"},
         }
+        if self.json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        if self.max_tokens:
+            payload["max_tokens"] = self.max_tokens
         if stream:
             payload["stream"] = True
         return payload

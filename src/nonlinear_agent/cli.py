@@ -75,8 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--output-dir", default="benchmarks/nonlinear-search-v1")
     compare.add_argument("--protocol",
         help="JSON protocol file (methods/seeds/trial_budget). Takes precedence over --methods/--seeds/--trial-budget.")
-    compare.add_argument("--domain", choices=["nonlinear", "synthetic"], default="nonlinear",
+    compare.add_argument("--domain", choices=["nonlinear", "synthetic", "synthetic-large"], default="nonlinear",
         help="Which DomainPlugin to execute (default: nonlinear).")
+    compare.add_argument("--llm-provider", choices=["simulated", "deepseek"], default="simulated",
+        help="LLM strategy backend: simulated (offline neighborhood sampling) or deepseek (real chat API).")
     compare.add_argument("--timeout-seconds", type=float, default=300.0,
         help="Per-trial training timeout (default 300s).")
     compare.add_argument("--smoke", action="store_true", help="Use reduced smoke budget (2 seeds x 3 trials)")
@@ -169,6 +171,7 @@ def _run_compare_search(args: argparse.Namespace) -> int:
             trial_budget=int(data["trial_budget"]),
             parameter_count_max=int(data.get("parameter_count_max", 4000)),
             nmse_threshold_db=float(data.get("nmse_threshold_db", -35.0)),
+            llm_provider=str(data.get("llm_provider", "simulated")),
         )
     else:
         methods = [m.strip() for m in args.methods.split(",")]
@@ -182,6 +185,7 @@ def _run_compare_search(args: argparse.Namespace) -> int:
             trial_budget=args.trial_budget,
             parameter_count_max=args.parameter_count_max,
             nmse_threshold_db=args.nmse_threshold_db,
+            llm_provider=args.llm_provider,
         )
 
     if args.dry_run:
@@ -193,6 +197,10 @@ def _run_compare_search(args: argparse.Namespace) -> int:
         from nonlinear_agent.domains.synthetic_regression import SyntheticRegressionDomain
 
         domain = SyntheticRegressionDomain()
+    elif args.domain == "synthetic-large":
+        from nonlinear_agent.domains.synthetic_regression import SyntheticLargeDomain
+
+        domain = SyntheticLargeDomain()
     else:
         from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
 

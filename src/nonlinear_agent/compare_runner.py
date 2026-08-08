@@ -184,6 +184,10 @@ def build_strategy(method: str, context: SearchContext) -> Any:
                 "pip install 'optuna>=4,<5'"
             ) from exc
     if method in ("llm_direct", "llm_program_reflection"):
+        if context.llm_provider == "deepseek":
+            from nonlinear_agent.search.llm_search import RealLLMSearch
+
+            return RealLLMSearch(method, context)
         return _LLMSearch(method, context)
     raise ValueError(f"Unknown search method: {method}")
 
@@ -405,6 +409,7 @@ async def run_compare_protocol(
                 domain=domain, seed=seed,
                 trial_budget=protocol.trial_budget,
                 parameter_count_max=protocol.parameter_count_max,
+                llm_provider=protocol.llm_provider,
             )
             strategy = build_strategy(method, context)
 
@@ -488,6 +493,7 @@ async def stream_compare_events(
                 domain=domain, seed=seed,
                 trial_budget=protocol.trial_budget,
                 parameter_count_max=protocol.parameter_count_max,
+                llm_provider=protocol.llm_provider,
             )
             strategy = build_strategy(method, context)
 

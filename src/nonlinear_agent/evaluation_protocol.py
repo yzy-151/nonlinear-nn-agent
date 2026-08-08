@@ -29,6 +29,7 @@ class EvaluationProtocol:
     trial_budget: int = 10
     parameter_count_max: int = 4000
     nmse_threshold_db: float = -35.0
+    llm_provider: str = "simulated"
 
     def estimate_total_trials(self) -> int:
         return len(self.methods) * len(self.seeds) * self.trial_budget
@@ -40,6 +41,7 @@ class EvaluationProtocol:
             "trial_budget": self.trial_budget,
             "parameter_count_max": self.parameter_count_max,
             "nmse_threshold_db": self.nmse_threshold_db,
+            "llm_provider": self.llm_provider,
             "estimated_total_trials": self.estimate_total_trials(),
         }
 

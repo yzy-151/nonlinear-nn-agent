@@ -21,6 +21,7 @@ class SearchContext:
     seed: int
     trial_budget: int
     parameter_count_max: int = 4000
+    llm_provider: str = "simulated"
 
 
 @runtime_checkable
