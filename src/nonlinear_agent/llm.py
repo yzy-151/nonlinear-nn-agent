@@ -228,20 +228,54 @@ class OpenAICompatibleClient:
             self._conn = conn_cls(parsed.netloc, timeout=self.timeout_seconds)
         return self._conn
 
+    def _is_stale_connection(self, conn) -> bool:
+        """True when the pooled connection was closed by the server.
+
+        Server-side keep-alive timeouts leave the local socket in CLOSE_WAIT;
+        reusing it hangs the next request (observed on long benchmark runs).
+        A readable socket means EOF or leftover data → recreate the connection.
+        """
+        sock = getattr(conn, "sock", None)
+        if sock is None:
+            return True
+        try:
+            import select
+
+            readable, _, _ = select.select([sock], [], [], 0)
+            return bool(readable)
+        except (OSError, ValueError):
+            return True
+
+    def _fresh_connection(self):
+        """Always create a fresh connection.
+
+        Pooled keep-alive connections were observed hanging in CLOSE_WAIT on
+        long benchmark runs (server closes the socket mid-idle; the local
+        side never notices and the next request blocks forever). The TLS
+        handshake cost (~0.1-0.3s) is negligible compared to LLM latency.
+        """
+        self._conn = None
+        return self._get_connection()
+
     def _request_once(self, payload: dict[str, Any]) -> dict[str, Any]:
         body = json.dumps(payload).encode("utf-8")
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        conn = self._get_connection()
-        try:
-            conn.request("POST", "/chat/completions", body=body, headers=headers)
-            resp = conn.getresponse()
-            raw = resp.read()
-        except (http.client.HTTPException, OSError) as exc:
-            self._conn = None  # 连接失效 → 重连
-            raise _RetryableRequestError(f"connection error: {exc}") from exc
+
+        def do_request() -> tuple[Any, Any, bytes]:
+            conn = self._fresh_connection()
+            try:
+                conn.request("POST", "/chat/completions", body=body, headers=headers)
+                resp = conn.getresponse()
+                raw = resp.read()
+            except (http.client.HTTPException, OSError) as exc:
+                self._conn = None  # 连接失效 → 重连
+                raise _RetryableRequestError(f"connection error: {exc}") from exc
+            return conn, resp, raw
+
+        conn, resp, raw = self._run_with_watchdog(do_request)
 
         if resp.status in _RETRYABLE_STATUS:
             self._conn = None
@@ -252,13 +286,48 @@ class OpenAICompatibleClient:
             )
         return json.loads(raw.decode("utf-8"))
 
+    def _run_with_watchdog(self, fn):
+        """Run fn in a watchdog thread; hard-fail if it exceeds the timeout.
+
+        http.client can block forever on half-dead sockets (server closes the
+        connection mid-response and the socket timeout never fires). A
+        watchdog thread + force-closing the socket turns those hangs into
+        retryable errors.
+        """
+        import threading
+
+        box: dict[str, Any] = {}
+
+        def worker() -> None:
+            try:
+                box["result"] = fn()
+            except BaseException as exc:  # noqa: BLE001 - propagate in join path
+                box["error"] = exc
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+        thread.join(self.timeout_seconds)
+        if thread.is_alive():
+            if self._conn is not None:
+                try:
+                    self._conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                self._conn = None
+            raise _RetryableRequestError(
+                f"request exceeded {self.timeout_seconds}s watchdog timeout"
+            )
+        if "error" in box:
+            raise box["error"]
+        return box["result"]
+
     def _request_stream(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         body = json.dumps(payload).encode("utf-8")
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        conn = self._get_connection()
+        conn = self._fresh_connection()
         try:
             conn.request("POST", "/chat/completions", body=body, headers=headers)
             resp = conn.getresponse()

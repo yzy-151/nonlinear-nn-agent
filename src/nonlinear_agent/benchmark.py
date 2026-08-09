@@ -125,9 +125,20 @@ async def run_benchmark_cases(
     调用方（server.py 或 run_benchmark.py）负责创建 FakeLLM + ExperimentPlannerLoop，
     然后传给这里执行。
     """
+    import time
+
     results = []
-    for case in cases:
+    total = len(cases)
+    for idx, case in enumerate(cases, start=1):
+        t0 = time.perf_counter()
+        print(f"[bench] case {idx}/{total}: {case.case_id} (threshold={case.target_nmse_db}) start", flush=True)
         loop_result = await execute_case(case)
+        dt = time.perf_counter() - t0
+        print(
+            f"[bench] case {idx}/{total}: {case.case_id} done in {dt:.1f}s "
+            f"status={loop_result.status} rounds={loop_result.rounds}",
+            flush=True,
+        )
         results.append(summarize_loop_result(case, loop_result))
     return results, build_benchmark_summary(results)
 

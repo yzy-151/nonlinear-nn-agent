@@ -182,7 +182,9 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 
 ![Reflection 消融](benchmarks/nonlinear-search-v1-v20000/reflection-ablation.png)
 
-### 大规模策略对比（合成域，1000 trial）
+### 大规模策略对比（合成域，1000 trial，早期对照）
+
+> 早期对照：空间仅 50 组合，50 trial 无放回 ≈ 全枚举，random 的 best 接近最优是空间太小所致；升级为 [synthetic-hard 单点命中](#真实-api-策略对比synthetic-large400-组合空间) 后 random 命中率降至 0.4%。
 
 把"固定预算下哪种搜索策略收敛更快"放大到 1000 trial（4 策略 × 5 seeds × 50 trial，合成回归域、真实计算、零 LLM 成本、零拒绝）。详见 [v3 报告](docs/experiments/nonlinear-search-ablation-v3.md)。
 
@@ -198,6 +200,8 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 ![四策略收敛速度对比](docs/assets/experiments/strategy-convergence-speed.png)
 
 ### 真实 API 策略对比（synthetic-large，400 组合空间）
+
+> 400 组合版：最优区域占 3.2%，random 无放回 50 次仍能摸到区域边缘（best 持平、收敛慢）；随机因素在下方 synthetic-hard 版中被单点命中指标消除。
 
 把 LLM 策略换成**真实 DeepSeek 调用**（deepseek-v4-flash，prompt+Guard 重试+token/成本统计），并把空间放大到 20 degree × 20 reg = 400 组合（50 trial 只覆盖约 12%）。4 策略 × 5 seeds × 50 trial，LLM 总成本约 $0.34：
 
@@ -260,14 +264,17 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 
 ![-41 dB 目标 run 的最优候选 PSD](docs/assets/psd-exp016-best-41db-run.png)
 
-### Agent Benchmark（10 case）
+### Agent Benchmark（10 → 50 case 参数化）
 
-指标：`target_hit_rate`、`rejected_rate`、`planner_success_rate`、`self_correction_count`、`runtime_failure_rate`、token/cost。
+10 个基础行为 case 之上按 5 档目标阈值参数化扩到 **50 case**（10 类型 × 5 变体），指标全量上报：
 
-| 运行方式 | target_hit | rejected | best NMSE |
-| --- | ---: | ---: | ---: |
-| 离线 fake（确定性） | 0.7 | 21% | -36.5 |
-| 真实 DeepSeek + 真实训练（v26） | **0.9** | **7.4%** | **-42.43** |
+| 运行方式 | case | target_hit | rejected | planner_success | self_correction | runtime_failure | best NMSE | tokens | 成本 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 离线 fake（确定性） | 50 | 0.38 | 22% | 0.78 | 15 | 6.6% | -36.5 | 0 | $0 |
+| 真实 DeepSeek + 真实训练（v26，10 case） | 10 | **0.9** | **7.4%** | **0.93** | 3 | 7.4% | **-42.43** | 73,523 | $0.065 |
+| 真实 DeepSeek + 真实训练（50 case） | 50 | 运行中… | | | | | | | |
+
+hit 率 0.38 vs 0.9 的差异来自**目标阈值**：50-case 变体把阈值推到 -37/-38 dB，固定能力下更严格的目标自然更难达标（详见 [50-case 报告](docs/experiments/nonlinear-benchmark-50case.md)），反映的是行为一致性而非系统退化。
 
 真实 LLM 运行结果与原始数据：
 

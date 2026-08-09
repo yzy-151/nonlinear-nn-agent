@@ -385,4 +385,12 @@ async def execute_case(
 def _deepseek_client():
     from nonlinear_agent.llm import OpenAICompatibleClient
 
-    return OpenAICompatibleClient.deepseek()
+    # 保持 v26 验证过的配置：flash 对复杂 planner prompt 需要 ~3k tokens
+    # 思考量，max_tokens 限制会截断成空输出；json_mode + 低温度经 v26
+    # 10-case 全量验证可用（单次 20-30s，10 case 约 36 分钟）。
+    client = OpenAICompatibleClient.deepseek(timeout_seconds=45.0)
+    # 网络黑洞时快速失败：正常 planner 调用 20-30s，45s 足够；
+    # 减少重试累积时间（曾观察到单 case 因黑洞 + 90s×3 重试拖到 18 分钟）。
+    client.max_retries = 2
+    client.retry_backoff = 0.5
+    return client

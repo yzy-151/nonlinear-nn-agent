@@ -56,6 +56,47 @@ class TestCompatibleClientRetry(unittest.TestCase):
                 client.complete("hi")
 
 
+class TestStaleConnection(unittest.TestCase):
+    """Pooled connections closed by the server must be recreated, not reused."""
+
+    def _client(self):
+        return OpenAICompatibleClient(
+            api_key="k", base_url="https://example.com", model="m"
+        )
+
+    def test_no_sock_is_stale(self):
+        conn = mock.Mock()
+        conn.sock = None
+        self.assertTrue(self._client()._is_stale_connection(conn))
+
+    def test_readable_sock_is_stale(self):
+        client = self._client()
+        conn = mock.Mock()
+        fake_sock = mock.Mock()
+        conn.sock = fake_sock
+        with mock.patch("select.select", return_value=([fake_sock], [], [])):
+            self.assertTrue(client._is_stale_connection(conn))
+
+    def test_fresh_connection_recreates_when_stale(self):
+        client = self._client()
+        client._conn = mock.Mock()
+        with mock.patch.object(client, "_get_connection", return_value="new-conn") as get_conn:
+            conn = client._fresh_connection()
+        self.assertEqual(conn, "new-conn")
+        self.assertIsNone(client._conn)
+        get_conn.assert_called_once()
+
+    def test_fresh_connection_keeps_healthy_conn(self):
+        client = self._client()
+        healthy = mock.Mock()
+        client._conn = healthy
+        with mock.patch.object(client, "_get_connection", return_value="fresh"):
+            conn = client._fresh_connection()
+        # 连接池全部弃用：即使旧连接看似健康也新建，避免 CLOSE_WAIT 挂死
+        self.assertEqual(conn, "fresh")
+        self.assertIsNone(client._conn)
+
+
 class TestCompatibleClientStream(unittest.TestCase):
     def test_stream_accumulates_content_and_calls_callback(self):
         client = OpenAICompatibleClient(
