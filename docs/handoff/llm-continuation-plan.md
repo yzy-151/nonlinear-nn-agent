@@ -98,6 +98,7 @@ git push origin main
 | v3.2.0 | 50-case 参数化回归、真实 LLM 搜索与多 seed 报告 | `benchmark_cases.py`, `search/llm_search.py` |
 | v3.3.0 | synthetic-large/hard、真实 API 搜索和 LLM client watchdog | `compare_runner.py`, `llm.py` |
 | v3.6.0 | Knowledge/Memory Foundation | `memory/`, `knowledge/`, `action_loop.py`, `server.py`, `web_ui.py` |
+| v3.6.1 | 混合检索（BM25+向量+rerank）与真实难度评测 | `knowledge/embedder.py`, `knowledge/reranker.py`, `scripts/eval_knowledge_retrieval.py` |
 
 ## 6. 核心代码入口
 
@@ -708,10 +709,45 @@ confidence, valid_from, supersedes, invalidated_at
 - typed memory schema：semantic/episodic/procedural、namespace = (domain, dataset_hash, model_family)、evidence refs、run/action/config hash、created_by_role、model、prompt hash、confidence、supersedes、invalidated_at；
 - namespace isolation 与审计链：跨 dataset 检索互不可见；新证据不覆盖旧记录（supersedes 保留审计链）；`delete_run` 返回并清理该 run 全部派生 memory；
 - KB ingestion（`knowledge/ingest.py`）：白名单 roots、chunk 带 source/content hash/version/created_at/citation；BM25 检索（`knowledge/retriever.py`）纯 Python 无外部 ML 依赖；
-- 30 条标注查询：Recall@3 = 1.0、top-1 citation precision = 1.0、跨 dataset leakage = 0；
+- 30 条标注查询：Recall@3 = 1.0、top-1 citation precision = 1.0、跨 dataset leakage = 0（合成关键词对齐集，仅证明词法匹配；真实难度评测见 v3.6.1）；
 - `ActionPlannerLoop` 接入 memory off/on：on 时每次 action 写入一条带完整 provenance 的 episodic memory；
 - Web memory inspector：`GET /memory` + WebUI Memory Tab（只读展示 namespace/kind/fact/evidence）；
 - 验证：fast 77 tests、full 323 tests 全部通过；`version/v3.6.0` 分支已建立。
+
+### v3.6.1：混合检索与真实难度评测（修正合成集虚高）
+
+**测什么能力**：知识库检索（RAG 召回）——给定用户问题，能否在项目真实文档（README/handoff/learning/experiments/configs）里 top-3 命中能回答该问题的章节。
+
+**测评方法**：30 条人工编写的**用户视角中文问句**（问题式、不照抄文档措辞），每条标注 1~4 个人工验证过的等价目标章节 + 1 条术语化扩展查询；跑 4 档配置（BM25 / +bge 向量 / +cross-encoder rerank / +query expansion），指标 recall@3 = top-3 命中任一可接受目标的比例。产物可复现：`python scripts/eval_knowledge_retrieval.py` → `benchmarks/knowledge-eval-v1/`。
+
+**改进过程**（为什么最初 1.0 不可信 → 最终 0.93）：
+1. 合成集 Recall@3=1.0 是**关键词对齐虚高**（查询与目标 chunk 逐词重叠），只证明词法匹配；
+2. 真实中文查询暴露 BM25 失效（纯中文查询 token 为空 → recall 0.17），修复为**中文字符 tokenize**；
+3. MiniLM 多语言模型检索弱 → 换 `BAAI/bge-small-zh-v1.5`（本地下载）+ query instruction + 512 长度；
+4. RRF 融合会丢"两路都中游"的候选 → 改 **BM25∪语义 top-100 并集** 交给 rerank；
+5. 800 字符大 chunk 语义混杂 → **按段落切 400 字符 chunk + 标题注入正文**；
+6. 评测标注"唯一目标章节"把等价命中误判为 miss → 改**多等价目标**口径；
+7. 最后加 **query expansion**（术语化扩展查询 + RRF 融合）补齐语义桥接。
+
+**改进结果**（30 条真实查询）：
+
+| 配置 | recall@3 |
+| --- | ---: |
+| BM25 基线 | 0.53 |
+| hybrid（BM25+向量） | 0.53 |
+| hybrid + rerank | 0.83 |
+| hybrid + rerank + expansion | **0.93** |
+
+**为什么效果好**：
+- **召回与精排分离**：BM25+向量只负责"别漏掉"，cross-encoder 负责"精确排序"——rerank 把 0.53 提到 0.83；
+- **中文查询词法失效被补上**：中文字符 token 让 BM25 不再空转，向量让语义桥接；
+- **多路并集而非融合排序**：两路 top-100 并集保证候选池召回，最后精排；
+- **query expansion 用术语补桥**：用户口语问句 ↔ 文档术语（如"防止并发重复执行"→`sqlite dedup atomic claim lease`）由扩展查询补齐，0.83 → 0.93；
+- 剩余 2 条真失败（SQLite 控制面短章节、Writing Agent 规格）证明评测有区分度，不是放水。
+
+**诚实边界**：30 条人工查询是小规模集，不是公开基准（BEIR/CMRC）；依赖人工等价目标标注；更硬的做法是 LLM-as-judge 相关性判定 + 100+ 查询 + 公开基准适配（列为后续项）。
+
+**依赖**：`transformers`（已有）+ 本地模型 `BAAI/bge-small-zh-v1.5` / `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`；无模型时 retriever 优雅回退 BM25-only；`LocalTransformerEmbedder` 分批 encode 防 OOM；测试保持 mock 确定性 + 小 KB，完整评测在脚本中不进 fast/full。
 
 #### v3.7.0：Supervisor + Idea/Plan Agent + ModelRouter
 

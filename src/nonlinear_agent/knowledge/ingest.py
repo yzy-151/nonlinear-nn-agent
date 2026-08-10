@@ -37,7 +37,7 @@ class KnowledgeIngestor:
         roots: list[Path] | tuple[Path, ...],
         extensions: tuple[str, ...] = _DEFAULT_EXTENSIONS,
         version: str = "main",
-        max_chars: int = 800,
+        max_chars: int = 400,
     ):
         self._roots = [Path(root) for root in roots]
         self._extensions = tuple(ext.lower() for ext in extensions)
@@ -69,7 +69,11 @@ class KnowledgeIngestor:
             if not body.strip():
                 continue
             chunk_id = f"{rel.as_posix().replace('/', '_').replace('.', '_')}-{index:03d}"
-            content_hash = hashlib.sha256(body.encode("utf-8")).hexdigest()
+            # 标题注入正文：短章节/列表型 chunk 依赖标题关键词参与 BM25 与 embedding
+            text_with_heading = (
+                f"{heading}\n{body}" if heading and heading != rel.as_posix() else body
+            )
+            content_hash = hashlib.sha256(text_with_heading.encode("utf-8")).hexdigest()
             citation = f"{rel.as_posix()}#{heading}" if heading else rel.as_posix()
             chunks.append(
                 KnowledgeChunk(
@@ -78,7 +82,7 @@ class KnowledgeIngestor:
                     content_hash=content_hash,
                     version=self._version,
                     created_at=created_at,
-                    text=body,
+                    text=text_with_heading,
                     citation=citation,
                 )
             )
@@ -91,19 +95,28 @@ class KnowledgeIngestor:
 
         def flush() -> None:
             nonlocal current
-            if current:
-                merged = "\n".join(current).strip()
-                # 超长段落按行继续切块，保持 citation 指向同一标题
-                for start in range(0, len(merged), self._max_chars):
-                    sections.append((current_heading, merged[start : start + self._max_chars]))
-                current = []
+            if not current:
+                return
+            merged = "\n".join(current).strip()
+            if merged:
+                # 每个空行分隔的段落独立成 chunk（保留标题 citation）
+                for paragraph in merged.split("\n\n"):
+                    paragraph = paragraph.strip()
+                    if not paragraph:
+                        continue
+                    for start in range(0, len(paragraph), self._max_chars):
+                        sections.append(
+                            (current_heading, paragraph[start : start + self._max_chars])
+                        )
+            current = []
 
         for line in text.splitlines():
             match = self._MARKDOWN_HEADING.match(line)
             if match:
                 flush()
                 current_heading = f"{rel.as_posix()}#{match.group(2).strip()}"
-            current.append(line)
+            else:
+                current.append(line)
         flush()
         return sections
 

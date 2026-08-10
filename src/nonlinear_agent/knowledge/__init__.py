@@ -1,6 +1,20 @@
-"""v3.6.0 Knowledge Base: whitelisted ingestion + top-k citation retrieval."""
+"""v3.6.1 Knowledge Base: whitelisted ingestion + hybrid retrieval + rerank."""
 
+from nonlinear_agent.knowledge.embedder import Embedder, LocalTransformerEmbedder
 from nonlinear_agent.knowledge.ingest import KnowledgeChunk, KnowledgeIngestor
+from nonlinear_agent.knowledge.reranker import (
+    LocalCrossEncoderReranker,
+    Reranker,
+)
 from nonlinear_agent.knowledge.retriever import KnowledgeRetriever, ScoredChunk
 
-__all__ = ["KnowledgeChunk", "KnowledgeIngestor", "KnowledgeRetriever", "ScoredChunk"]
+__all__ = [
+    "Embedder",
+    "KnowledgeChunk",
+    "KnowledgeIngestor",
+    "KnowledgeRetriever",
+    "LocalCrossEncoderReranker",
+    "LocalTransformerEmbedder",
+    "Reranker",
+    "ScoredChunk",
+]

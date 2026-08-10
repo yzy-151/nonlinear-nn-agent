@@ -1,0 +1,8 @@
+{
+  "query_count": 30,
+  "chunk_count": 2222,
+  "bm25_recall_at_3": 0.5333333333333333,
+  "hybrid_recall_at_3": 0.5333333333333333,
+  "hybrid_rerank_recall_at_3": 0.8333333333333334,
+  "hybrid_rerank_expansion_recall_at_3": 0.9333333333333333
+}
