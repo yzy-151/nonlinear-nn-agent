@@ -142,6 +142,12 @@ class ToolRegistry:
         """返回所有已注册工具的名字"""
         return sorted(self._tools)
 
+    def get_tool(self, name: str) -> ToolFunction:
+        """Return the registered callable for a tool name (v3.8.0)."""
+        if name not in self._tools:
+            raise KeyError(f"Unknown tool: {name}")
+        return self._tools[name]
+
     def get_tool_spec(self, name: str) -> ToolSpec:
         """Return the canonical schema used by planners, guards, and MCP."""
         if name not in self._specs:
