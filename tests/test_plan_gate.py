@@ -126,5 +126,27 @@ class TestPlanningTasksSchemaValidity(unittest.TestCase):
             )
 
 
+class TestPlanHandoff(unittest.TestCase):
+    def test_handoff_projects_candidates_to_execution_steps(self):
+        from nonlinear_agent.plan_handoff import PlanHandoff
+
+        steps = PlanHandoff().to_execution(_valid_plan())
+        self.assertEqual(len(steps), 1)
+        step = steps[0]
+        self.assertEqual(step.overrides["model_type"], "tiny_mlp")
+        self.assertEqual(step.budget["parameter_count_max"], 20000)
+        self.assertEqual(step.stop_condition, "nmse <= -37 dB or epochs exhausted")
+        self.assertEqual(len(step.config_hash), 64)
+        self.assertEqual(step.citations, ("docs/experiments/nonlinear-search-ablation-v2.md",))
+
+    def test_handoff_keeps_explicit_config_hash(self):
+        from nonlinear_agent.plan_handoff import PlanHandoff
+
+        plan = _valid_plan()
+        plan["candidate_experiments"][0]["config_hash"] = "known-hash"
+        step = PlanHandoff().to_execution(plan)[0]
+        self.assertEqual(step.config_hash, "known-hash")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,7 @@ FAST_MODULES = (
     "tests.test_model_router",
     "tests.test_plan_gate",
     "tests.test_supervisor",
+    "tests.test_supervisor_graph",
     "tests.test_evaluation_statistics",
     "tests.test_reflection_ablation",
     "tests.test_cli",

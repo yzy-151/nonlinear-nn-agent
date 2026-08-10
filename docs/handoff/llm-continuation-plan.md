@@ -762,13 +762,17 @@ confidence, valid_from, supersedes, invalidated_at
 - budget/cancel/invalid JSON/model timeout 注入后均得到唯一终态；
 - 建立 `version/v3.7.0`。
 
-**2026-08-10 实施进度（核心已完成，LangGraph 接线待续）**：
+**2026-08-10 实施进度（v3.7.0 全部核心完成）**：
 
 - `ModelRouter`（`model_router.py`）：role → provider/model/temperature 配置；每次调用记录 role/provider/model/latency/token/cost；secret 不进 usage；可重试错误 fallback 最多一次；cost/token 预算；
 - `PlanGate`（`plan_gate.py`）：IdeaPlanSpec schema 校验（hypotheses/candidates 必填字段、budget、stop_condition）、历史 config hash 去重、citation coverage；**12 个 planning tasks schema-valid rate = 1.0**；
 - `ExperimentSupervisor`（`supervisor.py`）：action/time/token/cost 预算、唯一终态（completed/stopped/budget_exceeded/error）、子 Agent 不接触 raw secrets；
-- 测试：`tests/test_model_router.py` / `test_plan_gate.py` / `test_supervisor.py` 共 17 个；full offline suite 342 tests OK；
-- 待续：LangGraph StateGraph 正式接线、structured handoff（IdeaPlanSpec ↔ 下游）、single-agent baseline adapter、cancel/invalid JSON 注入回归。
+- **LangGraph 接线**（`supervisor_graph.py`）：StateGraph 单节点 supervisor + PlanGate；invalid JSON / model timeout / budget / cancel 注入均得到唯一终态；
+- **structured handoff**（`plan_handoff.py`）：gate 通过的计划投影为 ExecutionStep（config hash / budget / stop condition / citations），下游不再重推意图；
+- **single-agent baseline adapter**（`single_agent_adapter.py`）：包装 ActionPlannerLoop 为统一 SupervisorResult，供 v4.0 消融对照；
+- 测试：`test_model_router.py` / `test_plan_gate.py` / `test_supervisor.py` / `test_supervisor_graph.py` / plan handoff，full offline suite **351 tests OK**；
+- 验收：12 planning tasks schema-valid rate = 1.0、citation coverage >= 0.90（PlanGate 断言）、历史 config hash 去重、子 Agent 密钥隔离、budget/cancel/invalid JSON/timeout 唯一终态——全部通过；
+- 待 v4.0：single-agent vs multi-agent 消融、role-model 消融、真实 DeepSeek 规划任务评测。
 
 #### v3.8.0：Coding Agent + Execution Agent
 
