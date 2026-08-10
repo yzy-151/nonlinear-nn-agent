@@ -43,6 +43,37 @@ def _top1_precision(retriever, use_expansion: bool = True) -> float:
     return correct / len(REAL_QUERIES)
 
 
+def _recall_progress(retriever, use_expansion: bool = True) -> float:
+    """Like tests._recall but prints per-batch progress."""
+    hits = 0
+    for i, (query, accepted, extra) in enumerate(REAL_QUERIES, start=1):
+        if use_expansion:
+            results = retriever.retrieve_many([query, extra], top_k=3)
+        else:
+            results = retriever.retrieve(query, top_k=3)
+        if any(
+            any(exp in r.chunk.citation for exp in accepted)
+            for r in results
+        ):
+            hits += 1
+        if i % 5 == 0:
+            print(f"  recall progress {i}/{len(REAL_QUERIES)}", flush=True)
+    return hits / len(REAL_QUERIES)
+
+
+def _precision_progress(retriever) -> float:
+    correct = 0
+    for i, (query, accepted, extra) in enumerate(REAL_QUERIES, start=1):
+        results = retriever.retrieve_many([query, extra], top_k=1)
+        if results and any(
+            exp in results[0].chunk.citation for exp in accepted
+        ):
+            correct += 1
+        if i % 5 == 0:
+            print(f"  precision progress {i}/{len(REAL_QUERIES)}", flush=True)
+    return correct / len(REAL_QUERIES)
+
+
 def main() -> int:
     roots = [
         PROJECT_ROOT / "README.md",
@@ -54,23 +85,33 @@ def main() -> int:
     chunks = KnowledgeIngestor(roots=roots).ingest()
     print(f"ingested {len(chunks)} chunks", flush=True)
 
-    embedder = LocalTransformerEmbedder(batch_size=16)
-    reranker = LocalCrossEncoderReranker(batch_size=16)
+    embedder = LocalTransformerEmbedder(batch_size=32)
+    reranker = LocalCrossEncoderReranker(batch_size=32)
 
     bm25 = KnowledgeRetriever(chunks=chunks)
     hybrid = KnowledgeRetriever(chunks=chunks, embedder=embedder)
     full = KnowledgeRetriever(
-        chunks=chunks, embedder=embedder, reranker=reranker, bm25_candidates=100
+        chunks=chunks, embedder=embedder, reranker=reranker, bm25_candidates=150
     )
+
+    print("evaluating BM25 baseline...", flush=True)
+    bm25_recall = _recall_progress(bm25, use_expansion=False)
+    print("evaluating hybrid...", flush=True)
+    hybrid_recall = _recall_progress(hybrid, use_expansion=False)
+    print("evaluating hybrid+rerank...", flush=True)
+    rerank_recall = _recall_progress(full, use_expansion=False)
+    print("evaluating hybrid+rerank+expansion (recall + precision)...", flush=True)
+    expansion_recall = _recall_progress(full)
+    precision_top1 = _precision_progress(full)
 
     results = {
         "query_count": len(REAL_QUERIES),
         "chunk_count": len(chunks),
-        "bm25_recall_at_3": _recall(bm25, use_expansion=False),
-        "hybrid_recall_at_3": _recall(hybrid, use_expansion=False),
-        "hybrid_rerank_recall_at_3": _recall(full, use_expansion=False),
-        "hybrid_rerank_expansion_recall_at_3": _recall(full),
-        "hybrid_rerank_expansion_citation_precision_top1": _top1_precision(full),
+        "bm25_recall_at_3": bm25_recall,
+        "hybrid_recall_at_3": hybrid_recall,
+        "hybrid_rerank_recall_at_3": rerank_recall,
+        "hybrid_rerank_expansion_recall_at_3": expansion_recall,
+        "hybrid_rerank_expansion_citation_precision_top1": precision_top1,
     }
     print(json.dumps(results, ensure_ascii=False, indent=2))
 

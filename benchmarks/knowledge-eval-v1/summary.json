@@ -1,8 +1,9 @@
 {
   "query_count": 30,
-  "chunk_count": 2222,
+  "chunk_count": 2242,
   "bm25_recall_at_3": 0.5333333333333333,
   "hybrid_recall_at_3": 0.5333333333333333,
-  "hybrid_rerank_recall_at_3": 0.8333333333333334,
-  "hybrid_rerank_expansion_recall_at_3": 0.9333333333333333
+  "hybrid_rerank_recall_at_3": 0.9,
+  "hybrid_rerank_expansion_recall_at_3": 1.0,
+  "hybrid_rerank_expansion_citation_precision_top1": 0.8
 }

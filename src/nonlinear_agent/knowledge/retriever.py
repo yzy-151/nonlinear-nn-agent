@@ -122,6 +122,8 @@ class KnowledgeRetriever:
 
         Each phrasing retrieves 3x top_k candidates; reciprocal-rank fusion
         merges them so a term-rich expansion can rescue a user-style query.
+        (Score-max fusion was tried and regressed recall 0.93 -> 0.83 because
+        cross-encoder logits are not comparable across query phrasings.)
         """
         per_query = [
             self.retrieve(
