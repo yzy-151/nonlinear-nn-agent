@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from nonlinear_agent.actions import validate_agent_action
+from nonlinear_agent.memory.ports import MemoryBackend, MemoryItem, MemoryKind
 from nonlinear_agent.planner import AgentActionPlanner
 from nonlinear_agent.runtime import HarnessRequest
 from nonlinear_agent.tools import ToolRegistry
@@ -35,12 +38,16 @@ class ActionPlannerLoop:
         runtime_factory: RuntimeFactory,
         session_id: str,
         constraints: dict[str, Any] | None = None,
+        memory_backend: MemoryBackend | None = None,
+        memory_kind: MemoryKind = MemoryKind.EPISODIC,
     ):
         self.planner = planner
         self.tool_registry = tool_registry
         self.runtime_factory = runtime_factory
         self.session_id = session_id
         self.constraints = constraints or {}
+        self.memory_backend = memory_backend
+        self.memory_kind = memory_kind
 
     async def run(self, goal: str, max_actions: int = 12) -> ActionLoopResult:
         history: list[dict[str, Any]] = []
@@ -139,6 +146,15 @@ class ActionPlannerLoop:
                 "error": error,
                 "observation": observation,
             })
+            if self.memory_backend is not None:
+                self._write_memory(
+                    action_index=action_index,
+                    planner_call_id=planner_call_id,
+                    action=action,
+                    status=status,
+                    event_id=event_id,
+                    observation=observation,
+                )
 
             if status == "failed":
                 unresolved_failure_event_id = event_id
@@ -155,6 +171,49 @@ class ActionPlannerLoop:
             metrics,
             artifacts,
         )
+
+    def _write_memory(
+        self,
+        action_index: int,
+        planner_call_id: str,
+        action: Any,
+        status: str,
+        event_id: str,
+        observation: dict[str, Any],
+    ) -> None:
+        """Write one provenance-rich episodic memory record per action."""
+        constraints = self.constraints
+        fact = (
+            f"{action.tool_name} {status}: "
+            f"{json.dumps(observation, ensure_ascii=False)[:240]}"
+        )
+        client = getattr(self.planner, "llm_client", None)
+        item = MemoryItem(
+            memory_id=f"{self.session_id}-{action_index:03d}",
+            kind=self.memory_kind,
+            namespace=(
+                str(constraints.get("domain", "nonlinear-modeling")),
+                str(constraints.get("dataset_hash", "unknown")),
+                str(constraints.get("model_family", "unknown")),
+            ),
+            fact=fact,
+            evidence_refs=(event_id,),
+            run_id=self.session_id,
+            action_id=action.action_id,
+            config_hash=constraints.get("config_hash"),
+            dataset_hash=str(constraints.get("dataset_hash", "unknown")),
+            metrics={
+                key: value
+                for key, value in observation.items()
+                if isinstance(value, (int, float))
+            },
+            created_by_role="action_loop",
+            model=str(getattr(client, "model", "unknown")),
+            prompt_hash=planner_call_id,
+            created_at=time.time(),
+            confidence=1.0 if status == "succeeded" else 0.4,
+        )
+        self.memory_backend.write(item)
 
     def _result(
         self,

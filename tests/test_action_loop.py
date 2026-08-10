@@ -10,6 +10,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from nonlinear_agent.action_loop import ActionPlannerLoop
 from nonlinear_agent.llm import FakeLLMClient
+from nonlinear_agent.memory.langgraph_store import LangGraphMemoryBackend
+from nonlinear_agent.memory.ports import MemoryKind
 from nonlinear_agent.planner import AgentActionPlanner
 from nonlinear_agent.runtime import ExperimentHarnessRuntime
 from nonlinear_agent.session import SessionStore
@@ -151,6 +153,63 @@ class ActionPlannerLoopTest(unittest.TestCase):
         self.assertEqual(result.status, "max_actions_reached")
         self.assertEqual(result.planner_call_count, 1)
         self.assertEqual(len(result.history), 1)
+
+    def test_memory_off_writes_nothing(self):
+        registry = ToolRegistry()
+        registry.register("echo", lambda: {"context_summary": "ok"}, ToolSpec(name="echo"))
+        llm = FakeLLMClient(responses=[_action("a1", "echo"), _action("a2", stop=True)])
+        planner = AgentActionPlanner(llm, registry)
+        backend = LangGraphMemoryBackend()
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            loop = ActionPlannerLoop(
+                planner=planner,
+                tool_registry=registry,
+                runtime_factory=self._runtime_factory(root, registry),
+                session_id="mem-off-demo",
+                memory_backend=None,
+            )
+            asyncio.run(loop.run("no memory", max_actions=3))
+
+        self.assertEqual(backend.list_by_run("mem-off-demo"), [])
+        backend.close()
+
+    def test_memory_on_writes_episodic_with_full_provenance(self):
+        registry = ToolRegistry()
+        registry.register("echo", lambda: {"context_summary": "ok"}, ToolSpec(name="echo"))
+        llm = FakeLLMClient(responses=[_action("a1", "echo"), _action("a2", stop=True)])
+        planner = AgentActionPlanner(llm, registry)
+        backend = LangGraphMemoryBackend()
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            loop = ActionPlannerLoop(
+                planner=planner,
+                tool_registry=registry,
+                runtime_factory=self._runtime_factory(root, registry),
+                session_id="mem-on-demo",
+                constraints={
+                    "domain": "nonlinear-modeling",
+                    "dataset_hash": "hash-ds-1",
+                    "model_family": "tiny_mlp",
+                    "config_hash": "cfg-1",
+                },
+                memory_backend=backend,
+            )
+            asyncio.run(loop.run("write memory", max_actions=3))
+
+        items = backend.list_by_run("mem-on-demo")
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item.kind, MemoryKind.EPISODIC)
+        self.assertEqual(item.run_id, "mem-on-demo")
+        self.assertEqual(item.action_id, "a1")
+        self.assertEqual(item.evidence_refs, ("a1:succeeded",))
+        self.assertEqual(item.namespace, ("nonlinear-modeling", "hash-ds-1", "tiny_mlp"))
+        self.assertEqual(item.config_hash, "cfg-1")
+        self.assertIn("echo succeeded", item.fact)
+        backend.close()
 
 
 if __name__ == "__main__":

@@ -213,6 +213,7 @@ pre.ev{
   <div class="tab" data-tab="agent">&#10027; Agent Planner</div>
   <div class="tab" data-tab="benchmark">&#9733; Benchmark</div>
   <div class="tab" data-tab="compare">&#9733; Strategy Comparison</div>
+  <div class="tab" data-tab="memory">&#128166; Memory</div>
 </nav>
 
 <main>
@@ -385,6 +386,13 @@ pre.ev{
   <pre class="ev" id="evBox">Ready &mdash; pick a tab, fill the form, press Start.</pre>
   <button type="button" class="btn btn-ghost" id="clearBtn" style="margin-top:14px;width:auto;min-height:38px;padding:8px 18px">Clear Log</button>
 </div>
+
+<section class="panel" id="panel-memory" style="display:none">
+  <h2>&#128166; Memory Inspector</h2>
+  <p class="note">只读展示 MemoryBackend（LangGraph InMemoryStore）写入的 typed memory 条目与 provenance。Action-loop 在 memory on 时每次 action 写入一条 episodic memory。</p>
+  <button type="button" class="btn btn-go" id="memRefresh" style="margin-top:0;flex:1">&#128166; Refresh Memory</button>
+  <div id="memBox" style="margin-top:12px"><span style="color:var(--muted);font-size:12px">Click refresh to load.</span></div>
+</section>
 </main>
 
 <script>
@@ -417,8 +425,25 @@ document.querySelectorAll(".tab").forEach(function(t){t.addEventListener("click"
   document.getElementById("panel-agent").style.display=(m==="agent")?"":"none";
   document.getElementById("panel-benchmark").style.display=(m==="benchmark")?"":"none";
   document.getElementById("panel-compare").style.display=(m==="compare")?"":"none";
+  document.getElementById("panel-memory").style.display=(m==="memory")?"":"none";
+  if(m==="memory")loadMemory();
   try{history.replaceState(null,"","?tab="+m)}catch(_){}
 })});
+
+function renderMemory(data){
+  var items=(data.items||[]);
+  if(!items.length){document.getElementById("memBox").innerHTML="<span style='color:var(--muted);font-size:12px'>No memory items yet — run an action-loop with memory on.</span>";return}
+  var h="<table class='r-table'><tr><th>ID</th><th>Kind</th><th>Namespace</th><th>Fact</th><th>Evidence</th><th>Run</th><th>Role</th><th>Conf</th></tr>";
+  items.forEach(function(it){
+    h+="<tr><td class='mname'>"+it.memory_id+"</td><td>"+it.kind+"</td><td class='mname'>"+(it.namespace||[]).join("/")+"</td><td class='mname'>"+it.fact+"</td><td>"+(it.evidence_refs||[]).join(",")+"</td><td>"+it.run_id+"</td><td>"+it.created_by_role+"</td><td>"+it.confidence+"</td></tr>";
+  });
+  document.getElementById("memBox").innerHTML=h;
+}
+function loadMemory(){
+  document.getElementById("memBox").innerHTML="<span style='color:var(--muted);font-size:12px'>loading…</span>";
+  fetch("/memory").then(function(r){return r.json()}).then(renderMemory).catch(function(e){document.getElementById("memBox").innerHTML="<span style='color:#f87171'>"+e+"</span>"});
+}
+document.getElementById("memRefresh").addEventListener("click",loadMemory);
 
 document.getElementById("agProv").addEventListener("change",function(){
   document.getElementById("noteFake").classList.toggle("on",this.value==="fake");

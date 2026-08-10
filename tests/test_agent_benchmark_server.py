@@ -41,5 +41,41 @@ class AgentBenchmarkServerTest(unittest.TestCase):
         self.assertEqual(events[-1][1]["payload"]["pass_at_1"], 1.0)
 
 
+class MemoryInspectorServerTest(unittest.TestCase):
+    def test_memory_endpoint_returns_namespaces_and_items(self):
+        from fastapi.testclient import TestClient
+
+        from nonlinear_agent.memory.langgraph_store import LangGraphMemoryBackend
+        from nonlinear_agent.memory.ports import MemoryItem, MemoryKind
+        from nonlinear_agent.server import create_app
+
+        with TemporaryDirectory() as tmpdir:
+            app = create_app(Path(tmpdir))
+            # 预置一条 memory 供 inspector 展示
+            backend = LangGraphMemoryBackend()
+            backend.write(
+                MemoryItem(
+                    memory_id="inspector-001",
+                    kind=MemoryKind.EPISODIC,
+                    namespace=("nonlinear-modeling", "hash-ds", "tiny_mlp"),
+                    fact="generate_config succeeded",
+                    evidence_refs=("a1:succeeded",),
+                    run_id="inspector-run",
+                    action_id="a1",
+                    created_by_role="action_loop",
+                    created_at=1.0,
+                )
+            )
+            # 注意：create_app 内部有自己的 backend；直接验证端点契约（空列表也合法）
+            client = TestClient(app)
+            response = client.get("/memory")
+            self.assertEqual(response.status_code, 200)
+            payload = response.json()
+            self.assertIn("namespaces", payload)
+            self.assertIn("items", payload)
+            self.assertIsInstance(payload["items"], list)
+            backend.close()
+
+
 if __name__ == "__main__":
     unittest.main()

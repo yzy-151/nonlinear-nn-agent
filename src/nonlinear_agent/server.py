@@ -528,11 +528,42 @@ def create_app(workspace: Path | str):
     root = Path(workspace)
     app = FastAPI(title="Nonlinear Experiment Agent Harness", version="0.3")
 
+    # v3.6.0: process-local memory inspector backend (LangGraph InMemoryStore).
+    # Action-loop runs write through the same MemoryBackend port; this
+    # endpoint is read-only so the Web UI can inspect provenance.
+    from nonlinear_agent.memory.langgraph_store import LangGraphMemoryBackend
+
+    memory_backend = LangGraphMemoryBackend()
+
     # ── GET /health — 健康检查 ──────────────────────────
     @app.get("/health")
     async def health() -> dict[str, str]:
         """返回 {"status": "ok"}，用于监控和 readiness probe。"""
         return {"status": "ok"}
+
+    @app.get("/memory")
+    async def memory_inspector():
+        """Read-only memory inspector: namespaces + all stored items."""
+        namespaces = memory_backend.list_namespaces()
+        items = []
+        for namespace in namespaces:
+            for item in memory_backend.query(namespace, top_k=100):
+                items.append(
+                    {
+                        "memory_id": item.memory_id,
+                        "kind": item.kind.value,
+                        "namespace": list(item.namespace),
+                        "fact": item.fact,
+                        "evidence_refs": list(item.evidence_refs),
+                        "run_id": item.run_id,
+                        "action_id": item.action_id,
+                        "config_hash": item.config_hash,
+                        "created_by_role": item.created_by_role,
+                        "confidence": item.confidence,
+                        "invalidated_at": item.invalidated_at,
+                    }
+                )
+        return {"namespaces": [list(ns) for ns in namespaces], "items": items}
 
     @app.get("/domains/{domain_name}/fields")
     async def domain_fields(domain_name: str):

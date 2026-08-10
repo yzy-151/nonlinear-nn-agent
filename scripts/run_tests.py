@@ -17,6 +17,8 @@ FAST_MODULES = (
     "tests.test_agent_benchmark_fixtures",
     "tests.test_agent_benchmark_server",
     "tests.test_benchmark",
+    "tests.test_memory_store",
+    "tests.test_knowledge_retrieval",
     "tests.test_evaluation_statistics",
     "tests.test_reflection_ablation",
     "tests.test_cli",

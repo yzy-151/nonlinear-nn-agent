@@ -97,6 +97,7 @@ git push origin main
 | v3.1.0 | PIM / Register 等领域插件与数据选择 | `domains/pim_cancellation.py`, `domains/register_config.py` |
 | v3.2.0 | 50-case 参数化回归、真实 LLM 搜索与多 seed 报告 | `benchmark_cases.py`, `search/llm_search.py` |
 | v3.3.0 | synthetic-large/hard、真实 API 搜索和 LLM client watchdog | `compare_runner.py`, `llm.py` |
+| v3.6.0 | Knowledge/Memory Foundation | `memory/`, `knowledge/`, `action_loop.py`, `server.py`, `web_ui.py` |
 
 ## 6. 核心代码入口
 
@@ -379,7 +380,7 @@ v3.3.0 当前审查基线：
 | Task 4 独立任务 | 离线链路完成 | 18 个唯一任务、生产 ToolSpec fault fixture、CLI/SSE/WebUI runner、逐 action provenance、scripted pass@1=1.0 | 6 个 DeepSeek representative runs 尚未完成；scripted 分数不得包装成模型能力 |
 | Task 5 正交消融 | 已完成 | direct/history/facts/priors 四组；三段 paired increment | 真实多 seed 结果尚未生成 |
 | Task 6 测试入口 | 已完成 | `python scripts/run_tests.py fast/full`；fast 48 tests、full 298 tests 通过 | 无 |
-| Task 7 episodic memory | 未开始 | 现有 `HistoryCompressor` 仅属短期上下文 | SQLite namespace/provenance/污染测试全部待做 |
+| Task 7 episodic memory | 已完成（v3.6.0） | `memory/ports.py`、`memory/langgraph_store.py`、`knowledge/`、action_loop memory off/on、Web memory inspector | 真实 Postgres 集成与在线 KB 评测待 v3.7+ |
 | Task 8 文档收口 | 进行中 | README 与简历文档已区分旧 50 变体、真实 10-case 和 action loop | PDF 本体、真实 benchmark 数字需在在线运行后更新 |
 
 注意：当前可以宣称“action-level loop 与独立任务评测框架已实现”，不能宣称“18 个任务已由 DeepSeek 达到某个 pass rate”。
@@ -495,21 +496,27 @@ v3.3.0 当前审查基线：
 
 验收：fast profile 适合提交前回归，full profile 覆盖全部单元测试；二者均不访问网络。
 
-### Task 7：P1 结构化 episodic memory
+### Task 7：P1 成熟 Memory + Knowledge Base
 
 **Files:**
 
-- Create: `src/nonlinear_agent/episodic_memory.py`
+- Create: `src/nonlinear_agent/memory/ports.py`
+- Create: `src/nonlinear_agent/memory/langgraph_store.py`
+- Create: `src/nonlinear_agent/knowledge/ingest.py`
+- Create: `src/nonlinear_agent/knowledge/retriever.py`
 - Modify: `src/nonlinear_agent/action_loop.py`
-- Create: `tests/test_episodic_memory.py`
+- Create: `tests/test_memory_store.py`
+- Create: `tests/test_knowledge_retrieval.py`
 
-- [ ] 先写失败测试：成功和失败 episode 可按约束、模型族和指标检索。
-- [ ] 每条 memory 保存 run/action/config/dataset hash、事实、指标、时间和 provenance。
-- [ ] namespace 固定为 domain + dataset hash，禁止不同数据集泄漏。
-- [ ] Planner 注入 top-k 结构化 episode，不引入向量数据库。
-- [ ] 增加 memory off/on 与污染记忆消融。
+- [ ] 先定义 `MemoryBackend`，业务代码不得直接依赖某个厂商 SDK。
+- [ ] 使用 LangGraph Store：单测 `InMemoryStore`，生产配置 `PostgresStore`；namespace 固定为 domain + dataset hash + memory kind。
+- [ ] memory 分 semantic/episodic/procedural 三类；working memory 由 graph state/checkpointer 管理。
+- [ ] 每条 memory 保存 run/action/config/dataset hash、原子事实、指标、时间、created_by、model、prompt hash、evidence refs、confidence 和 supersedes。
+- [ ] 建立知识库 ingestion：只收录白名单 docs/configs/benchmark/paper，chunk 带 source path、content hash、version、created_at。
+- [ ] Planner 只接收 top-k 检索结果和 citation，不注入整库；memory 写入前做事实校验、去重和冲突处理。
+- [ ] 增加 memory off/on、错误记忆注入、stale memory、跨 dataset 污染和 KB citation 消融。
 
-验收：正确 namespace recall@3 = 1.0，跨 dataset leakage = 0；stale/冲突 item 不覆盖更新证据。
+验收：标注查询集上 Recall@3 >= 0.90、citation precision >= 0.95、跨 dataset leakage = 0；stale/冲突 item 不覆盖新证据；删除某 run 后其派生 memory 可追踪清理。
 
 ### Task 8：文档、简历与最终证据
 
@@ -557,3 +564,211 @@ Closeout: Task 8
 - [ ] structured episodic memory 跨 dataset 泄漏为 0。
 - [ ] 简历只保留有原始证据的数字。
 - [ ] `git diff --check` 通过；完整 offline suite 通过。
+
+## 15. 方案 2：Knowledge + Memory 驱动的 Multi-Agent 实验团队
+
+> 本节是 v3.5.0 之后的唯一后续实施计划。DeepSeek 接手时直接维护本节状态，不再创建新的 plan/handoff 文档。仍只验收 `nonlinear-modeling` Domain。
+
+### 15.1 结论与边界
+
+这个方向值得做，但目标不是“Agent 越多越高级”，而是证明四类职责确实需要不同上下文、工具权限和模型能力。官方 LangChain 文档也明确指出，简单任务往往单 Agent 已足够，多 Agent 会增加模型调用、延迟和 token；因此必须保留当前 single-agent action loop 作为 baseline，并用消融证明 multi-agent 的收益。
+
+采用 **Supervisor + 4 个隔离 Worker + 确定性 Quality Gates**：
+
+```text
+User Goal
+  -> Supervisor / Orchestrator
+      -> Knowledge + Memory Retrieval
+      -> Idea & Plan Agent
+      -> Plan Gate
+      -> Coding Agent (isolated worktree)
+      -> Code Gate
+      -> Execution Agent (ToolRegistry only)
+      -> Result Gate / factual reflection / memory write
+      -> Writing Agent -> ReportSpec
+      -> Deterministic PDF Renderer + Fidelity Gate
+```
+
+Supervisor 负责状态、路由、预算、重试、取消和终态，不负责替 Worker 写长文本。Worker 默认无共享聊天记录，只接收最小结构化输入并返回结构化产物。跨 Agent 只传 artifact reference、事实摘要和 ID，不传内部推理全文。
+
+框架选择：
+
+- 用 LangGraph `StateGraph`、checkpointer 与 Store 表达节点、恢复和长短期 memory；现有 `ExperimentHarnessRuntime`、`ToolRegistry`、Trace、Hook、ControlPlane 保持执行内核，不推倒重写。
+- `MemoryBackend` 必须可插拔。第一后端为 LangGraph Store，测试用 `InMemoryStore`，生产 profile 用 `PostgresStore`。Mem0 可作为第二适配器实验，不在第一阶段同时引入图数据库。
+- Knowledge Base 与 Memory 分离。KB 是经白名单导入的外部知识；Memory 是运行产生的项目经验。两者均必须返回 citation/provenance，未经验证的 LLM 推测不得写入 semantic memory。
+- 参考官方资料：[LangGraph Memory](https://docs.langchain.com/oss/python/langgraph/add-memory)、[LangChain Long-term Memory](https://docs.langchain.com/oss/python/langchain/long-term-memory)、[LangChain Subagents](https://docs.langchain.com/oss/python/langchain/multi-agent/subagents)、[Mem0 Graph Memory](https://docs.mem0.ai/open-source/features/graph-memory)。
+
+### 15.2 Agent 职责与最小权限
+
+#### A. Idea & Plan Agent
+
+输入：目标、硬约束、KB top-k、同 dataset episodic memory top-k、当前代码能力清单、历史失败事实。
+
+输出 `IdeaPlanSpec`：
+
+- `hypotheses[]`：假设、物理/算法依据、citation；
+- `candidate_experiments[]`：模型族不限于当前枚举，可提出新模型，但必须给参数估算和实现成本；
+- `experiment_dag`：依赖、并行组、预算、early-stop；
+- `expected_information_gain`、风险、回退方案；
+- `required_code_changes` 与 `no_code_change_candidates`。
+
+权限：只读 KB/memory/code inventory；不能改代码、不能训练、不能写入长期 memory。Supervisor/Plan Gate 负责去重、预算和 schema 校验。
+
+#### B. Coding Agent
+
+输入：已批准 `IdeaPlanSpec`、目标文件白名单、测试命令、代码上下文和 coding memory。
+
+输出 `CodeChangeSpec`：branch/worktree、patch、changed files、tests、model/config registration、风险与回滚点。
+
+权限：只在临时 Git worktree 编辑；不能读取 API key；不能直接写 main；不能执行任意训练。允许配置独立 coding model，但模型由 `ModelRouter` 配置，不由 Agent 临时选择。所有改动必须先有失败测试，再通过 Code Gate 才可进入执行阶段。
+
+#### C. Execution Agent
+
+输入：已通过 Code Gate 的 commit SHA、实验 DAG、资源预算和 artifact contract。
+
+输出 `ExecutionResultSpec`：每个 trial 的 tool/action/event IDs、配置 hash、环境、指标、产物、失败分类、资源消耗和终态。
+
+权限：只能调用注册工具；默认不能编辑源码；禁止自由 shell。负责排队、并发、timeout、cancel、resume、OOM/NaN/缺失产物处理。训练失败后只提取事实并回交 Supervisor，是否重新规划由 Plan Agent 决定。
+
+#### D. Writing Agent
+
+输入：只读的 `IdeaPlanSpec`、`CodeChangeSpec`、`ExecutionResultSpec`、metrics JSON、PSD/表格和 trace references。
+
+输出 `ReportSpec`，不直接操作 PDF 二进制。确定性 renderer 根据模板生成 Markdown + PDF。
+
+PDF 至少包含：目标与约束、知识/记忆 citation、实验 DAG、代码变化、环境、基线与最优配置、参数量、NMSE、PSD、消融、失败案例、Agent trace、成本/时延、限制和可复现命令。Fidelity Gate 必须逐数字核对原始 JSON；没有证据的字段显示 unknown，不允许补写。
+
+### 15.3 ModelRouter
+
+新增角色级配置，不把模型名散落在代码：
+
+```yaml
+roles:
+  supervisor: {provider: deepseek, model: configurable, temperature: 0.0}
+  idea_planner: {provider: deepseek, model: configurable, temperature: 0.3}
+  coding: {provider: openai_compatible, model: configurable, temperature: 0.0}
+  execution: {provider: none}
+  writing: {provider: openai_compatible, model: configurable, temperature: 0.1}
+```
+
+要求：
+
+- 统一 `ModelClient` 接口，支持 DeepSeek/OpenAI-compatible/fake；coding/writing 可使用不同模型。
+- provider、model、base URL、timeout、token/cost budget 来自配置和环境变量；secret 不进 trace、prompt、Git。
+- execution 默认无 LLM；只有需要解释未知错误时才请求 Supervisor 批准调用。
+- 每次调用记录 role/model/provider/latency/token/cost/prompt-template-version，不记录密钥和完整隐私内容。
+- fallback 只在明确 error class 下触发，最多一次；禁止模型之间无限互相重试。
+
+### 15.4 共享状态与 Memory Schema
+
+`MultiAgentRunState` 至少包含：
+
+```text
+run_id, goal, constraints, dataset_hash, code_commit
+active_stage, approved_plan_id, action_budget, time_budget, cost_budget
+idea_plan_ref, code_change_ref, execution_result_ref, report_ref
+unresolved_failure_event_ids, retry_counts, terminal_status
+```
+
+Memory item 至少包含：
+
+```text
+memory_id, kind(semantic|episodic|procedural)
+namespace(domain, dataset_hash, model_family)
+fact, evidence_refs, run_id, action_id, config_hash
+metrics, created_by_role, model, prompt_hash, created_at
+confidence, valid_from, supersedes, invalidated_at
+```
+
+写入规则：
+
+1. Execution/Guard 产生的可验证事实可进入 episodic memory。
+2. Writing Agent 无权写 memory。
+3. LLM 总结只有在 evidence refs 可解析时才能写；否则只留在 run artifact。
+4. 新证据冲突时不覆盖旧记录，使用 `supersedes`/invalidate 保留审计链。
+5. retrieval 按 namespace、硬约束过滤，再做 semantic ranking；返回内容必须带 source 和 score。
+
+### 15.5 可执行版本计划
+
+#### v3.6.0：Knowledge/Memory Foundation
+
+实现：`MemoryBackend`、LangGraph Store adapter、KB ingestion/retrieval、typed memory schema、provenance、namespace isolation、Web memory inspector。
+
+验收：
+
+- 30 条人工标注 query：Recall@3 >= 0.90，citation precision >= 0.95；
+- 跨 dataset leakage = 0，错误/stale memory 不进入 planner top-3；
+- memory off/on 结果可复算；删除 run 可定位其全部派生 memory；
+- 无 Postgres 时 offline tests 可用 InMemoryStore，真实 profile 明确报依赖缺失而非静默降级；
+- full offline suite 通过，建立 `version/v3.6.0`。
+
+**2026-08-10 实施完成（v3.6.0 验收）**：
+
+- `MemoryBackend` 端口（`memory/ports.py`）+ `LangGraphMemoryBackend`（InMemoryStore，`memory/langgraph_store.py`）+ `PostgresMemoryBackend`（psycopg 缺失时抛明确 ImportError，不静默降级）；
+- typed memory schema：semantic/episodic/procedural、namespace = (domain, dataset_hash, model_family)、evidence refs、run/action/config hash、created_by_role、model、prompt hash、confidence、supersedes、invalidated_at；
+- namespace isolation 与审计链：跨 dataset 检索互不可见；新证据不覆盖旧记录（supersedes 保留审计链）；`delete_run` 返回并清理该 run 全部派生 memory；
+- KB ingestion（`knowledge/ingest.py`）：白名单 roots、chunk 带 source/content hash/version/created_at/citation；BM25 检索（`knowledge/retriever.py`）纯 Python 无外部 ML 依赖；
+- 30 条标注查询：Recall@3 = 1.0、top-1 citation precision = 1.0、跨 dataset leakage = 0；
+- `ActionPlannerLoop` 接入 memory off/on：on 时每次 action 写入一条带完整 provenance 的 episodic memory；
+- Web memory inspector：`GET /memory` + WebUI Memory Tab（只读展示 namespace/kind/fact/evidence）；
+- 验证：fast 77 tests、full 323 tests 全部通过；`version/v3.6.0` 分支已建立。
+
+#### v3.7.0：Supervisor + Idea/Plan Agent + ModelRouter
+
+实现：LangGraph supervisor、`IdeaPlanSpec`、role model config、structured handoff、plan gate、token/time/cost budget、single-agent baseline adapter。
+
+验收：
+
+- 12 个 planning tasks schema-valid rate = 1.0，citation coverage >= 0.90；
+- 计划不得重复历史 config hash；每个候选有参数估算、预算、停止条件和依据；
+- 子 Agent 看不到不属于自己的 raw history/API key；所有模型调用可追踪 role/model/token/cost；
+- budget/cancel/invalid JSON/model timeout 注入后均得到唯一终态；
+- 建立 `version/v3.7.0`。
+
+#### v3.8.0：Coding Agent + Execution Agent
+
+实现：隔离 worktree、patch/test gate、模型/激活/训练组件动态注册、执行队列、并发、resume、资源预算与失败回交。
+
+验收：
+
+- 10 个 coding fixtures 中 >= 9 个首次或一次修复后通过目标测试；未经允许写文件数 = 0；
+- Coding Agent 不能改 main、不能读取 `.env.local`、不能跳过失败测试证据；
+- Execution Agent 任意 shell 调用数 = 0，所有训练来自 ToolRegistry；
+- timeout/cancel/OOM/NaN/missing artifact 各至少一个回归 case，终态一致率 = 1.0；
+- 从新模型 idea 到注册、训练、验证的 E2E 至少成功 3 个不同模型族；
+- 建立 `version/v3.8.0`。
+
+#### v3.9.0：Writing Agent + PDF Evidence
+
+实现：`ReportSpec`、Markdown/PDF renderer、图表生成、数字 fidelity checker、Web 下载和 report trace。
+
+验收：
+
+- PDF 中所有指标、参数和配置与 source JSON 完全一致，numeric mismatch = 0；
+- PDF 必含 baseline/current PSD、最优表格、失败案例、成本、trace 与复现命令；
+- 缺图/缺指标/LaTeX 或 renderer failure 有结构化错误和可重试路径；
+- 桌面/移动 Web 可下载 PDF；至少 3 份不同 run 报告通过视觉检查，无裁切、重叠、乱码；
+- 建立 `version/v3.9.0`。
+
+#### v4.0.0：Multi-Agent Evaluation & Closeout
+
+实现：single-agent vs multi-agent、memory off/on、shared-model vs role-model、writer off/on 四组消融；更新 README、学习文档、简历证据。
+
+验收：
+
+- 固定同一任务、seed、训练预算、候选空间和失败注入，至少 6 个代表任务 x 3 seeds；
+- 分开报告 plan quality、code pass rate、execution success、best NMSE、参数量、wall time、token 和成本；
+- multi-agent 若未显著优于 baseline，必须如实报告，不允许只挑成功 case；
+- 至少证明一项可量化收益：有效候选率、故障恢复率或人工介入次数相对 single-agent 改善 >= 20%，且总成本不超过 baseline 3 倍；
+- 关键 E2E pass@1 >= 0.80、pass@3 >= 0.95；完整 trace/replay/report 均可打开；
+- full offline suite、真实 DeepSeek suite、PDF fidelity、Web visual checks 全部通过；建立 `version/v4.0.0` 并推 main。
+
+### 15.6 DeepSeek 执行纪律
+
+1. 每次只实施一个版本，先写失败测试，再写实现，再跑 fast/full。
+2. 每个版本只维护本 handoff、README 和 learning 最新版本；禁止新建 plan/handoff/诊断碎片文档。
+3. 分支统一 `version/vX.Y.Z`；验收未通过不得改版本号、打 tag 或推 main。
+4. scripted fixture、simulated search、真实 DeepSeek、真实训练必须分开标注。
+5. 不得删除或覆盖用户未提交文件；临时文件放 `C:\Users\yzy\Desktop\codex\nonlinear-nn-agent\`。
+6. 每个 Agent 的输入、输出、模型、工具权限、预算和 provenance 必须可从 Web/trace 回放。
+7. 所有 PDF 数字从结构化结果读取；Writing Agent 只能组织叙事，不能创造实验事实。
