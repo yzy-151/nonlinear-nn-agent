@@ -379,7 +379,13 @@ def build_experiment_tool_registry(
             description="Generate an experiment YAML config from a base config and planner overrides.",
             input_schema={
                 "type": "object",
+                "properties": {
+                    "base_config_path": {"type": "string"},
+                    "experiment_id": {"type": "string"},
+                    "overrides": {"type": "object"},
+                },
                 "required": ["base_config_path", "experiment_id"],
+                "additionalProperties": False,
             },
             category="experiment",
             error_policy="fail_fast",  # 配置生成失败直接终止，不需要重试
@@ -393,7 +399,16 @@ def build_experiment_tool_registry(
         spec=ToolSpec(
             name="run_training",
             description="Run the nonlinear fitting training command for a generated config.",
-            input_schema={"type": "object", "required": ["config_path"]},
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "config_path": {"type": "string"},
+                    "command": {"type": "array"},
+                    "timeout_seconds": {"type": "number"},
+                },
+                "required": ["config_path"],
+                "additionalProperties": False,
+            },
             category="experiment",
             error_policy="return_error",  # 训练失败返回结构化错误，让 Agent 继续
         ),
@@ -408,7 +423,12 @@ def build_experiment_tool_registry(
             description="Verify metrics, PSD artifact, and NMSE threshold.",
             input_schema={
                 "type": "object",
+                "properties": {
+                    "output_dir": {"type": "string"},
+                    "nmse_threshold_db": {"type": "number"},
+                },
                 "required": ["output_dir", "nmse_threshold_db"],
+                "additionalProperties": False,
             },
             category="experiment",
             error_policy="return_error",  # 验证失败给 Agent 反馈，不崩溃
@@ -422,7 +442,16 @@ def build_experiment_tool_registry(
         spec=ToolSpec(
             name="write_report",
             description="Write a Markdown Agent Harness report for a completed session.",
-            input_schema={"type": "object", "required": ["session_id"]},
+            input_schema={
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string"},
+                    "metrics": {"type": "object"},
+                    "artifacts": {"type": "array"},
+                },
+                "required": ["session_id"],
+                "additionalProperties": False,
+            },
             category="reporting",
             error_policy="return_error",
         ),

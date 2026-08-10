@@ -376,13 +376,20 @@ v3.3.0 当前审查基线：
 | Task 1 因果纠错指标 | 已完成 | 新旧指标并存；测试覆盖同 batch 假修正与跨 planner 因果修正 | 真实 DeepSeek 数据尚未重跑 |
 | Task 2 AgentAction/Guard | 已完成 | `actions.py`、共享 ToolSpec、contract tests | P2 的 prompt injection/超大输出防护未做 |
 | Task 3 action loop | 核心完成 | CLI action mode、逐 action observation、failure event 因果约束、action budget | SSE/WebUI action stream、time/token budget 尚未接入 |
-| Task 4 独立任务 | 规格与 scorer 完成 | 18 个唯一 `nonlinear-modeling` 任务、pass@1/pass@k scorer | 确定性 fault environment、CLI/WebUI runner、6 个 DeepSeek representative runs 尚未完成 |
+| Task 4 独立任务 | 离线链路完成 | 18 个唯一任务、生产 ToolSpec fault fixture、CLI/SSE/WebUI runner、逐 action provenance、scripted pass@1=1.0 | 6 个 DeepSeek representative runs 尚未完成；scripted 分数不得包装成模型能力 |
 | Task 5 正交消融 | 已完成 | direct/history/facts/priors 四组；三段 paired increment | 真实多 seed 结果尚未生成 |
 | Task 6 测试入口 | 已完成 | `python scripts/run_tests.py fast/full`；fast 48 tests、full 298 tests 通过 | 无 |
 | Task 7 episodic memory | 未开始 | 现有 `HistoryCompressor` 仅属短期上下文 | SQLite namespace/provenance/污染测试全部待做 |
 | Task 8 文档收口 | 进行中 | README 与简历文档已区分旧 50 变体、真实 10-case 和 action loop | PDF 本体、真实 benchmark 数字需在在线运行后更新 |
 
 注意：当前可以宣称“action-level loop 与独立任务评测框架已实现”，不能宣称“18 个任务已由 DeepSeek 达到某个 pass rate”。
+
+### v3.5.0 增量
+
+- 加固四个生产 ToolSpec：补齐 properties、类型和 `additionalProperties: false`，Action Guard 与 MCP 继续共享 schema。
+- 新增 `agent-benchmark` CLI，正式结果保存到 `benchmarks/agent-tasks-v1/`。
+- 新增 `/agent-benchmark/events` SSE 和 Web Benchmark 按钮；每个 case 展示 planner call、action、event、caused-by 与 observation。
+- WebUI 在真实 390px 设备模拟下 `innerWidth = scrollWidth = 390`，无页面级横向溢出。
 
 ### Task 1：修正 Benchmark 指标语义
 

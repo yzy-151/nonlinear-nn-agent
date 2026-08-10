@@ -451,6 +451,59 @@ async def stream_agent_events(
         _cancel_events.pop(session_id, None)
 
 
+async def stream_agent_task_benchmark_events(
+    workspace: Path | str,
+    output_dir: str = "benchmarks/agent-tasks-web",
+    attempts: int = 1,
+):
+    """Run the 18-task scripted fixture and expose trace-backed case results."""
+    from nonlinear_agent.agent_benchmark_fixtures import (
+        run_scripted_agent_task_benchmark,
+        write_agent_task_benchmark_artifacts,
+    )
+
+    root = Path(workspace)
+    session_id = "agent-task-benchmark"
+    yield encode_sse_event(TraceEvent(
+        session_id=session_id,
+        event_type="agent_task_benchmark_start",
+        status="running",
+        payload={
+            "domain": "nonlinear-modeling",
+            "evaluation_mode": "scripted_fixture",
+            "attempts": attempts,
+        },
+    ), event_id=_next_event_id(session_id))
+
+    report = await run_scripted_agent_task_benchmark(root, attempts=attempts)
+    for row in report["results"]:
+        yield encode_sse_event(TraceEvent(
+            session_id=session_id,
+            event_type="agent_task_case_end",
+            status="succeeded" if row["passed"] else "failed",
+            payload=row,
+        ), event_id=_next_event_id(session_id))
+
+    artifact_root = Path(output_dir)
+    if not artifact_root.is_absolute():
+        artifact_root = root / artifact_root
+    artifacts = write_agent_task_benchmark_artifacts(artifact_root, report)
+    yield encode_sse_event(TraceEvent(
+        session_id=session_id,
+        event_type="agent_task_benchmark_complete",
+        status="succeeded" if report["pass_at_1"] == 1.0 else "failed",
+        payload={
+            "domain": report["domain"],
+            "evaluation_mode": report["evaluation_mode"],
+            "task_count": report["task_count"],
+            "attempt_count": report["attempt_count"],
+            "pass_at_1": report["pass_at_1"],
+            f"pass_at_{attempts}": report[f"pass_at_{attempts}"],
+            "artifacts": [str(path) for path in artifacts],
+        },
+    ), event_id=_next_event_id(session_id))
+
+
 # ============================================================
 # create_app — FastAPI 应用工厂（核心）
 # ============================================================
@@ -707,6 +760,25 @@ def create_app(workspace: Path | str):
                 pass
 
         return StreamingResponse(bench_stream(), media_type="text/event-stream")
+
+    @app.post("/agent-benchmark/events")
+    async def agent_task_benchmark_events(
+        body: Optional[Dict[str, Any]] = None,
+    ):
+        """Run independent Agent Task contract cases with explicit provenance."""
+        payload = body or {}
+        attempts = int(payload.get("attempts", 1))
+        if attempts not in {1, 3}:
+            attempts = 1
+        output_dir = str(
+            payload.get("output_dir", f"benchmarks/agent-tasks-{_short_ts()}")
+        )
+        return StreamingResponse(
+            stream_agent_task_benchmark_events(
+                root, output_dir=output_dir, attempts=attempts
+            ),
+            media_type="text/event-stream",
+        )
 
     @app.post("/compare/events")
     async def compare_events(body: Optional[Dict[str, Any]] = None):
@@ -972,6 +1044,7 @@ __all__ = [
     "create_app",
     "encode_sse_event",
     "stream_agent_events",
+    "stream_agent_task_benchmark_events",
     "stream_benchmark_events",
     "stream_sse_events",
 ]

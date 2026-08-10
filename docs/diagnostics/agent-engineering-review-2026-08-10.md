@@ -234,6 +234,7 @@ Benchmark 分成四层，禁止混为一个总分：
 - 已新增逐步 `AgentAction`/Action Guard/Action Planner Loop；fixed workflow 继续作为对照基线。
 - 已记录 `planner_call_id`、`event_id`、`caused_by_event_ids`，并把旧相邻计数与因果纠错指标分开。
 - 已建立 18 个语义独立任务及 outcome scorer，支持 pass@1/pass@k；尚未生成真实 DeepSeek pass rate。
+- v3.5.0 已补确定性 fault fixture、CLI/SSE/WebUI runner 和逐 action provenance；scripted pass@1=1.0 仅作为 Harness 契约回归。
 - 已把 history、facts、priors 拆为四组策略，并分别输出三段 paired increment。
 - 已增加 fast/full 离线测试入口，并同步修正 README 与简历包装文档中的 benchmark 口径。
 

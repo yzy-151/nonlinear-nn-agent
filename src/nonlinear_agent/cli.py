@@ -63,6 +63,22 @@ def build_parser() -> argparse.ArgumentParser:
     benchmark.add_argument("--workspace", default=str(PROJECT_ROOT))
     benchmark.add_argument("--output-dir", default="benchmarks/fake-v15")
 
+    agent_benchmark = subparsers.add_parser(
+        "agent-benchmark",
+        help="Run independent nonlinear-modeling Agent Task cases.",
+    )
+    agent_benchmark.add_argument("--workspace", default=str(PROJECT_ROOT))
+    agent_benchmark.add_argument(
+        "--provider",
+        choices=["scripted"],
+        default="scripted",
+        help="scripted is an offline harness regression, not an LLM quality score.",
+    )
+    agent_benchmark.add_argument("--attempts", type=int, choices=[1, 3], default=1)
+    agent_benchmark.add_argument(
+        "--output-dir", default="benchmarks/agent-tasks-v1"
+    )
+
     diagnostics = subparsers.add_parser("diagnostics", help="Write the Markdown diagnostics report.")
     diagnostics.add_argument("--workspace", default=str(PROJECT_ROOT))
     diagnostics.add_argument("--output")
@@ -111,6 +127,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return asyncio.run(_run_planner(args))
     if args.command == "benchmark":
         return _run_benchmark(args)
+    if args.command == "agent-benchmark":
+        return _run_agent_benchmark(args)
     if args.command == "compare-search":
         return _run_compare_search(args)
     if args.command == "diagnostics":
@@ -301,6 +319,30 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         check=False,
     )
     return int(result.returncode)
+
+
+def _run_agent_benchmark(args: argparse.Namespace) -> int:
+    from nonlinear_agent.agent_benchmark_fixtures import (
+        run_scripted_agent_task_benchmark,
+        write_agent_task_benchmark_artifacts,
+    )
+
+    workspace = Path(args.workspace)
+    output_dir = Path(args.output_dir)
+    if not output_dir.is_absolute():
+        output_dir = workspace / output_dir
+    report = asyncio.run(
+        run_scripted_agent_task_benchmark(workspace, attempts=args.attempts)
+    )
+    paths = write_agent_task_benchmark_artifacts(output_dir, report)
+    print(json.dumps({
+        "evaluation_mode": report["evaluation_mode"],
+        "task_count": report["task_count"],
+        "pass_at_1": report["pass_at_1"],
+        f"pass_at_{args.attempts}": report[f"pass_at_{args.attempts}"],
+        "artifacts": [str(path) for path in paths],
+    }, ensure_ascii=False, indent=2))
+    return 0 if report["pass_at_1"] == 1.0 else 1
 
 
 def _write_diagnostics(args: argparse.Namespace) -> int:

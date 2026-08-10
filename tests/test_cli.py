@@ -34,6 +34,18 @@ class CliTest(unittest.TestCase):
         self.assertEqual(args.mode, "action")
         self.assertEqual(args.max_actions, 7)
 
+    def test_parser_exposes_independent_agent_task_benchmark(self):
+        args = build_parser().parse_args([
+            "agent-benchmark",
+            "--provider", "scripted",
+            "--attempts", "3",
+            "--output-dir", "benchmarks/agent-tasks-v1",
+        ])
+
+        self.assertEqual(args.command, "agent-benchmark")
+        self.assertEqual(args.provider, "scripted")
+        self.assertEqual(args.attempts, 3)
+
     def test_fake_action_mode_can_stop_without_starting_training(self):
         stop_action = (
             '{"type":"stop","action_id":"safe-stop",'

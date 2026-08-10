@@ -83,6 +83,13 @@ async def run_agent_task_benchmark(
                 "case_id": case.case_id,
                 "attempt": attempt_index,
                 **asdict(score),
+                "status": result.status,
+                "planner_call_count": result.planner_call_count,
+                "history": result.history,
+                "metrics": result.metrics,
+                "artifacts": result.artifacts,
+                "total_prompt_tokens": result.total_prompt_tokens,
+                "total_completion_tokens": result.total_completion_tokens,
             })
         if scores[0].passed:
             pass_at_1_count += 1

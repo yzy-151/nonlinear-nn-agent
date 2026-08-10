@@ -1,12 +1,14 @@
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from nonlinear_agent.actions import AgentAction, parse_agent_action, validate_agent_action
+from nonlinear_agent.experiment_tools import build_experiment_tool_registry
 from nonlinear_agent.mcp_server import tool_spec_to_mcp_tool
 from nonlinear_agent.tools import ToolRegistry, ToolSpec
 
@@ -28,6 +30,26 @@ class AgentActionTest(unittest.TestCase):
             },
         )
         self.registry.register("run_training", lambda **kwargs: kwargs, spec=self.spec)
+
+    def test_production_tool_specs_reject_extra_and_wrong_typed_arguments(self):
+        with TemporaryDirectory() as tmpdir:
+            registry = build_experiment_tool_registry(tmpdir)
+
+        extra = parse_agent_action(
+            '{"type":"tool_call","action_id":"extra","reason":"test",'
+            '"tool":"run_training","arguments":{"config_path":"runs/e1.yaml",'
+            '"shell":"rm -rf ."},"caused_by_event_ids":[]}'
+        )
+        wrong_type = parse_agent_action(
+            '{"type":"tool_call","action_id":"typed","reason":"test",'
+            '"tool":"run_training","arguments":{"config_path":{"bad":true}},'
+            '"caused_by_event_ids":[]}'
+        )
+
+        with self.assertRaisesRegex(ValueError, "Unexpected arguments: shell"):
+            validate_agent_action(extra, registry)
+        with self.assertRaisesRegex(ValueError, "config_path must be string"):
+            validate_agent_action(wrong_type, registry)
 
     def test_parse_tool_call_action_and_convert_to_tool_call(self):
         action = parse_agent_action(

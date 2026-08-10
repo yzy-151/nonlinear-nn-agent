@@ -21,6 +21,10 @@ class WebUITest(unittest.TestCase):
         self.assertIn("average_experiments_used", html)
         self.assertIn("best_nmse_db", html)
         self.assertIn("/benchmark/events", html)
+        self.assertIn("/agent-benchmark/events", html)
+        self.assertIn("Run 18 Agent Tasks", html)
+        self.assertIn("scripted_fixture", html)
+        self.assertIn("causal_correction", html)
         self.assertIn("Result Preview", html)
         self.assertIn("psdPreview", html)
         self.assertIn("/artifacts/", html)
@@ -34,6 +38,13 @@ class WebUITest(unittest.TestCase):
         self.assertIn("--surface:#0f172a", html)
         self.assertNotIn("--bg:#f6f7fb", html)
         self.assertNotIn("background:#fff", html)
+
+    def test_mobile_layout_contains_horizontal_overflow_guards(self):
+        html = render_home_page()
+
+        self.assertIn("grid-template-columns:minmax(0,1fr)", html)
+        self.assertIn("overflow-wrap:anywhere", html)
+        self.assertIn("overflow-x:auto", html)
 
     def test_runtime_event_colors_are_grouped_by_event_semantics(self):
         html = render_home_page()

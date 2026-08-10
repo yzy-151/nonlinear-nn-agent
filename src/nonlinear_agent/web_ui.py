@@ -64,6 +64,7 @@ nav.tabs{
   position:relative;z-index:1;
   display:flex;gap:0;padding:0 36px;
   background:rgba(3,7,18,.78);border-bottom:1px solid var(--border);
+  overflow-x:auto;
 }
 nav.tabs .tab{
   padding:16px 32px;cursor:pointer;font-weight:650;font-size:14px;
@@ -90,11 +91,13 @@ main{
   display:grid;grid-template-columns:minmax(380px,500px) 1fr;
   gap:26px;align-items:start;
 }
-@media(max-width:900px){main{grid-template-columns:1fr}header,nav.tabs,main{padding-left:14px;padding-right:14px}}
+main>*{min-width:0}
+@media(max-width:900px){main{grid-template-columns:minmax(0,1fr)}header,nav.tabs,main{padding-left:14px;padding-right:14px}}
 
 .card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   padding:22px;margin-bottom:18px;box-shadow:0 10px 26px rgba(0,0,0,.25);
+  width:100%;min-width:0;max-width:100%;overflow-wrap:anywhere;
 }
 .card h2{font-size:16px;font-weight:650;margin-bottom:14px}
 .card-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -116,7 +119,7 @@ select{cursor:pointer}
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
   min-height:46px;padding:11px 24px;margin-top:18px;width:100%;
   border:none;border-radius:10px;font:inherit;font-size:14px;font-weight:650;
-  cursor:pointer;transition:all .15s;letter-spacing:-0.2px;
+  cursor:pointer;transition:all .15s;letter-spacing:0;
 }
 .btn-go{
   background:linear-gradient(135deg,var(--blue),var(--teal));
@@ -138,6 +141,8 @@ select{cursor:pointer}
   font-size:13px;font-weight:600;transition:all .15s;
 }
 .lnk:hover{border-color:var(--blue);color:var(--blue)}
+.quick-links{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;min-width:0}
+.quick-links>div{display:flex;flex-wrap:wrap;gap:8px;min-width:0;max-width:100%}
 
 /* ── EVENT VIEWER ── */
 pre.ev{
@@ -167,7 +172,7 @@ pre.ev{
 .hint{font-size:12px;color:var(--muted);margin-bottom:14px}
 .hint strong{color:var(--ink)}
 .metric-list{display:grid;gap:8px;margin:12px 0 4px}
-.metric{padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:12px}
+.metric{padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:12px;overflow-wrap:anywhere}
 .metric code{color:var(--blue);font-weight:700}
 .preview{
   display:none;margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);
@@ -214,9 +219,9 @@ pre.ev{
 <div>
 
   <div class="card" style="padding:14px 22px">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div class="quick-links">
       <span style="font-size:14px;font-weight:650">Quick Links</span>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <div>
         <a class="lnk" href="/diagnostics/agent-runtime-dashboard.html" target="_blank">Dashboard</a>
         <a class="lnk" href="/diagnostics/agent-runtime-dashboard.md" target="_blank">MD Report</a>
         <a class="lnk" href="/health" target="_blank">Health</a>
@@ -331,10 +336,12 @@ pre.ev{
       <div class="metric"><code>planner_success_rate</code> = 计划通过 Guard 的比例，衡量 LLM 与 schema 的契合度。</div>
       <div class="metric"><code>rejected_rate</code> = rejected 记录数 / 全部实验记录，衡量 Guard 拦截强度。</div>
       <div class="metric"><code>runtime_failure_rate</code> = failed 记录数 / 全部实验记录，衡量工具链失败比例。</div>
-      <div class="metric"><code>self_correction_count</code> = rejected/failed 后修正成功的次数，衡量自我修正能力。</div>
+      <div class="metric"><code>self_correction_count</code> = 旧版相邻 failed/rejected 后成功计数，仅保留兼容，不作为 LLM 因果纠错证据。</div>
       <div class="metric"><code>average_experiments_used</code> = 消耗实验数 / case 数，衡量探索效率。</div>
       <div class="metric"><code>average_rounds</code> = 平均轮次；<code>total_prompt_tokens / estimated_cost_usd</code> = LLM 用量与估算成本。</div>
       <div class="metric"><code>best_nmse_db</code> = 全部 case 中最优 NMSE，数值越小越好。</div>
+      <div class="metric"><code>causal_correction</code> = 新 planner call 明确引用失败 event 并成功执行修正动作；不同于旧版相邻记录计数。</div>
+      <div class="metric"><code>scripted_fixture</code> = 使用生产 ToolSpec 和确定性故障注入验证 Harness 契约，不代表 LLM 推理能力。</div>
     </div>
     <label for="bmTo">Timeout (seconds)</label><input id="bmTo" type="number" min="1" value="300">
     <label for="bmThr">Threshold (dB)</label><input id="bmThr" type="number" step="0.1" value="-35">
@@ -342,6 +349,7 @@ pre.ev{
       <button type="button" class="btn btn-go" id="bmBtn" style="margin-top:0;flex:1">&#9733; Run Benchmark</button>
       <button type="button" class="btn btn-ghost" id="bmLoadBtn" style="margin-top:0;flex:1;min-height:46px">&#128194; Load Saved Results</button>
     </div>
+    <button type="button" class="btn btn-ghost" id="agentTaskBtn">Run 18 Agent Tasks</button>
     <div id="bmResults" style="margin-top:18px;display:none">
       <h3 style="font-size:14px;margin-bottom:10px">&#9733; Benchmark Results</h3>
       <div id="bmSummaryWrap"></div>
@@ -400,7 +408,7 @@ chipNmse=document.getElementById("chipNmse"),chipBase=document.getElementById("c
 chipGain=document.getElementById("chipGain"),chipParams=document.getElementById("chipParams");
 function ss(s){sd.className="dot "+s;sl.textContent=s.charAt(0).toUpperCase()+s.slice(1)}
 function al(txt,cls){if(c===0)eb.innerHTML="";eb.innerHTML+='<span class="'+cls+'">'+txt.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+'</span>\n';c++;ec.textContent=c;eb.scrollTop=eb.scrollHeight}
-function ecs(t,obj){if(t==="tool_start"||t==="start"||t==="agent_start"||t==="experiment_start"||t==="round_start")return"ev-running";if(t==="tool_end"||t==="complete"||t==="loop_complete"||t==="experiment_end")return"ev-success";if(t==="error"){var et=(obj||{}).error_type||((obj||{}).payload||{}).error_type||"";if(et==="metric_threshold_error")return"ev-warning";return"ev-failure"}if(t==="experiment_rejected"||t==="cancelled")return"ev-failure";if(t==="metric")return"ev-metric";if(t==="plan_generated")return"ev-planner";if(t==="reflection")return"ev-reflection";if(t==="benchmark_case_start"||t==="benchmark_case_end"||t==="benchmark_complete")return"ev-benchmark";return"ev-info"}
+function ecs(t,obj){if(t==="tool_start"||t==="start"||t==="agent_start"||t==="experiment_start"||t==="round_start"||t==="agent_task_benchmark_start")return"ev-running";if(t==="tool_end"||t==="complete"||t==="loop_complete"||t==="experiment_end"||t==="agent_task_benchmark_complete")return"ev-success";if(t==="error"){var et=(obj||{}).error_type||((obj||{}).payload||{}).error_type||"";if(et==="metric_threshold_error")return"ev-warning";return"ev-failure"}if(t==="experiment_rejected"||t==="cancelled")return"ev-failure";if(t==="metric")return"ev-metric";if(t==="plan_generated")return"ev-planner";if(t==="reflection")return"ev-reflection";if(t==="benchmark_case_start"||t==="benchmark_case_end"||t==="benchmark_complete"||t==="agent_task_case_end")return"ev-benchmark";return"ev-info"}
 
 document.querySelectorAll(".tab").forEach(function(t){t.addEventListener("click",function(){
   document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("active")});
@@ -523,6 +531,12 @@ function fm(obj){
   if(t==="benchmark_case_start")out.push("  case "+p.case_index+"/"+p.total_cases+": "+p.case_id+" | "+p.goal);
   if(t==="benchmark_case_end")out.push("  case: "+p.case_id+" | hit="+p.target_hit+" | best_nmse="+p.best_nmse_db+" | ok="+p.succeeded+" fail="+p.failed+" rejected="+p.rejected+" | planner_ok="+(p.planner_success_rate!=null?Math.round(p.planner_success_rate*100)+"%":"-")+" corr="+p.self_correction_count);
   if(t==="benchmark_complete"&&p.summary)appendMetrics(out,p.summary,"benchmark summary");
+  if(t==="agent_task_benchmark_start")out.push("  mode="+p.evaluation_mode+" | domain="+p.domain+" | attempts="+p.attempts);
+  if(t==="agent_task_case_end"){
+    out.push("  case="+p.case_id+" | pass="+p.passed+" | checks="+(p.passed_checks||[]).join(","));
+    (p.history||[]).forEach(function(a){out.push("    planner="+a.planner_call_id+" | action="+a.action_id+" | tool="+a.tool_name+" | status="+a.run_status+" | event="+a.event_id+" | caused_by="+(a.caused_by_event_ids||[]).join(","));if(a.observation)out.push("      observation="+JSON.stringify(a.observation))});
+  }
+  if(t==="agent_task_benchmark_complete")out.push("  mode="+p.evaluation_mode+" | tasks="+p.task_count+" | pass@1="+p.pass_at_1+" | artifacts="+(p.artifacts||[]).join(","));
   if(t==="compare_start"){out.push("  protocol: "+p.payload.methods.join(", ")+" | "+p.payload.seeds.length+" seeds x "+p.payload.trial_budget+" trials = "+p.payload.estimated_total_trials)}
   if(t==="strategy_start")out.push("  strategy: "+p.method+" | seed="+p.seed+" | budget="+p.trial_budget+" trials");
   if(t==="trial_done"){out.push("  trial "+p.trial_index+" | "+p.method+" | metric="+(p.metric_value!=null?Number(p.metric_value).toPrecision(4):"n/a")+(p.runtime_failed?" | FAILED":"")+(p.rejected?" | rejected":""))}
@@ -568,6 +582,9 @@ document.getElementById("agBtn").addEventListener("click",function(){
 document.getElementById("bmBtn").addEventListener("click",function(){
   var body={timeout_seconds:Number(document.getElementById("bmTo").value),nmse_threshold_db:Number(document.getElementById("bmThr").value)};
   go("/benchmark/events",body,document.getElementById("bmBtn"))
+});
+document.getElementById("agentTaskBtn").addEventListener("click",function(){
+  go("/agent-benchmark/events",{attempts:1},document.getElementById("agentTaskBtn"))
 });
 document.getElementById("bmLoadBtn").addEventListener("click",function(){
   document.getElementById("bmResults").style.display="none";

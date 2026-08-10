@@ -14,10 +14,13 @@ FAST_MODULES = (
     "tests.test_agent_actions",
     "tests.test_action_loop",
     "tests.test_agent_benchmark_cases",
+    "tests.test_agent_benchmark_fixtures",
+    "tests.test_agent_benchmark_server",
     "tests.test_benchmark",
     "tests.test_evaluation_statistics",
     "tests.test_reflection_ablation",
     "tests.test_cli",
+    "tests.test_web_ui",
 )
 
 

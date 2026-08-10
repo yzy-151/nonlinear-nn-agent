@@ -280,13 +280,16 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 
 `run --mode action` 保留 fixed workflow 作为可靠基线，同时新增真正的逐步循环：LLM 每次只返回一个 `tool_call` 或 `stop`，Action Guard 按 `ToolSpec` 校验，Runtime 执行后把 observation、`planner_call_id`、`event_id` 与 `caused_by_event_ids` 回传给下一次规划。
 
-当前单独定义了 18 个 `nonlinear-modeling` 独立行为任务，覆盖工具契约、失败恢复、产物验证、停止条件、历史与压缩上下文。任务分数与 NMSE 搜索质量、Runtime 压测分开报告；任务目录和 scorer 已完成，真实 DeepSeek pass@1/pass@3 仍需显式运行后才可引用。
+当前单独定义了 18 个 `nonlinear-modeling` 独立行为任务，覆盖工具契约、失败恢复、产物验证、停止条件、历史与压缩上下文。`agent-benchmark` 使用生产 ToolSpec 和确定性 fault fixture 回归 Guard/Loop/scorer，并把每个 planner/action/event/observation 写入结果；Web Benchmark 页也可通过 SSE 查看。scripted pass@1 只能证明 Harness 契约回归，真实 DeepSeek pass@1/pass@3 仍需显式运行后才可引用。
 
 ```powershell
 python agent.py run --mode action --provider fake --fake-action '{"type":"stop","action_id":"demo-stop","reason":"demo","caused_by_event_ids":[]}'
+python agent.py agent-benchmark --provider scripted --attempts 1 --output-dir benchmarks/agent-tasks-v1
 python scripts/run_tests.py fast
 python scripts/run_tests.py full
 ```
+
+离线独立任务证据：[逐 case 结果](benchmarks/agent-tasks-v1/results.json) / [摘要](benchmarks/agent-tasks-v1/summary.md)。
 
 真实 LLM 运行结果与原始数据：
 
