@@ -100,7 +100,10 @@ class BenchmarkCaseResult:
     failed_count: int = 0                # 执行失败次数
     succeeded_count: int = 0             # 执行成功次数
     experiments_used: int = 0            # 实际消耗的实验配额（failed + succeeded，不含 rejected）
-    self_correction_count: int = 0       # rejected/failed 后下一轮修正成功的次数
+    self_correction_count: int = 0       # legacy: 相邻 rejected/failed -> succeeded
+    causal_correction_count: int = 0     # 有因果链且最终成功的修正次数
+    causal_correction_attempt_count: int = 0  # 有因果链的修正尝试次数
+    causal_correction_success_rate: float = 0.0
     planner_success_rate: float = 0.0    # 计划通过 Guard 的比例
     tool_call_correct_rate: float = 0.0  # 工具调用成功占比
     total_prompt_tokens: int = 0
@@ -175,6 +178,8 @@ def summarize_loop_result(
         and best_nmse <= case.target_nmse_db  # NMSE 越小越好
     )
 
+    causal_attempts, causal_successes = _causal_correction_stats(history)
+
     return BenchmarkCaseResult(
         case_id=case.case_id,
         status=loop_result.status,
@@ -189,6 +194,9 @@ def summarize_loop_result(
         succeeded_count=succeeded_count,
         experiments_used=failed_count + succeeded_count,
         self_correction_count=_count_self_corrections(history),
+        causal_correction_count=causal_successes,
+        causal_correction_attempt_count=causal_attempts,
+        causal_correction_success_rate=_rate(causal_successes, causal_attempts),
         planner_success_rate=(
             tool_calls / total_records if total_records else 0.0
         ),
@@ -229,6 +237,12 @@ def build_benchmark_summary(results: list[BenchmarkCaseResult]) -> dict[str, Any
     total_completion_tokens = sum(
         result.total_completion_tokens for result in results
     )
+    causal_attempts = sum(
+        result.causal_correction_attempt_count for result in results
+    )
+    causal_successes = sum(
+        result.causal_correction_count for result in results
+    )
     # planner_success_rate 按每个 case 的记录数加权
     planner_weighted = sum(
         result.planner_success_rate
@@ -263,6 +277,11 @@ def build_benchmark_summary(results: list[BenchmarkCaseResult]) -> dict[str, Any
         ),
         "self_correction_count": sum(
             result.self_correction_count for result in results
+        ),
+        "causal_correction_count": causal_successes,
+        "causal_correction_attempt_count": causal_attempts,
+        "causal_correction_success_rate": _rate(
+            causal_successes, causal_attempts
         ),
         "average_rounds": (total_rounds / case_count) if case_count else 0.0,
         "total_prompt_tokens": total_prompt_tokens,
@@ -338,6 +357,9 @@ def _write_summary(
         f"- runtime_failure_rate: `{summary['runtime_failure_rate']}`",
         f"- average_experiments_used: `{summary['average_experiments_used']}`",
         f"- best_nmse_db: `{summary['best_nmse_db']}`",
+        f"- causal_correction_count: `{summary['causal_correction_count']}`",
+        f"- causal_correction_attempt_count: `{summary['causal_correction_attempt_count']}`",
+        f"- causal_correction_success_rate: `{summary['causal_correction_success_rate']}`",
         "", "## Cases", "",
     ]
     for result in results:
@@ -379,7 +401,7 @@ def _count_status(history: list[dict[str, Any]], status: str) -> int:
 
 
 def _count_self_corrections(history: list[dict[str, Any]]) -> int:
-    """Count transitions from rejected/failed to a later succeeded record."""
+    """Legacy adjacency metric; retained for artifact compatibility."""
     corrections = 0
     for i in range(1, len(history)):
         previous = history[i - 1].get("run_status")
@@ -387,6 +409,42 @@ def _count_self_corrections(history: list[dict[str, Any]]) -> int:
         if previous in ("rejected", "failed") and current == "succeeded":
             corrections += 1
     return corrections
+
+
+def _causal_correction_stats(
+    history: list[dict[str, Any]],
+) -> tuple[int, int]:
+    """Return (attempts, successes) for traceable cross-plan corrections."""
+    failures_by_event = {
+        str(record.get("event_id")): record
+        for record in history
+        if record.get("run_status") in {"rejected", "failed"}
+        and record.get("event_id")
+    }
+    attempts = 0
+    successes = 0
+    for record in history:
+        caused_by = record.get("caused_by_event_ids", [])
+        if not isinstance(caused_by, list):
+            continue
+        source = next(
+            (
+                failures_by_event[str(event_id)]
+                for event_id in caused_by
+                if str(event_id) in failures_by_event
+            ),
+            None,
+        )
+        if source is None:
+            continue
+        if source.get("planner_call_id") == record.get("planner_call_id"):
+            continue
+        if source.get("overrides") == record.get("overrides"):
+            continue
+        attempts += 1
+        if record.get("run_status") == "succeeded":
+            successes += 1
+    return attempts, successes
 
 
 def _rate(numerator: int, denominator: int) -> float:

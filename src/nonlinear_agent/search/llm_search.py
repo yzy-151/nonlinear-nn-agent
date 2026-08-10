@@ -78,7 +78,14 @@ class RealLLMSearch:
     """
 
     def __init__(self, method: str, context: SearchContext):
-        if method not in ("llm_direct", "llm_program_reflection"):
+        allowed_methods = {
+            "llm_direct",
+            "llm_history_only",
+            "llm_history_facts",
+            "llm_history_facts_priors",
+            "llm_program_reflection",
+        }
+        if method not in allowed_methods:
             raise ValueError(f"Unknown real-LLM method: {method}")
         self.method = method
         self.name = method
@@ -90,12 +97,20 @@ class RealLLMSearch:
             self._client.json_mode = False  # json_object 让 flash 把 token 耗在隐藏推理上
         if getattr(self._client, "temperature", 0.2) < 0.5:
             self._client.temperature = 0.7  # 0.2 下 flash 过度思考；0.7 稳定且快
-        self._reflection = (
-            ReflectionPolicy() if method == "llm_program_reflection" else None
-        )
+        self._use_history = method != "llm_direct"
+        self._use_facts = method in {
+            "llm_history_facts",
+            "llm_history_facts_priors",
+            "llm_program_reflection",
+        }
+        self._use_priors = method in {
+            "llm_history_facts_priors",
+            "llm_program_reflection",
+        }
+        self._reflection = ReflectionPolicy() if self._use_facts else None
         self._priors = (
             self._ctx.domain.historical_priors()
-            if method == "llm_program_reflection"
+            if self._use_priors
             else []
         )
         self._facts: list[dict[str, Any]] = []
@@ -183,16 +198,18 @@ class RealLLMSearch:
                 design_lines.append(f"- {field}: float in [{lo}, {hi}]")
 
         # 最近历史（含 candidate 的条目），倒序最近在前，最多 10 条
-        recent = [
-            {
-                "candidate": row.get("candidate", {}),
-                metric: row.get(metric),
-                "rejected": bool(row.get("rejected")),
-                "runtime_failed": bool(row.get("runtime_failed")),
-            }
-            for row in reversed(history[-20:])
-            if isinstance(row.get("candidate"), dict)
-        ][:10]
+        recent = []
+        if self._use_history:
+            recent = [
+                {
+                    "candidate": row.get("candidate", {}),
+                    metric: row.get(metric),
+                    "rejected": bool(row.get("rejected")),
+                    "runtime_failed": bool(row.get("runtime_failed")),
+                }
+                for row in reversed(history[-20:])
+                if isinstance(row.get("candidate"), dict)
+            ][:10]
 
         parts = [
             (

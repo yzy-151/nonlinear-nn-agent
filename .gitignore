@@ -38,6 +38,9 @@ configs/lstsq_*.yaml
 # Internal docs not meant for the public repo
 docs/resume/
 docs/handoff/
+!docs/handoff/
+docs/handoff/*
+!docs/handoff/llm-continuation-plan.md
 docs/onboarding/
 docs/nonlinear-agent-*.pdf
 docs/nonlinear-agent-*_txt.txt

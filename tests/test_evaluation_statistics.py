@@ -119,6 +119,37 @@ class TestMethodStatistics(unittest.TestCase):
 
 class TestSummaryReports(unittest.TestCase):
 
+    def test_write_summary_json_reports_orthogonal_context_increments(self):
+        methods = [
+            "llm_direct",
+            "llm_history_only",
+            "llm_history_facts",
+            "llm_history_facts_priors",
+        ]
+        rows = []
+        for method_index, method in enumerate(methods):
+            for seed in (7, 17):
+                rows.append(build_trial_record(
+                    run_id=f"{method}-seed{seed}",
+                    method=method,
+                    seed=seed,
+                    trial_index=0,
+                    nmse_db=-35.0 - method_index,
+                    target_hit=True,
+                ))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = write_summary_json(rows, methods, Path(tmp) / "summary.json")
+
+        comparisons = summary["paired_comparisons"]
+        self.assertEqual(
+            set(comparisons),
+            {"history_increment", "facts_increment", "priors_increment"},
+        )
+        self.assertEqual(comparisons["history_increment"]["paired_seed_count"], 2)
+        self.assertEqual(comparisons["facts_increment"]["paired_seed_count"], 2)
+        self.assertEqual(comparisons["priors_increment"]["paired_seed_count"], 2)
+
     def test_write_summary_json_creates_file(self):
         rows = _fake_rows_for_methods_and_seeds()
         with tempfile.TemporaryDirectory() as tmp:

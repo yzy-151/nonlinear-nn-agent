@@ -20,7 +20,9 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any, TYPE_CHECKING
 
 from nonlinear_agent.llm import LLMClient
+from nonlinear_agent.actions import AgentAction, parse_agent_action
 from nonlinear_agent.planner_validation import normalize_planner_overrides
+from nonlinear_agent.tools import ToolRegistry
 
 if TYPE_CHECKING:
     from nonlinear_agent.domains.base import DomainPlugin
@@ -270,6 +272,51 @@ class ExperimentPlanner:
             summary=str(payload.get("summary", "")),
             stop=bool(payload.get("stop", False)),
             experiments=experiments,
+        )
+
+
+class AgentActionPlanner:
+    """Ask an LLM for exactly one auditable tool call or stop action."""
+
+    def __init__(self, llm_client: LLMClient, tool_registry: ToolRegistry):
+        self.llm_client = llm_client
+        self.tool_registry = tool_registry
+
+    def plan(
+        self,
+        goal: str,
+        history: list[dict[str, Any]] | None = None,
+        constraints: dict[str, Any] | None = None,
+    ) -> AgentAction:
+        prompt = self._build_prompt(
+            goal=goal,
+            history=history or [],
+            constraints=constraints or {},
+        )
+        return parse_agent_action(self.llm_client.complete(prompt))
+
+    def _build_prompt(
+        self,
+        goal: str,
+        history: list[dict[str, Any]],
+        constraints: dict[str, Any],
+    ) -> str:
+        tools = self.tool_registry.describe_tools()
+        return (
+            "Choose exactly one next action for the experiment harness.\n"
+            f"Goal: {goal}\n"
+            f"Constraints: {json.dumps(constraints, ensure_ascii=False)}\n"
+            f"History and observations: {json.dumps(history, ensure_ascii=False)}\n"
+            f"Available tools: {json.dumps(tools, ensure_ascii=False)}\n"
+            "Return JSON only. For a tool call use: "
+            '{"type":"tool_call","action_id":"unique-id",'
+            '"reason":"short reason","tool":"registered-name",'
+            '"arguments":{},"caused_by_event_ids":[]}.'
+            " For completion use: "
+            '{"type":"stop","action_id":"unique-id",'
+            '"reason":"why stop","caused_by_event_ids":[]}.'
+            " Call only a registered tool and follow its input_schema exactly. "
+            "After a failure, caused_by_event_ids must include the failure event id."
         )
 
 

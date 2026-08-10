@@ -208,6 +208,51 @@ class LLMPlannerTest(unittest.TestCase):
         self.assertEqual(result.history[0]["run_status"], "failed")
         self.assertEqual(result.history[0]["error"], "NMSE threshold failed")
 
+    def test_planner_loop_records_causal_metadata_across_rounds(self):
+        llm = FakeLLMClient(
+            responses=[
+                '{"summary":"first", "stop": false, "experiments": ['
+                '{"id":"bad", "reason":"too aggressive", '
+                '"overrides":{"output_dir":"reports/bad", "epochs":0}}]}',
+                '{"summary":"recover", "stop": false, "experiments": ['
+                '{"id":"good", "reason":"use safer settings", '
+                '"overrides":{"output_dir":"reports/good", "epochs":0}}]}',
+            ]
+        )
+        planner = ExperimentPlanner(llm_client=llm)
+
+        class FakeRuntime:
+            async def run(self, request):
+                if request.session_id == "bad":
+                    yield TraceEvent(
+                        session_id=request.session_id,
+                        event_type="error",
+                        error="training diverged",
+                    )
+                else:
+                    yield TraceEvent(
+                        session_id=request.session_id,
+                        event_type="metric",
+                        payload={"name": "nmse_db", "value": -36.0},
+                    )
+
+        with TemporaryDirectory() as tmpdir:
+            loop = ExperimentPlannerLoop(
+                planner=planner,
+                workspace=Path(tmpdir),
+                runtime_factory=lambda session_id: FakeRuntime(),
+            )
+            result = asyncio.run(loop.run(goal="recover", max_rounds=2))
+
+        failed = next(record for record in result.history if record.get("id") == "bad")
+        succeeded = next(record for record in result.history if record.get("id") == "good")
+        self.assertEqual(failed["planner_call_id"], "planner-001")
+        self.assertEqual(succeeded["planner_call_id"], "planner-002")
+        self.assertEqual(failed["round"], 1)
+        self.assertEqual(succeeded["round"], 2)
+        self.assertIn(failed["event_id"], succeeded["caused_by_event_ids"])
+        self.assertNotEqual(failed["overrides"], succeeded["overrides"])
+
 
     def test_planner_loop_limits_total_executed_experiments_and_passes_threshold(self):
         experiments = []

@@ -116,6 +116,65 @@ class BenchmarkTest(unittest.TestCase):
         self.assertEqual(result.total_prompt_tokens, 100)
         self.assertEqual(result.total_completion_tokens, 50)
 
+    def test_same_planner_batch_failure_then_success_is_not_causal_correction(self):
+        case = BenchmarkCase(case_id="same-batch", goal="recover", target_nmse_db=-35.0)
+        loop_result = PlannerLoopResult(
+            status="stopped",
+            rounds=1,
+            history=[
+                {
+                    "id": "bad",
+                    "run_status": "failed",
+                    "event_id": "event-bad",
+                    "planner_call_id": "planner-001",
+                    "overrides": {"model_type": "tiny_mlp"},
+                },
+                {
+                    "id": "good",
+                    "run_status": "succeeded",
+                    "planner_call_id": "planner-001",
+                    "caused_by_event_ids": ["event-bad"],
+                    "overrides": {"model_type": "complex_lstsq"},
+                    "nmse_db": -36.0,
+                },
+            ],
+        )
+
+        result = summarize_loop_result(case, loop_result)
+
+        self.assertEqual(result.self_correction_count, 1)
+        self.assertEqual(result.causal_correction_count, 0)
+        self.assertEqual(result.causal_correction_success_rate, 0.0)
+
+    def test_later_planner_call_that_consumes_failure_and_changes_candidate_is_causal_correction(self):
+        case = BenchmarkCase(case_id="cross-plan", goal="recover", target_nmse_db=-35.0)
+        loop_result = PlannerLoopResult(
+            status="stopped",
+            rounds=2,
+            history=[
+                {
+                    "id": "bad",
+                    "run_status": "failed",
+                    "event_id": "event-bad",
+                    "planner_call_id": "planner-001",
+                    "overrides": {"model_type": "tiny_mlp", "learning_rate": 0.1},
+                },
+                {
+                    "id": "good",
+                    "run_status": "succeeded",
+                    "planner_call_id": "planner-002",
+                    "caused_by_event_ids": ["event-bad"],
+                    "overrides": {"model_type": "tiny_mlp", "learning_rate": 0.001},
+                    "nmse_db": -36.0,
+                },
+            ],
+        )
+
+        result = summarize_loop_result(case, loop_result)
+
+        self.assertEqual(result.causal_correction_count, 1)
+        self.assertEqual(result.causal_correction_success_rate, 1.0)
+
     def test_build_benchmark_summary_includes_extended_metrics(self):
         results = [
             BenchmarkCaseResult(
@@ -134,6 +193,28 @@ class BenchmarkTest(unittest.TestCase):
         self.assertEqual(summary["total_prompt_tokens"], 100)
         self.assertEqual(summary["total_completion_tokens"], 50)
         self.assertAlmostEqual(summary["estimated_cost_usd"], 0.01)
+
+    def test_build_benchmark_summary_reports_causal_correction_metrics(self):
+        results = [
+            BenchmarkCaseResult(
+                case_id="a",
+                causal_correction_count=2,
+                causal_correction_attempt_count=3,
+                causal_correction_success_rate=2 / 3,
+            ),
+            BenchmarkCaseResult(
+                case_id="b",
+                causal_correction_count=1,
+                causal_correction_attempt_count=1,
+                causal_correction_success_rate=1.0,
+            ),
+        ]
+
+        summary = build_benchmark_summary(results)
+
+        self.assertEqual(summary["causal_correction_count"], 3)
+        self.assertEqual(summary["causal_correction_attempt_count"], 4)
+        self.assertEqual(summary["causal_correction_success_rate"], 0.75)
 
     def test_run_benchmark_cases_uses_executor(self):
         cases = [
@@ -172,6 +253,7 @@ class BenchmarkTest(unittest.TestCase):
         self.assertEqual(payload["summary"]["case_count"], 2)
         self.assertIn("case-001", leaderboard)
         self.assertIn("target_hit_rate", markdown)
+        self.assertIn("causal_correction_success_rate", markdown)
 
 
 if __name__ == "__main__":

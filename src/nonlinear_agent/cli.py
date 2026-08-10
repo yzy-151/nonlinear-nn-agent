@@ -41,6 +41,10 @@ def build_parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run", help="Run an LLM-planned experiment loop.")
     run.add_argument("--workspace", default=str(PROJECT_ROOT))
     run.add_argument("--provider", choices=["fake", "deepseek"], default="fake")
+    run.add_argument(
+        "--mode", choices=["fixed", "action"], default="fixed",
+        help="fixed plans an experiment batch; action chooses one tool after each observation.",
+    )
     run.add_argument("--goal", default="Find a low-NMSE nonlinear model under 4000 parameters and produce PSD evidence.")
     run.add_argument("--base-config", default="configs/baselines/lstsq-complexmp-o12-m150.yaml")
     run.add_argument("--parameter-count-max", type=int, default=4000)
@@ -50,6 +54,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--timeout-seconds", type=float, default=300.0)
     run.add_argument("--artifact-dir")
     run.add_argument("--fake-plan")
+    run.add_argument("--fake-action")
+    run.add_argument("--max-actions", type=int, default=12)
     run.add_argument("--llm-kind", choices=["compat", "sdk"], default="compat",
         help="LLM client: compat (hand-written HTTP, default) or sdk (official OpenAI SDK).")
 
@@ -123,7 +129,15 @@ async def _run_planner(args: argparse.Namespace) -> int:
     from nonlinear_agent.loop import ExperimentPlannerLoop
     from nonlinear_agent.planner import ExperimentPlanner
 
-    if args.provider == "fake":
+    if args.provider == "fake" and args.mode == "action":
+        llm = FakeLLMClient(
+            responses=[
+                args.fake_action
+                or '{"type":"stop","action_id":"fake-stop",'
+                '"reason":"No fake action supplied.","caused_by_event_ids":[]}'
+            ]
+        )
+    elif args.provider == "fake":
         llm = FakeLLMClient(
             responses=[
                 args.fake_plan or DEFAULT_FAKE_PLAN,
@@ -138,6 +152,38 @@ async def _run_planner(args: argparse.Namespace) -> int:
         raise ValueError(f"Unsupported provider: {args.provider}")
 
     workspace = Path(args.workspace)
+    if args.mode == "action":
+        from dataclasses import asdict
+
+        from nonlinear_agent.action_loop import ActionPlannerLoop
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+        from nonlinear_agent.planner import AgentActionPlanner
+        from nonlinear_agent.server import build_runtime
+
+        domain = NonlinearModelingDomain()
+        tool_registry = domain.build_tool_registry(
+            workspace, default_timeout_seconds=args.timeout_seconds
+        )
+        loop = ActionPlannerLoop(
+            planner=AgentActionPlanner(llm, tool_registry),
+            tool_registry=tool_registry,
+            runtime_factory=lambda session_id: build_runtime(
+                workspace,
+                session_id=session_id,
+                timeout_seconds=args.timeout_seconds,
+                domain=domain,
+            ),
+            session_id="action-cli",
+            constraints={
+                "parameter_count_max": args.parameter_count_max,
+                "metric": "nmse_db",
+                "nmse_threshold_db": args.nmse_threshold_db,
+            },
+        )
+        result = await loop.run(goal=args.goal, max_actions=args.max_actions)
+        print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
+        return 0
+
     loop = ExperimentPlannerLoop(
         planner=ExperimentPlanner(llm_client=llm),
         workspace=workspace,

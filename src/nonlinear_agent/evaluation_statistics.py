@@ -236,6 +236,25 @@ def write_summary_json(
             metric=metric, lower_is_better=lower_is_better,
         )
 
+    incremental_pairs = (
+        ("history_increment", "llm_history_only", "llm_direct"),
+        ("facts_increment", "llm_history_facts", "llm_history_only"),
+        (
+            "priors_increment",
+            "llm_history_facts_priors",
+            "llm_history_facts",
+        ),
+    )
+    for label, treatment, control in incremental_pairs:
+        if treatment in methods and control in methods:
+            paired[label] = paired_method_delta(
+                trial_rows,
+                treatment,
+                control,
+                metric=metric,
+                lower_is_better=lower_is_better,
+            )
+
     summary = {
         "protocol_version": "1.9.0",
         "bootstrap_seed": BOOTSTRAP_SEED,

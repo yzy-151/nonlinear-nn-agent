@@ -170,6 +170,8 @@ class ExperimentPlannerLoop:
         for _ in range(max_rounds):
             rounds += 1
             round_records: list[dict[str, Any]] = []  # 本轮的所有记录
+            planner_call_id = _planner_call_id(rounds)
+            caused_by_event_ids = _failure_event_ids(history)
 
             # ── 第 1 步：LLM 出计划 ──
             # 给 LLM 的不是全量 history，而是压缩后的版本（summary + 最近 N 条）
@@ -224,6 +226,13 @@ class ExperimentPlannerLoop:
                         "reason": experiment.reason,
                         "run_status": "rejected",
                         "error": str(exc),
+                        "round": rounds,
+                        "planner_call_id": planner_call_id,
+                        "event_id": _experiment_event_id(
+                            planner_call_id, experiment.experiment_id, "rejected"
+                        ),
+                        "caused_by_event_ids": caused_by_event_ids,
+                        "overrides": dict(experiment.overrides),
                     }
                     history.append(rejected_record)
                     round_records.append(rejected_record)
@@ -245,6 +254,15 @@ class ExperimentPlannerLoop:
                             record = {
                                 "id": retry_experiment.experiment_id,
                                 "reason": retry_experiment.reason,
+                                "round": rounds,
+                                "planner_call_id": planner_call_id,
+                                "event_id": _experiment_event_id(
+                                    planner_call_id,
+                                    retry_experiment.experiment_id,
+                                    str(metrics.get("run_status", "unknown")),
+                                ),
+                                "caused_by_event_ids": _failure_event_ids(history),
+                                "overrides": dict(overrides),
                                 **metrics,
                             }
                             history.append(record)
@@ -260,6 +278,15 @@ class ExperimentPlannerLoop:
                 record = {
                     "id": experiment.experiment_id,
                     "reason": experiment.reason,
+                    "round": rounds,
+                    "planner_call_id": planner_call_id,
+                    "event_id": _experiment_event_id(
+                        planner_call_id,
+                        experiment.experiment_id,
+                        str(metrics.get("run_status", "unknown")),
+                    ),
+                    "caused_by_event_ids": caused_by_event_ids,
+                    "overrides": dict(overrides),
                     **metrics,  # 包含 run_status / nmse_db / error 等
                 }
                 history.append(record)
@@ -381,6 +408,8 @@ class ExperimentPlannerLoop:
         for _ in range(max_rounds):
             rounds += 1
             round_records: list[dict[str, Any]] = []
+            planner_call_id = _planner_call_id(rounds)
+            caused_by_event_ids = _failure_event_ids(history)
 
             yield {"type": "round_start", "round": rounds}
 
@@ -416,6 +445,7 @@ class ExperimentPlannerLoop:
             yield {
                 "type": "plan_generated",
                 "round": rounds,
+                "planner_call_id": planner_call_id,
                 "summary": plan.summary,
                 "stop": plan.stop,
                 "experiment_count": len(plan.experiments),
@@ -484,6 +514,13 @@ class ExperimentPlannerLoop:
                         "reason": experiment.reason,
                         "run_status": "rejected",
                         "error": str(exc),
+                        "round": rounds,
+                        "planner_call_id": planner_call_id,
+                        "event_id": _experiment_event_id(
+                            planner_call_id, experiment.experiment_id, "rejected"
+                        ),
+                        "caused_by_event_ids": caused_by_event_ids,
+                        "overrides": dict(experiment.overrides),
                     }
                     history.append(record)
                     round_records.append(record)
@@ -548,6 +585,15 @@ class ExperimentPlannerLoop:
                 record = {
                     "id": experiment.experiment_id,
                     "reason": experiment.reason,
+                    "round": rounds,
+                    "planner_call_id": planner_call_id,
+                    "event_id": _experiment_event_id(
+                        planner_call_id,
+                        experiment.experiment_id,
+                        str(metrics.get("run_status", "unknown")),
+                    ),
+                    "caused_by_event_ids": caused_by_event_ids,
+                    "overrides": dict(overrides),
                     **metrics,
                 }
                 history.append(record)
@@ -690,3 +736,22 @@ def _latest_reflection_failure_causes(history: list[dict[str, Any]]) -> list[str
             causes = record.get("failure_causes", [])
             return [str(cause) for cause in causes] if isinstance(causes, list) else []
     return []
+
+
+def _planner_call_id(round_index: int) -> str:
+    return f"planner-{round_index:03d}"
+
+
+def _experiment_event_id(
+    planner_call_id: str, experiment_id: str, status: str
+) -> str:
+    return f"{planner_call_id}:{experiment_id}:{status}"
+
+
+def _failure_event_ids(history: list[dict[str, Any]]) -> list[str]:
+    return [
+        str(record["event_id"])
+        for record in history
+        if record.get("run_status") in {"rejected", "failed"}
+        and record.get("event_id")
+    ]

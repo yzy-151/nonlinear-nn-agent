@@ -26,6 +26,31 @@ class CliTest(unittest.TestCase):
         self.assertEqual(dashboard.command, "dashboard")
         self.assertEqual(serve.command, "serve")
 
+    def test_run_parser_exposes_action_mode_and_action_budget(self):
+        args = build_parser().parse_args([
+            "run", "--mode", "action", "--provider", "fake", "--max-actions", "7",
+        ])
+
+        self.assertEqual(args.mode, "action")
+        self.assertEqual(args.max_actions, 7)
+
+    def test_fake_action_mode_can_stop_without_starting_training(self):
+        stop_action = (
+            '{"type":"stop","action_id":"safe-stop",'
+            '"reason":"test complete","caused_by_event_ids":[]}'
+        )
+        with TemporaryDirectory() as tmpdir:
+            exit_code = main([
+                "run",
+                "--mode", "action",
+                "--provider", "fake",
+                "--workspace", tmpdir,
+                "--fake-action", stop_action,
+                "--max-actions", "2",
+            ])
+
+        self.assertEqual(exit_code, 0)
+
     def test_diagnostics_command_writes_markdown(self):
         with TemporaryDirectory() as tmpdir:
             output = Path(tmpdir) / "diagnostics.md"

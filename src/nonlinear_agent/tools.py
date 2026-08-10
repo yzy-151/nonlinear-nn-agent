@@ -142,6 +142,12 @@ class ToolRegistry:
         """返回所有已注册工具的名字"""
         return sorted(self._tools)
 
+    def get_tool_spec(self, name: str) -> ToolSpec:
+        """Return the canonical schema used by planners, guards, and MCP."""
+        if name not in self._specs:
+            raise KeyError(f"Unknown tool: {name}")
+        return self._specs[name]
+
     # ── 描述工具 ──────────────────────────────────────────
     def describe_tools(self, category: str | None = None) -> list[dict[str, Any]]:
         """返回工具列表的描述，给 LLM Planner 或 MCP Client 看。

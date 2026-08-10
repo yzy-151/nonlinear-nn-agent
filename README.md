@@ -264,7 +264,7 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 
 ![-41 dB 目标 run 的最优候选 PSD](docs/assets/psd-exp016-best-41db-run.png)
 
-### Agent Benchmark（10 → 50 case 参数化）
+### 旧版参数敏感性回归（10 模板 → 50 变体）
 
 10 个基础行为 case 之上按 5 档目标阈值参数化扩到 **50 case**（10 类型 × 5 变体），指标全量上报：
 
@@ -274,7 +274,19 @@ Reflection 配对消融：**delta = -4.28 dB，95% CI [-10.0, -0.4]，显著**�
 | 真实 DeepSeek + 真实训练（v26，10 case） | 10 | **0.9** | **7.4%** | **0.93** | 3 | 7.4% | **-42.43** | 73,523 | $0.065 |
 | 真实 DeepSeek + 真实训练（50 case） | 50 | 运行中… | | | | | | | |
 
-hit 率 0.38 vs 0.9 的差异来自**目标阈值**：50-case 变体把阈值推到 -37/-38 dB，固定能力下更严格的目标自然更难达标（详见 [50-case 报告](docs/experiments/nonlinear-benchmark-50case.md)），反映的是行为一致性而非系统退化。
+这两行不能直接比较：50-case 是离线 fake 的 10 类模板 × 5 阈值/轮次变体，0.38 只反映参数敏感性；0.9 来自真实 DeepSeek 的 10-case 运行（9/10）。表中的 `self_correction` 是旧版相邻记录计数，不代表 LLM 发起新规划后的因果纠错。新版评测使用独立 Agent 任务和 `causal_correction_*` 指标。
+
+### Action-level Agent 与独立任务评测
+
+`run --mode action` 保留 fixed workflow 作为可靠基线，同时新增真正的逐步循环：LLM 每次只返回一个 `tool_call` 或 `stop`，Action Guard 按 `ToolSpec` 校验，Runtime 执行后把 observation、`planner_call_id`、`event_id` 与 `caused_by_event_ids` 回传给下一次规划。
+
+当前单独定义了 18 个 `nonlinear-modeling` 独立行为任务，覆盖工具契约、失败恢复、产物验证、停止条件、历史与压缩上下文。任务分数与 NMSE 搜索质量、Runtime 压测分开报告；任务目录和 scorer 已完成，真实 DeepSeek pass@1/pass@3 仍需显式运行后才可引用。
+
+```powershell
+python agent.py run --mode action --provider fake --fake-action '{"type":"stop","action_id":"demo-stop","reason":"demo","caused_by_event_ids":[]}'
+python scripts/run_tests.py fast
+python scripts/run_tests.py full
+```
 
 真实 LLM 运行结果与原始数据：
 

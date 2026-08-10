@@ -183,7 +183,13 @@ def build_strategy(method: str, context: SearchContext) -> Any:
                 "optuna_tpe requires optuna; install it with: "
                 "pip install 'optuna>=4,<5'"
             ) from exc
-    if method in ("llm_direct", "llm_program_reflection"):
+    if method in (
+        "llm_direct",
+        "llm_history_only",
+        "llm_history_facts",
+        "llm_history_facts_priors",
+        "llm_program_reflection",
+    ):
         if context.llm_provider == "deepseek":
             from nonlinear_agent.search.llm_search import RealLLMSearch
 
@@ -206,7 +212,17 @@ class _LLMSearch:
         self._ctx = context
         self._rng = random.Random(context.seed)
         self._seen_hashes: set[str] = set()
-        self._reflection = ReflectionPolicy() if method == "llm_program_reflection" else None
+        self._use_history = method != "llm_direct"
+        self._use_facts = method in {
+            "llm_history_facts",
+            "llm_history_facts_priors",
+            "llm_program_reflection",
+        }
+        self._use_priors = method in {
+            "llm_history_facts_priors",
+            "llm_program_reflection",
+        }
+        self._reflection = ReflectionPolicy() if self._use_facts else None
         self._reflection_record: dict[str, Any] | None = None
         self._failed_model_types: set[str] = set()
         self._priors = (
@@ -215,7 +231,7 @@ class _LLMSearch:
                 for prior in self._ctx.domain.historical_priors()
                 if not prior.slow  # full matrix must stay feasible (~seconds/trial)
             ]
-            if method == "llm_program_reflection"
+            if self._use_priors
             else []
         )
 
@@ -237,15 +253,16 @@ class _LLMSearch:
         # 找历史最优候选
         best_candidate: dict[str, Any] | None = None
         best_value: float | None = None
-        for row in history:
-            if row.get("rejected") or row.get("runtime_failed"):
-                continue
-            val = row.get(metric)
-            if val is None:
-                continue
-            if best_value is None or float(val) < best_value:
-                best_value = float(val)
-                best_candidate = row.get("candidate", {})
+        if self._use_history:
+            for row in history:
+                if row.get("rejected") or row.get("runtime_failed"):
+                    continue
+                val = row.get(metric)
+                if val is None:
+                    continue
+                if best_value is None or float(val) < best_value:
+                    best_value = float(val)
+                    best_candidate = row.get("candidate", {})
 
         # 70% 围绕最优邻域，30% 随机探索（模拟 LLM 的 exploitation/exploration）
         for _ in range(40):
