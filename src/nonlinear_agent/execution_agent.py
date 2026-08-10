@@ -21,6 +21,7 @@ class ExecutionResult:
     classification: str  # ok | timeout | oom | nan | missing_artifact | error | cancelled
     tool_name: str
     metrics: dict[str, Any] = field(default_factory=dict)
+    output: dict[str, Any] = field(default_factory=dict)
     artifacts: tuple[str, ...] = ()
     error: str = ""
 
@@ -76,6 +77,7 @@ class ExecutionAgent:
             classification="ok",
             tool_name=tool_name,
             metrics=metrics,
+            output=output,
             artifacts=artifacts,
         )
 

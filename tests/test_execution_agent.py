@@ -83,6 +83,22 @@ class TestExecutionAgent(unittest.TestCase):
         result = asyncio.run(agent.execute("run_good", {}, cancelled=True))
         self.assertEqual(result.status, "cancelled")
 
+    def test_concurrent_executions_all_terminal_consistent(self):
+        from nonlinear_agent.execution_agent import ExecutionAgent
+
+        agent = ExecutionAgent(_registry())
+
+        async def run_many():
+            return await asyncio.gather(
+                agent.execute("run_good", {"value": 1}),
+                agent.execute("run_good", {"value": 2}),
+                agent.execute("run_good", {"value": 3}),
+            )
+
+        results = asyncio.run(run_many())
+        self.assertEqual([r.status for r in results], ["completed"] * 3)
+        self.assertEqual(agent.audit_shell_calls(), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
