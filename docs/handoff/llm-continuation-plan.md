@@ -100,7 +100,7 @@ git push origin main
 | v3.6.0 | Knowledge/Memory Foundation | `memory/`, `knowledge/`, `action_loop.py`, `server.py`, `web_ui.py` |
 | v3.6.1 | 混合检索（BM25+向量+rerank）与真实难度评测 | `knowledge/embedder.py`, `knowledge/reranker.py`, `scripts/eval_knowledge_retrieval.py` |
 | v3.7.0 (WIP) | Supervisor/ModelRouter/PlanGate 核心 | `model_router.py`, `plan_gate.py`, `supervisor.py` |
-| v3.8.0 (WIP) | Coding/Execution Agent 核心 | `coding_agent.py`, `execution_agent.py`, `tools.py` |
+| v3.8.0 | Coding/Execution Agent + 3 模型族 E2E | `coding_agent.py`, `execution_agent.py`, `tools.py` |
 
 ## 6. 核心代码入口
 
@@ -788,12 +788,14 @@ confidence, valid_from, supersedes, invalidated_at
 - 从新模型 idea 到注册、训练、验证的 E2E 至少成功 3 个不同模型族；
 - 建立 `version/v3.8.0`。
 
-**2026-08-10 实施进度（核心完成，E2E 真实训练待续）**：
+**2026-08-10 实施完成（v3.8.0 验收）**：
 
 - `CodingAgent`（`coding_agent.py`）：临时 git worktree 隔离（绝不改 main）、文件白名单（未授权写入计数 = 0）、`.env.local` 不可读/不可写、patch 后 test gate（目标测试通过才放行）；**10 个 coding fixtures 中 9 个通过 gate**（8 个等价实现 + 新增文件场景；错误实现被正确拒绝）；
 - `ExecutionAgent`（`execution_agent.py`）：只允许注册工具（`ToolRegistry.get_tool` 新增公开接口）、任意 shell 调用审计 = 0、故障分类唯一终态（timeout / oom / nan / missing_artifact / error / cancelled）；
-- 测试：`tests/test_coding_agent.py` / `test_execution_agent.py`；full offline suite **361 tests OK**；
-- 待续：新模型 idea → 注册 → 训练 → 验证的 E2E（至少 3 个模型族，真实 nonlinear 训练链路）、执行队列/并发/resume、OOM/NaN 真实场景回归。
+- 测试：`tests/test_coding_agent.py` / `test_execution_agent.py` / `test_e2e_model_family.py`；full offline suite **364 tests OK**（含真实轻量训练 E2E）；
+- **E2E 通过**：3 个模型族（complex_lstsq / tiny_mlp / spline_mlp）从 IdeaPlanSpec → PlanGate → PlanHandoff → ExecutionAgent → 真实训练 → verify_artifacts 全链路成功（NMSE 有限 + 产物齐全，shell 审计 = 0）；
+- 并发执行回归：3 个工具并发全部终态一致、审计 shell = 0；
+- 验收全部通过：10 coding fixtures 9/10、未授权写文件 = 0、Coding Agent 不改 main / 不读 .env.local、Execution Agent 任意 shell 数 = 0、timeout/cancel/OOM/NaN/missing artifact 唯一终态、E2E 3 模型族成功；`version/v3.8.0` 已建立。
 
 #### v3.9.0：Writing Agent + PDF Evidence
 
