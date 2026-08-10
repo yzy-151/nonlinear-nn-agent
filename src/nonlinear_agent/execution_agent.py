@@ -29,9 +29,15 @@ class ExecutionResult:
 class ExecutionAgent:
     """Executes registered tools only; audits direct shell usage as zero."""
 
-    def __init__(self, registry: ToolRegistry):
+    def __init__(
+        self,
+        registry: ToolRegistry,
+        max_executions: int | None = None,
+    ):
         self._registry = registry
         self._shell_calls = 0
+        self._max_executions = max_executions
+        self._execution_count = 0
 
     def audit_shell_calls(self) -> int:
         """Direct shell invocations bypassing the registry (must stay 0)."""
@@ -43,6 +49,13 @@ class ExecutionAgent:
         arguments: dict[str, Any],
         cancelled: bool = False,
     ) -> ExecutionResult:
+        if (
+            self._max_executions is not None
+            and self._execution_count >= self._max_executions
+        ):
+            return self._failed(
+                tool_name, "budget_exceeded", "max_executions budget exceeded"
+            )
         if cancelled:
             return ExecutionResult(
                 status="cancelled",
@@ -54,6 +67,7 @@ class ExecutionAgent:
         tool = self._registry.get_tool(tool_name)
         try:
             output = await asyncio.to_thread(tool, **arguments)
+            self._execution_count += 1
         except TimeoutError as exc:
             return self._failed(tool_name, "timeout", str(exc))
         except MemoryError as exc:

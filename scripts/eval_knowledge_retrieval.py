@@ -27,6 +27,22 @@ from nonlinear_agent.knowledge.retriever import KnowledgeRetriever  # noqa: E402
 from tests.test_knowledge_retrieval_hybrid import REAL_QUERIES, _recall  # noqa: E402
 
 
+def _top1_precision(retriever, use_expansion: bool = True) -> float:
+    """Fraction of queries whose top-1 citation is an accepted target."""
+    correct = 0
+    for query, accepted, extra in REAL_QUERIES:
+        if use_expansion:
+            results = retriever.retrieve_many([query, extra], top_k=1)
+        else:
+            results = retriever.retrieve(query, top_k=1)
+        if results and any(
+            accepted_fragment in results[0].chunk.citation
+            for accepted_fragment in accepted
+        ):
+            correct += 1
+    return correct / len(REAL_QUERIES)
+
+
 def main() -> int:
     roots = [
         PROJECT_ROOT / "README.md",
@@ -54,6 +70,7 @@ def main() -> int:
         "hybrid_recall_at_3": _recall(hybrid, use_expansion=False),
         "hybrid_rerank_recall_at_3": _recall(full, use_expansion=False),
         "hybrid_rerank_expansion_recall_at_3": _recall(full),
+        "hybrid_rerank_expansion_citation_precision_top1": _top1_precision(full),
     }
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
@@ -71,6 +88,7 @@ def main() -> int:
         f"- hybrid recall@3: {results['hybrid_recall_at_3']:.2f}",
         f"- hybrid+rerank recall@3: {results['hybrid_rerank_recall_at_3']:.2f}",
         f"- hybrid+rerank+expansion recall@3: {results['hybrid_rerank_expansion_recall_at_3']:.2f}",
+        f"- hybrid+rerank+expansion citation precision@1: {results['hybrid_rerank_expansion_citation_precision_top1']:.2f}",
         "",
     ]
     (output_dir / "summary.md").write_text("\n".join(md), encoding="utf-8")
