@@ -101,6 +101,7 @@ git push origin main
 | v3.6.1 | 混合检索（BM25+向量+rerank）与真实难度评测 | `knowledge/embedder.py`, `knowledge/reranker.py`, `scripts/eval_knowledge_retrieval.py` |
 | v3.7.0 (WIP) | Supervisor/ModelRouter/PlanGate 核心 | `model_router.py`, `plan_gate.py`, `supervisor.py` |
 | v3.8.0 | Coding/Execution Agent + 3 模型族 E2E | `coding_agent.py`, `execution_agent.py`, `tools.py` |
+| v3.9.0 (WIP) | Writing/Reporting：ReportSpec + Fidelity + PDF | `reporting/` |
 
 ## 6. 核心代码入口
 
@@ -796,6 +797,23 @@ confidence, valid_from, supersedes, invalidated_at
 - **E2E 通过**：3 个模型族（complex_lstsq / tiny_mlp / spline_mlp）从 IdeaPlanSpec → PlanGate → PlanHandoff → ExecutionAgent → 真实训练 → verify_artifacts 全链路成功（NMSE 有限 + 产物齐全，shell 审计 = 0）；
 - 并发执行回归：3 个工具并发全部终态一致、审计 shell = 0；
 - 验收全部通过：10 coding fixtures 9/10、未授权写文件 = 0、Coding Agent 不改 main / 不读 .env.local、Execution Agent 任意 shell 数 = 0、timeout/cancel/OOM/NaN/missing artifact 唯一终态、E2E 3 模型族成功；`version/v3.8.0` 已建立。
+
+### v3.6/v3.8 验收缺口补齐（2026-08-11）
+
+- **v3.6 缺口 1（citation precision）**：`scripts/eval_knowledge_retrieval.py` 新增 `hybrid_rerank_expansion_citation_precision_top1` 指标，真实 30 查询评测会输出 precision（产物 `benchmarks/knowledge-eval-v1/`）；
+- **v3.6 缺口 2（stale 过滤接入 planner）**：新增 `memory/planner_context.py`（`PlannerContextBuilder`）——planner 只收到 top-k 知识 citation + top-k **有效** memory（invalidated 被过滤、namespace 隔离），测试覆盖 stale 不进 top-3 / 跨 dataset / citation 保留；
+- **v3.8 缺口（resume / 资源预算 / 失败回交）**：新增 `execution_queue.py`（并发限制 + completed 记录 + resume 跳过）、`ExecutionAgent(max_executions=...)` 预算、`failure_handoff.py`（分类 → retryable / suggested_action，supervisor 可消费）；
+- full offline suite **380 tests OK**。
+
+### v3.9.0：Writing Agent + PDF Evidence（核心完成）
+
+- `reporting/report_spec.py`：`ReportSpec` + `ReportSpecBuilder`（从 source JSON 提取数字，不手工填）；
+- `reporting/fidelity.py`：`FidelityChecker`——报告数字与 source JSON 逐项比对，mismatch = 0 才允许渲染（篡改数字会被检出）；
+- `reporting/markdown_renderer.py`：Markdown 报告含 Baseline / Current / Best Candidates / Failure Cases / Cost / Trace / Reproduce 必需章节；
+- `reporting/pdf_renderer.py`：reportlab 纯 Python PDF（数字写入 + PSD 图嵌入）；缺 PSD → `RenderError(errors=[...])` 结构化可重试；
+- Web 下载：`/artifacts/reports/report-*.pdf` 经既有 artifacts 端点（reports/ 白名单 + resolve 防逃逸）直接可下载（FileResponse application/pdf）；
+- 测试：7 个 reporting 测试 + PDF 下载 server 测试；PDF 文本经 pdfplumber 验证含关键数字；3 份不同 run 报告生成成功；
+- 验收进度：数字 fidelity mismatch=0 ✅、必需内容 ✅、结构化错误 ✅、Web 下载 ✅、3 份报告 ✅；视觉检查待人工确认。
 
 #### v3.9.0：Writing Agent + PDF Evidence
 
