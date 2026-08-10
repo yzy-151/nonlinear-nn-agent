@@ -99,6 +99,7 @@ git push origin main
 | v3.3.0 | synthetic-large/hard、真实 API 搜索和 LLM client watchdog | `compare_runner.py`, `llm.py` |
 | v3.6.0 | Knowledge/Memory Foundation | `memory/`, `knowledge/`, `action_loop.py`, `server.py`, `web_ui.py` |
 | v3.6.1 | 混合检索（BM25+向量+rerank）与真实难度评测 | `knowledge/embedder.py`, `knowledge/reranker.py`, `scripts/eval_knowledge_retrieval.py` |
+| v3.7.0 (WIP) | Supervisor/ModelRouter/PlanGate 核心 | `model_router.py`, `plan_gate.py`, `supervisor.py` |
 
 ## 6. 核心代码入口
 
@@ -760,6 +761,14 @@ confidence, valid_from, supersedes, invalidated_at
 - 子 Agent 看不到不属于自己的 raw history/API key；所有模型调用可追踪 role/model/token/cost；
 - budget/cancel/invalid JSON/model timeout 注入后均得到唯一终态；
 - 建立 `version/v3.7.0`。
+
+**2026-08-10 实施进度（核心已完成，LangGraph 接线待续）**：
+
+- `ModelRouter`（`model_router.py`）：role → provider/model/temperature 配置；每次调用记录 role/provider/model/latency/token/cost；secret 不进 usage；可重试错误 fallback 最多一次；cost/token 预算；
+- `PlanGate`（`plan_gate.py`）：IdeaPlanSpec schema 校验（hypotheses/candidates 必填字段、budget、stop_condition）、历史 config hash 去重、citation coverage；**12 个 planning tasks schema-valid rate = 1.0**；
+- `ExperimentSupervisor`（`supervisor.py`）：action/time/token/cost 预算、唯一终态（completed/stopped/budget_exceeded/error）、子 Agent 不接触 raw secrets；
+- 测试：`tests/test_model_router.py` / `test_plan_gate.py` / `test_supervisor.py` 共 17 个；full offline suite 342 tests OK；
+- 待续：LangGraph StateGraph 正式接线、structured handoff（IdeaPlanSpec ↔ 下游）、single-agent baseline adapter、cancel/invalid JSON 注入回归。
 
 #### v3.8.0：Coding Agent + Execution Agent
 
