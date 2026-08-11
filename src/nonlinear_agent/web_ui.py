@@ -211,6 +211,7 @@ pre.ev{
 <nav class="tabs">
   <div class="tab active" data-tab="workflow">&#9881; Workflow</div>
   <div class="tab" data-tab="agent">&#10027; Agent Planner</div>
+  <div class="tab" data-tab="multiagent">&#8644; Multi-Agent</div>
   <div class="tab" data-tab="benchmark">&#9733; Benchmark</div>
   <div class="tab" data-tab="compare">&#9733; Strategy Comparison</div>
   <div class="tab" data-tab="memory">&#128166; Memory</div>
@@ -292,6 +293,33 @@ pre.ev{
     </div>
     <label for="agTo">Timeout (seconds)</label><input id="agTo" type="number" min="1" value="300">
     <button type="button" class="btn btn-go" id="agBtn">&#10027; Start Agent Loop</button>
+  </div>
+
+  <!-- MULTI-AGENT E2E -->
+  <div class="card" id="panel-multiagent" style="display:none">
+    <h2>&#8644; Multi-Agent E2E</h2>
+    <p class="hint">
+      <strong>角色链：</strong>Idea/Plan &rarr; Plan Gate &rarr; Coding &rarr;
+      tool-only Execution &rarr; evidence-grounded Writing。控制台逐角色展示
+      <code>input_refs</code>、<code>output_refs</code>、<code>model_usage</code>、
+      失败回交和唯一终态。
+    </p>
+    <label for="maGoal">Goal</label>
+    <textarea id="maGoal">Design an unseen compact nonlinear model under 4000 parameters, train it, and produce an evidence-grounded report.</textarea>
+    <div class="card-grid">
+      <div><label for="maPlanModel">Idea / Plan Model</label><input id="maPlanModel" value="deepseek-v4-flash"></div>
+      <div><label for="maCodeModel">Coding Model</label><input id="maCodeModel" value="deepseek-v4-flash"></div>
+    </div>
+    <label for="maWriteModel">Writing Model</label><input id="maWriteModel" value="deepseek-v4-flash">
+    <div class="card-grid">
+      <div><label for="maReplans">Max Replans</label><input id="maReplans" type="number" min="0" max="3" value="1"></div>
+      <div><label for="maThreshold">Target NMSE (dB)</label><input id="maThreshold" type="number" step="0.1" value="-35"></div>
+    </div>
+    <div class="card-grid">
+      <div><label for="maTokens">Token Budget</label><input id="maTokens" type="number" min="1000" value="100000"></div>
+      <div><label for="maCost">Cost Budget (USD)</label><input id="maCost" type="number" min="0.01" step="0.01" value="1"></div>
+    </div>
+    <button type="button" class="btn btn-go" id="maBtn">&#9654; Run Multi-Agent E2E</button>
   </div>
 
   <!-- COMPARE -->
@@ -416,13 +444,14 @@ chipNmse=document.getElementById("chipNmse"),chipBase=document.getElementById("c
 chipGain=document.getElementById("chipGain"),chipParams=document.getElementById("chipParams");
 function ss(s){sd.className="dot "+s;sl.textContent=s.charAt(0).toUpperCase()+s.slice(1)}
 function al(txt,cls){if(c===0)eb.innerHTML="";eb.innerHTML+='<span class="'+cls+'">'+txt.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+'</span>\n';c++;ec.textContent=c;eb.scrollTop=eb.scrollHeight}
-function ecs(t,obj){if(t==="tool_start"||t==="start"||t==="agent_start"||t==="experiment_start"||t==="round_start"||t==="agent_task_benchmark_start")return"ev-running";if(t==="tool_end"||t==="complete"||t==="loop_complete"||t==="experiment_end"||t==="agent_task_benchmark_complete")return"ev-success";if(t==="error"){var et=(obj||{}).error_type||((obj||{}).payload||{}).error_type||"";if(et==="metric_threshold_error")return"ev-warning";return"ev-failure"}if(t==="experiment_rejected"||t==="cancelled")return"ev-failure";if(t==="metric")return"ev-metric";if(t==="plan_generated")return"ev-planner";if(t==="reflection")return"ev-reflection";if(t==="benchmark_case_start"||t==="benchmark_case_end"||t==="benchmark_complete"||t==="agent_task_case_end")return"ev-benchmark";return"ev-info"}
+function ecs(t,obj){if(t==="tool_start"||t==="start"||t==="agent_start"||t==="experiment_start"||t==="round_start"||t==="agent_task_benchmark_start")return"ev-running";if(t==="tool_end"||t==="complete"||t==="loop_complete"||t==="experiment_end"||t==="agent_task_benchmark_complete"||t==="multi_agent_terminal"&&((obj||{}).status==="completed"))return"ev-success";if(t==="error"){var et=(obj||{}).error_type||((obj||{}).payload||{}).error_type||"";if(et==="metric_threshold_error")return"ev-warning";return"ev-failure"}if(t==="multi_agent_role"){var ms=((obj||{}).payload||{}).status||"";return(ms==="failed"||ms==="error"||ms==="budget_exceeded")?"ev-failure":"ev-planner"}if(t==="experiment_rejected"||t==="cancelled"||t==="multi_agent_terminal")return"ev-failure";if(t==="metric")return"ev-metric";if(t==="plan_generated")return"ev-planner";if(t==="reflection")return"ev-reflection";if(t==="benchmark_case_start"||t==="benchmark_case_end"||t==="benchmark_complete"||t==="agent_task_case_end")return"ev-benchmark";return"ev-info"}
 
 document.querySelectorAll(".tab").forEach(function(t){t.addEventListener("click",function(){
   document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("active")});
   t.classList.add("active");var m=t.dataset.tab;
   document.getElementById("panel-workflow").style.display=(m==="workflow")?"":"none";
   document.getElementById("panel-agent").style.display=(m==="agent")?"":"none";
+  document.getElementById("panel-multiagent").style.display=(m==="multiagent")?"":"none";
   document.getElementById("panel-benchmark").style.display=(m==="benchmark")?"":"none";
   document.getElementById("panel-compare").style.display=(m==="compare")?"":"none";
   document.getElementById("panel-memory").style.display=(m==="memory")?"":"none";
@@ -562,6 +591,17 @@ function fm(obj){
     (p.history||[]).forEach(function(a){out.push("    planner="+a.planner_call_id+" | action="+a.action_id+" | tool="+a.tool_name+" | status="+a.run_status+" | event="+a.event_id+" | caused_by="+(a.caused_by_event_ids||[]).join(","));if(a.observation)out.push("      observation="+JSON.stringify(a.observation))});
   }
   if(t==="agent_task_benchmark_complete")out.push("  mode="+p.evaluation_mode+" | tasks="+p.task_count+" | pass@1="+p.pass_at_1+" | artifacts="+(p.artifacts||[]).join(","));
+  if(t==="multi_agent_role"){
+    out.push("  role="+p.role+" | sequence="+p.sequence+" | status="+p.status);
+    out.push("  input_refs: "+((p.input_refs||[]).join(", ")||"none"));
+    out.push("  output_refs: "+((p.output_refs||[]).join(", ")||"none"));
+    (p.model_usage||[]).forEach(function(u){out.push("  model_usage: role="+u.role+" model="+u.provider+"/"+u.model+" tokens="+((u.prompt_tokens||0)+(u.completion_tokens||0))+" cost=$"+Number(u.cost_usd||0).toFixed(6)+" latency="+Math.round(u.latency_ms||0)+"ms")});
+    if(p.failure_facts&&Object.keys(p.failure_facts).length)out.push("  failure_facts: "+JSON.stringify(p.failure_facts));
+  }
+  if(t==="multi_agent_terminal"){
+    out.push("  terminal="+p.status+(p.error?" | error="+p.error:""));
+    Object.keys(p).filter(function(k){return k.endsWith("_path")}).forEach(function(k){out.push("  "+k+": "+p[k])});
+  }
   if(t==="compare_start"){out.push("  protocol: "+p.payload.methods.join(", ")+" | "+p.payload.seeds.length+" seeds x "+p.payload.trial_budget+" trials = "+p.payload.estimated_total_trials)}
   if(t==="strategy_start")out.push("  strategy: "+p.method+" | seed="+p.seed+" | budget="+p.trial_budget+" trials");
   if(t==="trial_done"){out.push("  trial "+p.trial_index+" | "+p.method+" | metric="+(p.metric_value!=null?Number(p.metric_value).toPrecision(4):"n/a")+(p.runtime_failed?" | FAILED":"")+(p.rejected?" | rejected":""))}
@@ -581,8 +621,8 @@ stopBtn.addEventListener("click",function(){
 async function go(url,body,btn){
   btn.disabled=true;var orig=btn.textContent;btn.textContent="Running...";ss("running");eb.textContent="";c=0;ec.textContent="0";
   // Extract session_id from URL for cancel
-  var m=url.match(/\/agent\/([^/]+)\/events|\/runs\/([^/]+)\/events/);
-  currentSid=m?(m[1]||m[2]):"benchmark";
+  var m=url.match(/\/agent\/([^/]+)\/events|\/runs\/([^/]+)\/events|\/multi-agent\/([^/]+)\/events/);
+  currentSid=m?(m[1]||m[2]||m[3]):"benchmark";
   stopBtn.style.display="inline-flex";
   try{
     var resp=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -603,6 +643,10 @@ document.getElementById("agBtn").addEventListener("click",function(){
   var enabled=[].slice.call(document.querySelectorAll(".tune-f:checked")).map(function(x){return x.value});
   var body={provider:document.getElementById("agProv").value,goal:document.getElementById("agGoal").value,max_rounds:Number(document.getElementById("agRnd").value),max_experiments:Number(document.getElementById("agExp").value),parameter_count_max:Number(document.getElementById("agPm").value),nmse_threshold_db:Number(document.getElementById("agThr").value),timeout_seconds:Number(document.getElementById("agTo").value),artifact_dir:null,domain:document.getElementById("agDom").value,enabled_fields:enabled,data_file:document.getElementById("agData").value};
   go("/agent/ui-agent-"+Date.now()+"/events",body,document.getElementById("agBtn"))
+});
+document.getElementById("maBtn").addEventListener("click",function(){
+  var body={provider:"deepseek",goal:document.getElementById("maGoal").value,idea_plan_model:document.getElementById("maPlanModel").value,coding_model:document.getElementById("maCodeModel").value,writing_model:document.getElementById("maWriteModel").value,max_replans:Number(document.getElementById("maReplans").value),nmse_threshold_db:Number(document.getElementById("maThreshold").value),token_budget:Number(document.getElementById("maTokens").value),cost_budget_usd:Number(document.getElementById("maCost").value)};
+  go("/multi-agent/ui-multi-"+Date.now()+"/events",body,document.getElementById("maBtn"))
 });
 document.getElementById("bmBtn").addEventListener("click",function(){
   var body={timeout_seconds:Number(document.getElementById("bmTo").value),nmse_threshold_db:Number(document.getElementById("bmThr").value)};
@@ -717,7 +761,7 @@ function renderBenchmarkSummary(data){
   }
   document.getElementById("bmResults").style.display="block";
 }
-// URL tab support: open a tab via ?tab=workflow|agent|benchmark|compare.
+// URL tab support: open a tab via ?tab=workflow|agent|multiagent|benchmark|compare.
 // benchmark/compare auto-load saved results so shared links show data.
 (function(){
   var m=(location.search.match(/[?&]tab=([a-z]+)/)||[])[1]||"workflow";

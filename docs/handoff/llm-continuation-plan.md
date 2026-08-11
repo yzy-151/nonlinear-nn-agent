@@ -881,7 +881,17 @@ confidence, valid_from, supersedes, invalidated_at
 - 视觉验收：陌生 `adaptive_wavelet_lut` 四节点 descriptor 生成 3 页 A4 PDF，无乱码、重叠、黑框和孤立尾页，表头跨页可重复；预览位于 Codex 临时目录，不作为真实实验结果提交；
 - 当前只证明报告协议、fidelity 和渲染链，不代表真实 DeepSeek 写作优于 deterministic fallback。
 
-下一阶段只做 **v4.0.0-d Supervisor E2E**：把 Idea/Plan -> Coding -> Execute -> Writing 接入同一状态图，建立失败回路、唯一终态、角色 timeline、预算与 Web 事件；不得先做最终消融或宣称四角色主链完成。
+#### v4.0.0-d：Supervisor E2E（实施完成，待真实 DeepSeek 验收）
+
+- `build_multi_agent_graph()` 将 Idea/Plan、PlanGate、Coding、Execution、Writing 和 terminal 接入同一 LangGraph；旧 `build_supervisor_graph()` 保留兼容，不再把单节点图冒充四角色主链；
+- `MultiAgentRunState` 只传结构化 goal/plan/code result/execution result/failure facts/report result，Worker 看不到 raw history 和 secret；每个角色产生带 run/sequence/input refs/output refs/model usage 的 timeline 事件；
+- Execution 仍为 tool-only。timeout、NaN 和缺产物等可恢复失败经 `FailureHandoff` 只提取事实并回到下一轮 Idea/Plan；`max_replans`、动态 cancel、invalid plan、模型 token/cost budget 和不可恢复错误均收口到唯一 terminal；
+- `MultiAgentRuntime` 将现有 `ModelRouter`、`CodingAgent.generate_candidate()`、`ExecutionAgent.execute(run_candidate_model)`、`WritingAgent.write()` 和 `write_task_report` 适配为窄 Worker 端口；Idea prompt 明示完整 IdeaPlanSpec、参数/epoch/timeout/停止条件和 required code changes；
+- 候选模型源码仍只写 CodingAgent 自有 worktree；真实 metrics/PSD/coding trace 由确定性 runtime 校验路径后发布到主工程 `reports/<run>/evidence/`，报告落到主工程后可由 `/artifacts/` 下载；
+- FastAPI 新增 `/multi-agent/{session_id}/events` 节点级 SSE；Web 新增 Multi-Agent E2E 面板，可查看 role、handoff refs、failure facts、provider/model、token、cost、latency 和 HTML/PDF 路径；Stop 在当前阻塞角色返回后、下一节点执行前生效；
+- 离线测试区分 fake role、真实组件适配和真实工具契约，不调用外部 API。真实 DeepSeek `idea -> code -> execute -> write` 成功率、耗时与成本尚未测量，因此当前不得宣称真实模型 E2E 已验收。
+
+下一阶段只做 **v4.0.0 Evaluation & Closeout**：固定任务/seed/训练预算，执行 single-agent vs multi-agent、memory off/on、shared-model vs role-model、writer off/on 消融，并至少完成一次真实 DeepSeek 全链；不得用离线 fixture 代替模型能力结论。
 
 #### v4.0.0：Multi-Agent Evaluation & Closeout
 

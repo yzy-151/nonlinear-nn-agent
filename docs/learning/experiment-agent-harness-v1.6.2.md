@@ -216,3 +216,47 @@ LLM 负责语言与归纳，程序负责事实边界。这样比让程序写固�
 ### 面试表达
 
 > WritingAgent 不直接自由发挥。我先把 ModelDescriptor、TrainingResult、PSD、失败和 trace 转成带 evidence ID 的 EvidenceBundle；LLM 输出每段带引用的 NarrativeSpec，确定性 fidelity gate 再检查未知引用和不受支持的数字。架构图完全由 descriptor 的节点和边动态生成，HTML 与 PDF 同源。这样新模型不需要预制原理图，报告也不会因为 LLM 文笔流畅就绕过事实校验。
+
+## 12. v4.0.0-d 补充：四个 Agent 怎样成为一条可运行主链
+
+### Multi-Agent 的价值不在角色数量
+
+此前 Idea/Plan、Coding、Execution 和 Writing 都有独立组件与单测，但 `supervisor_graph.py` 只有一个 supervisor 节点。准确说法只能是“有多个 Agent 组件”，不能说“完成了 Multi-Agent runtime”。v4.0.0-d 的变化是把它们放进同一个 LangGraph，并由 Supervisor 统一拥有状态、路由、预算、取消、失败回路和终态：
+
+```text
+idea_plan -> plan_gate -> coding -> execution -> writing -> terminal
+                    execution failure -> idea_plan (bounded)
+```
+
+Worker 不共享聊天记录，只收到窄的结构化 handoff。Plan Agent 接收 goal 和上次失败事实；Coding 接收已批准 plan；Execution 接收通过 gate 的 manifest 与 config；Writing 接收 plan、代码变化、真实执行结果和失败列表。这样既减少 token，也避免一个角色看到不该看到的 secret 或 raw history。
+
+### Reflection 在这里是什么
+
+Execution 失败后，程序先用 `FailureHandoff` 把异常转成事实：classification、tool、error、retryable 和 suggested action。它不替 LLM 决定新模型或超参数。若失败可恢复且 `max_replans` 尚未用完，这组事实成为下一次 Idea/Plan 的 `failure_facts`；Plan Agent 再负责提出新的因果方案。
+
+这正是“确定性程序提取事实，LLM 做策略推理”的分工。timeline 同时记录 `failure:<classification>` 引用和完整 failure facts，因此在 Web 控制台能看到“上次为什么错、下一次计划基于什么改”。
+
+### 为什么只有一个 terminal
+
+每个节点只更新 `status`，最终都路由到统一 terminal 节点。正常完成、取消、invalid plan、Coding gate 失败、不可恢复执行错误、重规划预算耗尽、token/cost 越界最终都生成同一结构：run ID、status、error 和报告路径。Web 和调用方不需要猜“哪个 Agent 的最后一条消息算结束”。
+
+取消采用协作式语义：正在执行的 LLM 或训练调用先返回，Supervisor 在进入下一节点前检查 cancel event。它不会粗暴杀死正在写文件的线程，因此产物状态更可解释；真正的进程级强制取消仍由底层训练工具的 timeout/control plane 负责。
+
+### 角色 timeline 怎样支持面试讲解
+
+每个角色事件包含：
+
+- `run_id / sequence / role / status`：谁在何时序做了什么；
+- `input_refs / output_refs`：handoff 来自哪个 plan、failure、artifact 或 report；
+- `model_usage`：实际 provider、model、prompt/completion token、cost 和 latency；
+- `failure_facts`：执行失败的干净事实，不含 raw chain-of-thought。
+
+Execution 事件的 `model_usage` 必须为空，因为它只能调用 ToolRegistry。Idea/Coding/Writing 可配置不同模型，但选择来自 ModelRouter 配置，不由 Agent 临时绕过预算。
+
+### 隔离 worktree 与可下载报告如何同时成立
+
+CodingAgent 继续只在自有 worktree 写候选源码，main 的新模型源码写入数仍为 0。训练也在该 worktree 验证 manifest、descriptor hash、参数量、metrics.json 和 PSD。通过后，确定性 runtime 只把已存在且路径位于 worker workspace 内的 trace/metrics/PSD 发布到主工程 `reports/<run>/evidence/`；Writing 报告再写到主工程的 `reports/<run>/task-report/`。因此安全隔离没有被破坏，Web `/artifacts/` 又能真正下载证据和报告。
+
+### 面试表达
+
+> 我把原先可单测但互相独立的四个 Agent 接进同一 LangGraph。Supervisor 只负责结构化状态、路由、预算、取消和唯一终态；Execution 保持 tool-only。失败由程序提取成 FailureSpec，再由 Plan Agent 基于这些事实重规划，最大次数受限。每个节点产生可回放 timeline，记录 handoff 引用和实际模型 token/cost。候选代码始终留在隔离 worktree，只有校验后的实验产物和报告由确定性 runtime 发布到主工程。离线测试证明编排与安全契约成立，真实 DeepSeek 的成功率和收益需要下一阶段固定协议评测。
