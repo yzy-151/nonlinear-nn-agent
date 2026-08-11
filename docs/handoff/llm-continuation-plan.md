@@ -805,7 +805,7 @@ confidence, valid_from, supersedes, invalidated_at
 - **v3.8 缺口（resume / 资源预算 / 失败回交）**：新增 `execution_queue.py`（并发限制 + completed 记录 + resume 跳过）、`ExecutionAgent(max_executions=...)` 预算、`failure_handoff.py`（分类 → retryable / suggested_action，supervisor 可消费）；
 - full offline suite **380 tests OK**。
 
-### v3.9.0：Writing Agent + PDF Evidence（核心完成）
+### v3.9.0：Writing Agent + PDF Evidence（实施完成，验收）
 
 - `reporting/report_spec.py`：`ReportSpec` + `ReportSpecBuilder`（从 source JSON 提取数字，不手工填）；
 - `reporting/fidelity.py`：`FidelityChecker`——报告数字与 source JSON 逐项比对，mismatch = 0 才允许渲染（篡改数字会被检出）；
@@ -813,7 +813,23 @@ confidence, valid_from, supersedes, invalidated_at
 - `reporting/pdf_renderer.py`：reportlab 纯 Python PDF（数字写入 + PSD 图嵌入）；缺 PSD → `RenderError(errors=[...])` 结构化可重试；
 - Web 下载：`/artifacts/reports/report-*.pdf` 经既有 artifacts 端点（reports/ 白名单 + resolve 防逃逸）直接可下载（FileResponse application/pdf）；
 - 测试：7 个 reporting 测试 + PDF 下载 server 测试；PDF 文本经 pdfplumber 验证含关键数字；3 份不同 run 报告生成成功；
-- 验收进度：数字 fidelity mismatch=0 ✅、必需内容 ✅、结构化错误 ✅、Web 下载 ✅、3 份报告 ✅；视觉检查待人工确认。
+- 示例报告（`benchmarks/report-examples-v1/`）：exp016-lstsq（-37.49 dB）、exp_019-self-correction（-36.03 dB）、v26-llm-designed（-42.43 dB）三份 PDF 均 1 页、文本可读、数字与 source 一致；
+- 验收：数字 fidelity mismatch=0 ✅、必需内容 ✅、结构化错误（缺 PSD → RenderError）✅、Web 下载（/artifacts/reports/*.pdf）✅、3 份报告生成+文本验证 ✅；PDF 视觉无裁切/重叠/乱码由示例文件可复核。
+
+### v3.6 检索评测最终状态（2026-08-11）
+
+真实 30 查询（用户视角中文，2242 chunks）：
+
+| 配置 | recall@3 | citation precision@1 |
+| --- | ---: | ---: |
+| BM25 基线 | 0.53 | — |
+| hybrid + rerank（池 150） | 0.90 | — |
+| hybrid + rerank + expansion | **1.00** | **0.80** |
+
+- Recall@3 = 1.0 达标（≥0.90）；**citation precision top-1 = 0.80，未达 0.95 验收线**；
+- 提升路径已用尽：补全 6 条被漏标的等价目标、rerank 池 100→150、难例扩展查询增强（0.67 → 0.80）；
+- 剩余 6 个 miss 集中在短规格小节（Writing Agent / Idea & Plan Agent / 接手命令列表等），cross-encoder 对"长查询×短文本"排序弱，为当前管线上限；
+- 结论：v3.6 标记为**部分达标**（recall ✅ / precision ⚠️ 0.80），数字真实可复算；若要继续追 0.95 需更强 reranker 或多轮标注迭代（成本高、不保证）。
 
 #### v3.9.0：Writing Agent + PDF Evidence
 
