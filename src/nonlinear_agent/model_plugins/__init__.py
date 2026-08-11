@@ -14,6 +14,7 @@ from nonlinear_agent.model_plugins.registry import (
     CandidateRegistry,
     CandidateValidation,
 )
+from nonlinear_agent.model_plugins.execution import run_candidate_model_tool
 
 __all__ = [
     "ArchitectureEdge",
@@ -26,4 +27,5 @@ __all__ = [
     "validate_descriptor",
     "CandidateRegistry",
     "CandidateValidation",
+    "run_candidate_model_tool",
 ]
