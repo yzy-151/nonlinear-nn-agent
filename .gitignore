@@ -4,6 +4,8 @@ __pycache__/
 .env
 .DS_Store
 .claude/
+/_tmp_summary.json
+/summary.json
 
 reports/
 *.pt
