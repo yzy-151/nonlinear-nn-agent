@@ -23,6 +23,9 @@ FAST_MODULES = (
     "tests.test_plan_gate",
     "tests.test_supervisor",
     "tests.test_supervisor_graph",
+    "tests.test_supervisor_e2e",
+    "tests.test_multi_agent_runtime",
+    "tests.test_multi_agent_server",
     "tests.test_coding_agent",
     "tests.test_coding_workflow",
     "tests.test_llm_client",
@@ -41,6 +44,7 @@ FAST_MODULES = (
     "tests.test_reflection_ablation",
     "tests.test_cli",
     "tests.test_web_ui",
+    "tests.test_server_streaming",
 )
 
 

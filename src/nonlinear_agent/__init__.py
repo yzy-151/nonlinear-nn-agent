@@ -57,6 +57,10 @@ _EXPORTS = {
     "EvidenceBundle": ("nonlinear_agent.writing_agent", "EvidenceBundle"),
     "NarrativeSpec": ("nonlinear_agent.writing_agent", "NarrativeSpec"),
     "WritingAgent": ("nonlinear_agent.writing_agent", "WritingAgent"),
+    "MultiAgentRuntime": ("nonlinear_agent.multi_agent_runtime", "MultiAgentRuntime"),
+    "MultiAgentWorkers": ("nonlinear_agent.supervisor_graph", "MultiAgentWorkers"),
+    "build_multi_agent_graph": ("nonlinear_agent.supervisor_graph", "build_multi_agent_graph"),
+    "run_multi_agent_graph": ("nonlinear_agent.supervisor_graph", "run_multi_agent_graph"),
 }
 
 __all__ = sorted(_EXPORTS)

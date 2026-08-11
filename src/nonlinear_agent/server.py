@@ -504,10 +504,152 @@ async def stream_agent_task_benchmark_events(
     ), event_id=_next_event_id(session_id))
 
 
+async def stream_multi_agent_events(
+    graph: Any,
+    session_id: str,
+    goal: str,
+) -> AsyncIterator[str]:
+    """Stream LangGraph node updates as role-attributed SSE events."""
+    queue: asyncio.Queue[tuple[str, Any] | None] = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+    initial = {
+        "run_id": session_id,
+        "goal": goal,
+        "status": "running",
+        "cancelled": False,
+        "replan_count": 0,
+        "timeline": [],
+        "failures": [],
+    }
+
+    def produce() -> None:
+        try:
+            for update in graph.stream(initial, stream_mode="updates"):
+                for node, delta in update.items():
+                    if not isinstance(delta, dict):
+                        continue
+                    for event in delta.get("timeline", []):
+                        if event.get("role") == "terminal":
+                            continue
+                        asyncio.run_coroutine_threadsafe(
+                            queue.put(("role", event)), loop
+                        ).result()
+                    if delta.get("terminal"):
+                        asyncio.run_coroutine_threadsafe(
+                            queue.put(("terminal", delta["terminal"])), loop
+                        ).result()
+        except Exception as exc:
+            asyncio.run_coroutine_threadsafe(
+                queue.put(("error", str(exc))), loop
+            ).result()
+        finally:
+            asyncio.run_coroutine_threadsafe(queue.put(None), loop).result()
+
+    producer = asyncio.create_task(asyncio.to_thread(produce))
+    while True:
+        item = await queue.get()
+        if item is None:
+            break
+        kind, payload = item
+        if kind == "role":
+            yield encode_sse_event(
+                TraceEvent(
+                    session_id=session_id,
+                    event_type="multi_agent_role",
+                    status=str(payload.get("status", "running")),
+                    payload=payload,
+                ),
+                event_id=_next_event_id(session_id),
+            )
+        elif kind == "terminal":
+            yield encode_sse_event(
+                TraceEvent(
+                    session_id=session_id,
+                    event_type="multi_agent_terminal",
+                    status=str(payload.get("status", "error")),
+                    payload=payload,
+                    error=str(payload.get("error") or "") or None,
+                ),
+                event_id=_next_event_id(session_id),
+            )
+        else:
+            yield encode_sse_event(
+                TraceEvent(
+                    session_id=session_id,
+                    event_type="error",
+                    status="failed",
+                    error=str(payload),
+                ),
+                event_id=_next_event_id(session_id),
+            )
+    await producer
+
+
+def _build_default_multi_agent_graph(
+    workspace: Path,
+    payload: dict[str, Any],
+    cancel_check: Any | None = None,
+) -> Any:
+    """Assemble the production DeepSeek multi-agent graph on demand."""
+    provider = str(payload.get("provider", "deepseek"))
+    if provider != "deepseek":
+        raise ValueError(
+            "Multi-Agent E2E currently supports provider=deepseek; "
+            "offline fixtures are exposed only through injected test factories."
+        )
+    _load_dotenv(workspace)
+    from nonlinear_agent.coding_agent import CodingAgent
+    from nonlinear_agent.llm import create_llm_client
+    from nonlinear_agent.model_router import ModelRouter
+    from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+    from nonlinear_agent.supervisor_graph import build_multi_agent_graph
+    from nonlinear_agent.writing_agent import WritingAgent
+
+    default_model = str(payload.get("model", "deepseek-v4-flash"))
+    roles = {
+        role: {
+            "provider": "deepseek",
+            "model": str(payload.get(f"{role}_model", default_model)),
+            "temperature": 0.1 if role == "writing" else 0.0,
+        }
+        for role in ("idea_plan", "coding", "writing")
+    }
+    timeout_seconds = float(payload.get("llm_timeout_seconds", 180.0))
+    router = ModelRouter(
+        roles=roles,
+        client_factory=lambda role, config: create_llm_client(
+            model=config.model,
+            timeout_seconds=timeout_seconds,
+            role=role,
+        ),
+    )
+    router.set_budgets(
+        cost_budget_usd=float(payload.get("cost_budget_usd", 1.0)),
+        token_budget=int(payload.get("token_budget", 100_000)),
+    )
+    coding = CodingAgent(repo_root=workspace, model_router=router)
+    writing = WritingAgent(model_router=router)
+    runtime = MultiAgentRuntime(
+        repo_root=workspace,
+        model_router=router,
+        coding_agent=coding,
+        writing_agent=writing,
+        nmse_threshold_db=float(payload.get("nmse_threshold_db", -35.0)),
+    )
+    return build_multi_agent_graph(
+        runtime.workers(),
+        max_replans=int(payload.get("max_replans", 1)),
+        model_router=router,
+        cancel_check=cancel_check,
+    )
+
 # ============================================================
 # create_app — FastAPI 应用工厂（核心）
 # ============================================================
-def create_app(workspace: Path | str):
+def create_app(
+    workspace: Path | str,
+    multi_agent_graph_factory: Any | None = None,
+):
     """创建 FastAPI 应用，注册所有路由。
 
     使用应用工厂模式（app factory）而不是全局 app 对象：
@@ -761,6 +903,45 @@ def create_app(workspace: Path | str):
                 pass  # Dashboard 刷新失败不影响主流程
 
         return StreamingResponse(agent_stream(), media_type="text/event-stream")
+
+    @app.post("/multi-agent/{session_id}/events")
+    async def multi_agent_events(
+        session_id: str,
+        body: Optional[Dict[str, Any]] = None,
+    ):
+        """Run the role-isolated Idea -> Code -> Execute -> Write graph."""
+        payload = dict(body or {})
+        goal = str(
+            payload.get(
+                "goal", "Design and evaluate a compact nonlinear model."
+            )
+        )
+        cancel_evt = asyncio.Event()
+        _cancel_events[session_id] = cancel_evt
+        try:
+            if multi_agent_graph_factory is not None:
+                graph = multi_agent_graph_factory(payload)
+            else:
+                graph = _build_default_multi_agent_graph(
+                    root, payload, cancel_check=cancel_evt.is_set
+                )
+        except Exception as exc:
+            _cancel_events.pop(session_id, None)
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        async def multi_agent_stream():
+            try:
+                async for chunk in stream_multi_agent_events(
+                    graph, session_id, goal
+                ):
+                    yield chunk
+            finally:
+                _cancel_events.pop(session_id, None)
+
+        return StreamingResponse(
+            multi_agent_stream(), media_type="text/event-stream"
+        )
 
     # ── POST /benchmark/events — Benchmark 评估 ──────────
     @app.post("/benchmark/events")

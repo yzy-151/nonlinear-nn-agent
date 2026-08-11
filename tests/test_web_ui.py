@@ -67,6 +67,17 @@ class WebUITest(unittest.TestCase):
         self.assertIn("previous error reasons", html)
         self.assertIn("new plan:", html)
 
+    def test_multi_agent_panel_explains_role_timeline_and_evidence_sources(self):
+        html = render_home_page()
+
+        self.assertIn("Multi-Agent E2E", html)
+        self.assertIn("/multi-agent/", html)
+        self.assertIn("multi_agent_role", html)
+        self.assertIn("input_refs", html)
+        self.assertIn("output_refs", html)
+        self.assertIn("model_usage", html)
+        self.assertIn("multi_agent_terminal", html)
+
 
 if __name__ == "__main__":
     unittest.main()
