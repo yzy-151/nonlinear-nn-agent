@@ -1427,3 +1427,93 @@ docs/knowledge/nonlinear-modeling/*
 5. 历史先验至少包含项目已验证的 `complex_lstsq / complex_mp`、LUT-Spline、参数预算、固定数据契约、失败案例与指标口径。
 6. 设计 `knowledge on/off` 同任务同预算消融，至少 6 个独立任务、3 个 seed；比较 target hit、best NMSE、无效计划率、coding pass rate、token/cost，不得只展示单次成功样例。
 7. 若知识增强仍不能超过历史先验，保留固定先验模型作为 baseline/候选池，不把“自由生成模型”误写成性能提升。
+
+#### v4.1.0 实施任务
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` or `executing-plans` task-by-task. 继续只维护本 handoff，不新增 plan 文档。
+
+**Goal:** 将单文件页签式 Web UI 重构为以 Multi-Agent 为默认首页的 Hybrid Operations Console，并提供明确但未冒充已接通的 Knowledge UI 入口。
+
+**Architecture:** 保留 FastAPI/SSE 后端协议，把 HTML、CSS、JS 和事件规范化逻辑拆到 `src/nonlinear_agent/web/`。`web_ui.py` 只读取版本化静态资源；浏览器将原始 SSE 事件归一化为单一 RunViewState，再驱动 Timeline、Console、Raw、Inspector 和 Results。
+
+**Tech Stack:** Python/FastAPI、原生 HTML/CSS/ES modules、无 Node 构建步骤、unittest、Edge/Playwright 视觉检查。
+
+---
+
+##### Task 1：建立静态资源边界与回归测试
+
+**Files:**
+- Create: `src/nonlinear_agent/web/index.html`
+- Create: `src/nonlinear_agent/web/styles.css`
+- Create: `src/nonlinear_agent/web/event_view_model.js`
+- Create: `src/nonlinear_agent/web/app.js`
+- Modify: `src/nonlinear_agent/web_ui.py`
+- Modify: `src/nonlinear_agent/server.py`
+- Modify: `tests/test_web_ui.py`
+
+- [ ] 先在 `tests/test_web_ui.py` 写失败测试：`render_home_page()` 必须以 `Multi-Agent` 为默认 view，HTML 引用 `/ui/styles.css` 与 `/ui/app.js`，不再包含内联 `<style>` 或旧 `nav.tabs`；`GET /ui/{asset}` 只允许四个固定资源并返回正确 media type，`../` 与未知文件返回 404。
+- [ ] 运行 `python -m unittest tests.test_web_ui -v`，确认因静态资源和路由尚不存在而失败。
+- [ ] 创建资源文件；`render_home_page()` 使用 `Path(__file__).parent / "web" / "index.html"` 读取页面。`server.py` 使用显式 allowlist `{"styles.css", "app.js", "event_view_model.js"}` 服务资源，不使用任意路径拼接。
+- [ ] 运行同一测试至通过；确认 HTML/CSS/JS 中不存在 API key、`sk-` 实值或外部 CDN。
+- [ ] 提交：`refactor(web): split console assets`。
+
+##### Task 2：实现 Hybrid Operations App Shell 与知识库占位
+
+**Files:**
+- Modify: `src/nonlinear_agent/web/index.html`
+- Modify: `src/nonlinear_agent/web/styles.css`
+- Modify: `src/nonlinear_agent/web/app.js`
+- Modify: `tests/test_web_ui.py`
+
+- [ ] 写失败测试验证侧栏包含稳定 `data-view`：`multiagent`、`agent`、`workflow`、`experiments`、`benchmark`、`memory`、`reports`、`diagnostics`；`multiagent` 同时具备 `aria-current="page"` 和可见 panel。
+- [ ] 写失败测试验证 Knowledge 入口包含 `knowledgeStatus=Not connected`、只读 source path `docs/knowledge/nonlinear-modeling/`、`Preview sources` 按钮和 `knowledge_context_enabled` 开关；页面必须明确“下一阶段接入，当前不会影响 PlanAgent”。
+- [ ] 实现固定侧栏、顶部 run 状态栏、左配置/中 workspace/右 Inspector 三栏；基础配置默认展开，高级预算折叠。所有 icon button 使用统一 SVG sprite 或 CSS mask，并包含 tooltip/`aria-label`。
+- [ ] 实现中文主文案和 URL `?view=` 深链；未知 view 回退 Multi-Agent。Agent Planner、Fixed Workflow 等旧表单字段 ID 与请求 payload 保持兼容。
+- [ ] CSS 必须包含 `1440/1024/390` 三档布局、`overflow-wrap:anywhere`、表格横向滚动、移动 Inspector drawer；卡片圆角 `<=6px`，letter-spacing 为 0，不包含 gradient/orb/bokeh。
+- [ ] 运行 Web UI 测试至通过并提交：`feat(web): add operations shell`。
+
+##### Task 3：实现事件规范化、Timeline 与 Inspector
+
+**Files:**
+- Modify: `src/nonlinear_agent/web/event_view_model.js`
+- Modify: `src/nonlinear_agent/web/app.js`
+- Create: `tests/test_web_event_view_model.py`
+
+- [ ] 写失败测试读取 JS fixture contract，覆盖 `multi_agent_role`、`multi_agent_terminal`、plan/reflection/tool/metric/error/cancelled/budget-exceeded 和未知事件；验证每种事件映射到稳定 `kind/status/title/summary/inputRefs/outputRefs/usage/raw`。
+- [ ] 在 `event_view_model.js` 导出纯函数 `normalizeEvent(raw)`、`reduceRunState(state,event)`、`formatConsoleEvent(event)`；未知事件返回 `kind="unknown"` 并保留 raw，不抛异常。
+- [ ] `app.js` 只通过上述纯函数消费 SSE；实现 `Timeline / Console / Raw Events` 分段控件。Timeline 行点击后 Inspector 展示 role、model、token、cost、latency、refs、failure facts 和格式化 raw JSON。
+- [ ] 统一状态映射：idle 灰、running/planning/coding/executing/writing 琥珀、completed 青绿、failed/cancelled/budget exceeded 珊瑚红；不得用同一种颜色表示 warning 与 failure。
+- [ ] 保留现有 reflection 展示：下一次 plan 前可看到上一轮错误事实与新计划；保留 PSD/metrics artifact 预览。
+- [ ] 运行事件测试和 `tests.test_web_ui` 至通过，提交：`feat(web): add trace inspector`。
+
+##### Task 4：迁移旧功能并实现运行后结果视图
+
+**Files:**
+- Modify: `src/nonlinear_agent/web/index.html`
+- Modify: `src/nonlinear_agent/web/app.js`
+- Modify: `src/nonlinear_agent/web/styles.css`
+- Modify: `tests/test_web_ui.py`
+- Modify: `tests/test_multi_agent_server.py`
+
+- [ ] 写失败测试保证现有端点字符串和关键字段仍存在：`/runs/`、`/agent/`、`/multi-agent/`、`/benchmark/events`、`/agent-benchmark/events`、`/compare/events`、`/memory`、`/artifacts/`；请求 payload 保留 domain/data/enabled_fields、role models、budget、rounds/experiments/final evaluation。
+- [ ] 将 Agent Planner、Fixed Workflow、Benchmark、Strategy Comparison、Memory、Reports、Diagnostics 迁入侧栏视图；不在新卡片内嵌旧卡片，不删除现有指标解释和 benchmark 评分口径。
+- [ ] Multi-Agent terminal 后生成 Results：角色用量 KPI、九探索/终评表、最佳模型、NMSE、参数量、target hit、最终 PSD、架构/HTML/PDF artifact 链接；缺失 artifact 时显示结构化 unavailable，不生成假图。
+- [ ] SSE fetch 处理 HTTP error、断线、取消和 unknown event；Stop 只在 active run 可见，finally 恢复表单状态。
+- [ ] 运行相关 Web/server 测试至通过，提交：`feat(web): restore console workflows`。
+
+##### Task 5：浏览器视觉与交互验收
+
+**Files:**
+- Modify as required: `src/nonlinear_agent/web/index.html`
+- Modify as required: `src/nonlinear_agent/web/styles.css`
+- Modify as required: `src/nonlinear_agent/web/app.js`
+- Modify: `README.md`
+- Modify: `docs/learning/experiment-agent-harness-v1.6.2.md`
+- Modify: `docs/handoff/llm-continuation-plan.md`
+
+- [ ] 启动 `python agent.py serve --host 127.0.0.1 --port 8000`，使用离线/scripted 事件，不调用真实 DeepSeek。
+- [ ] 在 `1440x1000`、`1024x768`、`390x844` 截图并检查 canvas/page 非空、无横向页面溢出、文字不截断、导航与 Inspector 不重叠；截图只放 `C:\Users\yzy\Desktop\codex\nonlinear-nn-agent\ui-v4.1.0-*` 临时目录。
+- [ ] 浏览器逐项点击全部侧栏入口、Timeline/Console/Raw、Advanced、Knowledge Preview、Inspector drawer；检查控制台无 JS error，所有按钮有稳定尺寸和可见 focus。
+- [ ] 修复视觉问题后运行 `python scripts/run_tests.py fast`、`python scripts/run_tests.py full`、`git diff --check`。
+- [ ] README 更新当前 UI 截图与功能说明；learning 解释事件视图模型、主从 Inspector 和知识接口为何只做占位；handoff 勾选真实完成项并记录剩余知识后端接线。
+- [ ] 提交：`docs: document operations console`；建立 `version/v4.1.0-ui` 并按用户要求推送/合并。
