@@ -5,7 +5,6 @@ from nonlinear_agent.reporting.markdown_renderer import render_markdown, render_
 from nonlinear_agent.reporting.pdf_renderer import RenderError, render_pdf, render_task_pdf
 from nonlinear_agent.reporting.report_spec import ReportSpec, ReportSpecBuilder
 from nonlinear_agent.reporting.task_report_spec import RunResult, TaskReportBuilder, TaskReportSpec
-from nonlinear_agent.reporting.tool import write_task_report_spec, write_task_report_tool
 
 __all__ = [
     "FidelityChecker",
@@ -23,3 +22,13 @@ __all__ = [
     "write_task_report_spec",
     "write_task_report_tool",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"write_task_report_spec", "write_task_report_tool"}:
+        from nonlinear_agent.reporting import tool
+
+        value = getattr(tool, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
