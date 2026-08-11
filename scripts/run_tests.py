@@ -24,6 +24,8 @@ FAST_MODULES = (
     "tests.test_supervisor",
     "tests.test_supervisor_graph",
     "tests.test_coding_agent",
+    "tests.test_coding_workflow",
+    "tests.test_llm_client",
     "tests.test_execution_agent",
     "tests.test_execution_queue",
     "tests.test_failure_handoff",

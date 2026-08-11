@@ -31,6 +31,35 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
+PLANNER_SYSTEM_PROMPT = (
+    "You are an experiment-planning agent. You output ONLY a valid JSON "
+    "object matching the user-provided schema. Never add prose, markdown, "
+    "code fences, or nested training/model objects. Every key inside "
+    "'overrides' must be one of the keys the user marks as allowed; "
+    "'model_type' must be one of the listed model names."
+)
+CODING_SYSTEM_PROMPT = (
+    "You are a coding agent. Return ONLY one valid JSON object matching the "
+    "user-provided schema. File values may contain complete source code. "
+    "Never add prose, Markdown, or code fences, and obey every path and "
+    "capability boundary in the request."
+)
+WRITING_SYSTEM_PROMPT = (
+    "You are a scientific writing agent. Return ONLY one valid JSON object "
+    "matching the user-provided evidence and schema. Derive every number and "
+    "architecture statement from supplied evidence; never invent results."
+)
+
+
+def system_prompt_for_role(role: str) -> str:
+    normalized = role.strip().lower()
+    if normalized in {"coding", "coding_agent", "code"}:
+        return CODING_SYSTEM_PROMPT
+    if normalized in {"writing", "writing_agent", "reporting"}:
+        return WRITING_SYSTEM_PROMPT
+    return PLANNER_SYSTEM_PROMPT
+
+
 # ============================================================
 # LLMClient — 接口定义（Protocol，鸭子类型）
 # ============================================================
@@ -132,6 +161,7 @@ class OpenAICompatibleClient:
     model: str
     temperature: float = 0.2        # 低温度 → 输出更稳定、更少随机性
     timeout_seconds: float = 60.0
+    system_prompt: str = PLANNER_SYSTEM_PROMPT
     max_retries: int = 3            # 可重试错误（429/5xx/网络）的最大重试次数
     retry_backoff: float = 1.0      # 指数退避基数（秒）
     max_tokens: int | None = None   # 限制 completion 长度；None 表示不限制
@@ -148,6 +178,8 @@ class OpenAICompatibleClient:
         base_url: str = "https://api.deepseek.com",
         model: str = "deepseek-v4-flash",
         timeout_seconds: float = 60.0,
+        role: str = "planner",
+        system_prompt: str | None = None,
     ) -> "OpenAICompatibleClient":
         """创建 DeepSeek 客户端。
 
@@ -162,6 +194,7 @@ class OpenAICompatibleClient:
             base_url=base_url.rstrip("/"),  # 去掉末尾斜杠，后面拼接路径
             model=model,
             timeout_seconds=timeout_seconds,
+            system_prompt=system_prompt or system_prompt_for_role(role),
         )
 
     # ── 核心方法：发请求，拿回复 ─────────────────────────────
@@ -196,14 +229,7 @@ class OpenAICompatibleClient:
             "messages": [
                 {
                     "role": "system",
-                    "content": (
-                        "You are an experiment-planning agent. You output ONLY a "
-                        "valid JSON object matching the user-provided schema. "
-                        "Never add prose, markdown, code fences, or nested "
-                        "training/model objects. Every key inside 'overrides' "
-                        "must be one of the keys the user marks as allowed; "
-                        "'model_type' must be one of the listed model names."
-                    ),
+                    "content": self.system_prompt,
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -393,6 +419,7 @@ class OpenAISDKClient:
     model: str
     temperature: float = 0.2
     timeout_seconds: float = 60.0
+    system_prompt: str = PLANNER_SYSTEM_PROMPT
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
     _client: Any = field(default=None, init=False, repr=False)
@@ -404,6 +431,8 @@ class OpenAISDKClient:
         base_url: str = "https://api.deepseek.com",
         model: str = "deepseek-v4-flash",
         timeout_seconds: float = 60.0,
+        role: str = "planner",
+        system_prompt: str | None = None,
     ) -> "OpenAISDKClient":
         key = api_key or os.environ.get("DEEPSEEK_API_KEY")
         if not key:
@@ -413,6 +442,7 @@ class OpenAISDKClient:
             base_url=base_url.rstrip("/"),
             model=model,
             timeout_seconds=timeout_seconds,
+            system_prompt=system_prompt or system_prompt_for_role(role),
         )
 
     def complete(
@@ -429,11 +459,7 @@ class OpenAISDKClient:
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are an experiment-planning agent. You output ONLY a "
-                    "valid JSON object matching the user-provided schema. "
-                    "Never add prose, markdown, code fences, or nested objects."
-                ),
+                "content": self.system_prompt,
             },
             {"role": "user", "content": prompt},
         ]
@@ -470,6 +496,8 @@ def create_llm_client(
     base_url: str = "https://api.deepseek.com",
     model: str = "deepseek-v4-flash",
     timeout_seconds: float = 60.0,
+    role: str = "planner",
+    system_prompt: str | None = None,
 ):
     """LLM 客户端工厂：kind='compat'（手写，默认）或 'sdk'（官方 SDK）。"""
     key = api_key or os.environ.get("DEEPSEEK_API_KEY")
@@ -481,10 +509,12 @@ def create_llm_client(
             base_url=base_url.rstrip("/"),
             model=model,
             timeout_seconds=timeout_seconds,
+            system_prompt=system_prompt or system_prompt_for_role(role),
         )
     return OpenAICompatibleClient(
         api_key=key,
         base_url=base_url.rstrip("/"),
         model=model,
         timeout_seconds=timeout_seconds,
+        system_prompt=system_prompt or system_prompt_for_role(role),
     )

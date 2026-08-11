@@ -74,6 +74,21 @@ class TestCodingAgent(unittest.TestCase):
         self.assertFalse((worktree / "evil.py").exists())
         self.assertEqual(result.applied_files, ("module.py",))
 
+    def test_patch_path_cannot_escape_worktree(self):
+        from nonlinear_agent.coding_agent import CodingAgent
+
+        root = self._repo()
+        agent = CodingAgent(repo_root=root)
+        worktree = agent.create_worktree()
+        self.addCleanup(agent.cleanup_worktree)
+        outside = worktree.parent / "coding-agent-escape.py"
+        self.addCleanup(outside.unlink, missing_ok=True)
+
+        result = agent.apply_patch(worktree, {"../coding-agent-escape.py": "x = 1\n"})
+
+        self.assertEqual(result.unauthorized_writes, 1)
+        self.assertFalse(outside.exists())
+
     def test_env_local_never_readable_by_coding_agent(self):
         from nonlinear_agent.coding_agent import CodingAgent
 
