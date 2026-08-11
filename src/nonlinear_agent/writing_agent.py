@@ -21,6 +21,7 @@ REQUIRED_NARRATIVE_SECTIONS = (
     "executive_summary",
     "architecture_analysis",
     "performance_analysis",
+    "round_journey",
     "failure_analysis",
     "lessons",
     "limitations",
@@ -89,14 +90,19 @@ class EvidenceBundle:
         if not spec.executions:
             raise ValueError("task source has no executions")
         best = spec.best()
-        best_source = next(
-            (
-                item
-                for item in source.get("executions", [])
-                if best is not None and str(item.get("run_id")) == best.run_id
-            ),
-            {},
-        )
+        selected = spec.selected()
+        final_source = source.get("final_evaluation")
+        if spec.final_evaluation is not None and isinstance(final_source, dict):
+            best_source = dict(final_source)
+        else:
+            best_source = next(
+                (
+                    item
+                    for item in source.get("executions", [])
+                    if selected is not None and str(item.get("run_id")) == selected.run_id
+                ),
+                {},
+            )
         architecture = ArchitectureGraphSpec.from_dict(
             best_source.get("model_descriptor") or best_source.get("descriptor"),
             fallback_name=str(best_source.get("model_type", "unknown")),
@@ -111,7 +117,11 @@ class EvidenceBundle:
             },
             f"architecture:{architecture.name}": {
                 "kind": "model_descriptor",
-                "value": architecture.to_dict(),
+                "value": {
+                    **architecture.to_dict(),
+                    "node_count": len(architecture.nodes),
+                    "edge_count": len(architecture.edges),
+                },
             },
         }
         for key, value in spec.constraints.items():
@@ -143,6 +153,28 @@ class EvidenceBundle:
                     "kind": "artifact",
                     "value": {"type": "psd", "path": str(item["psd_path"])},
                 }
+        if spec.final_evaluation is not None and isinstance(final_source, dict):
+            final_id = spec.final_evaluation.run_id
+            records[f"final:{final_id}"] = {
+                "kind": "final_evaluation",
+                "value": dict(final_source),
+            }
+            if final_source.get("psd_path"):
+                records[f"artifact:psd:{final_id}"] = {
+                    "kind": "artifact",
+                    "value": {
+                        "type": "psd",
+                        "path": str(final_source["psd_path"]),
+                        "evaluation_kind": "final",
+                        "run_id": final_id,
+                    },
+                }
+        for index, item in enumerate(source.get("round_records", []), start=1):
+            round_index = int(item.get("round_index", index))
+            records[f"round:{round_index}:decision"] = {
+                "kind": "round_decision",
+                "value": dict(item),
+            }
         for item in source.get("failure_cases", []):
             failure_id = str(item.get("id", "unknown"))
             records[f"failure:{failure_id}"] = {
@@ -158,6 +190,9 @@ class EvidenceBundle:
         hit_count = sum(1 for run in spec.executions if run.target_hit)
         aggregate = {
             "execution_count": len(spec.executions),
+            "search_execution_count": len(spec.executions),
+            "round_count": len(spec.round_records),
+            "final_evaluation_count": 1 if spec.final_evaluation is not None else 0,
             "target_hit_count": hit_count,
             "target_hit_rate_percent": (
                 100.0 * hit_count / len(spec.executions) if spec.executions else 0.0
@@ -173,6 +208,8 @@ class EvidenceBundle:
                 else None
             ),
             "architecture_node_count": len(architecture.nodes),
+            "nmse_threshold_db": spec.constraints.get("nmse_threshold_db"),
+            "parameter_count_max": spec.constraints.get("parameter_count_max"),
         }
         records["aggregate:performance"] = {
             "kind": "derived_metrics",
@@ -306,6 +343,19 @@ class NarrativeFidelityChecker:
                         f"{name}: unsupported number {match.group()} "
                         "(not supported by cited evidence)"
                     )
+        round_refs = {
+            evidence_id
+            for evidence_id, record in bundle.records.items()
+            if record.get("kind") == "round_decision"
+        }
+        if round_refs:
+            cited = set(narrative.sections["round_journey"].evidence_refs)
+            missing_rounds = sorted(round_refs - cited)
+            if missing_rounds:
+                errors.append(
+                    "round_journey must cite every round: "
+                    + ", ".join(missing_rounds)
+                )
         return errors
 
 
@@ -324,15 +374,31 @@ class WritingAgent:
         if self._llm is None and self._router is None:
             raise RuntimeError("WritingAgent requires an LLM client or ModelRouter")
         prompt = _writing_prompt(bundle)
-        if self._router is not None:
-            response = self._router.complete(self._role, prompt)
-        else:
-            response = self._llm.complete(prompt)
+        response = self._complete(prompt)
         narrative = NarrativeSpec.from_json(str(response))
         errors = NarrativeFidelityChecker().check(narrative, bundle)
         if errors:
-            raise NarrativeFidelityError("; ".join(errors))
+            repair_prompt = (
+                prompt
+                + "\n\nPrevious narrative:\n"
+                + str(response)
+                + "\n\nFidelity errors:\n- "
+                + "\n- ".join(errors)
+                + "\nRepair the narrative by changing unsupported claims or adding "
+                "the exact evidence_refs that support them. Return the complete JSON "
+                "object only."
+            )
+            repaired = NarrativeSpec.from_json(str(self._complete(repair_prompt)))
+            repaired_errors = NarrativeFidelityChecker().check(repaired, bundle)
+            if repaired_errors:
+                raise NarrativeFidelityError("; ".join(repaired_errors))
+            return repaired
         return narrative
+
+    def _complete(self, prompt: str) -> Any:
+        if self._router is not None:
+            return self._router.complete(self._role, prompt)
+        return self._llm.complete(prompt)
 
 
 def build_deterministic_narrative(
@@ -387,6 +453,17 @@ def build_deterministic_narrative(
             ),
             (best_ref, "aggregate:performance"),
         ),
+        "round_journey": NarrativeSection(
+            (
+                "各轮的假设、候选结果、事实提取和下一轮意图均按结构化记录展示。"
+                if source.get("round_records")
+                else "当前证据没有提供多轮决策记录。"
+            ),
+            tuple(
+                f"round:{int(item.get('round_index', index))}:decision"
+                for index, item in enumerate(source.get("round_records", []), start=1)
+            ) or ("aggregate:performance",),
+        ),
         "failure_analysis": NarrativeSection(failure_text, failure_refs),
         "lessons": NarrativeSection(
             "后续迭代应继续保留计划、执行、失败和产物之间的证据引用。",
@@ -415,7 +492,10 @@ def _writing_prompt(bundle: EvidenceBundle) -> str:
         "artifacts, failures, plan, and traces. Return one JSON object only. "
         "Every section must cite existing evidence IDs. Do not state a number "
         "unless it appears in the evidence payload. Describe the actual graph "
-        "nodes and operations; never infer architecture from a model name.\n\n"
+        "nodes and operations; never infer architecture from a model name. "
+        "When round_decision evidence exists, round_journey must explain the "
+        "hypothesis, three attempts, observed facts, and next adjustment while "
+        "citing every round decision record.\n\n"
         f"EvidenceBundle:\n{json.dumps(bundle.to_prompt_payload(), ensure_ascii=False, sort_keys=True)}\n\n"
         f"Required schema:\n{json.dumps(schema, ensure_ascii=False)}"
     )
@@ -430,6 +510,8 @@ def _collect_numbers(value: Any) -> list[float]:
         if math.isfinite(number):
             numbers.append(number)
         return numbers
+    if isinstance(value, str):
+        return [float(match.group()) for match in _NUMBER.finditer(value)]
     if isinstance(value, dict):
         for item in value.values():
             numbers.extend(_collect_numbers(item))

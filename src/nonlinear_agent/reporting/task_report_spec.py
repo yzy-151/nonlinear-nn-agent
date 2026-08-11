@@ -32,6 +32,8 @@ class TaskReportSpec:
     plan: dict[str, Any] = field(default_factory=dict)
     code_changes: tuple[dict[str, Any], ...] = ()
     executions: tuple[RunResult, ...] = ()
+    round_records: tuple[dict[str, Any], ...] = ()
+    final_evaluation: RunResult | None = None
     ablations: tuple[dict[str, Any], ...] = ()
     failure_cases: tuple[dict[str, Any], ...] = ()
     cost_usd: float | None = None
@@ -55,6 +57,10 @@ class TaskReportSpec:
             else None
         )
 
+    def selected(self) -> RunResult | None:
+        """Final evaluation when supplied, otherwise the best search execution."""
+        return self.final_evaluation or self.best()
+
 
 class TaskReportBuilder:
     """Builds a TaskReportSpec from a task-level source dict."""
@@ -73,6 +79,23 @@ class TaskReportBuilder:
             )
             for item in source.get("executions", [])
         )
+        final_source = source.get("final_evaluation")
+        final_evaluation = None
+        if isinstance(final_source, dict) and final_source:
+            final_evaluation = RunResult(
+                run_id=str(final_source.get("run_id", "final-evaluation")),
+                model_type=str(final_source.get("model_type", "")),
+                nmse_db=_to_float(final_source.get("nmse_db")),
+                parameter_count=_to_int(final_source.get("parameter_count")),
+                baseline_nmse_db=_to_float(final_source.get("baseline_nmse_db")),
+                psd_path=(
+                    str(final_source["psd_path"])
+                    if final_source.get("psd_path")
+                    else None
+                ),
+                target_hit=bool(final_source.get("target_hit", False)),
+                cost_usd=_to_float(final_source.get("cost_usd")),
+            )
         return TaskReportSpec(
             task_id=str(source.get("task_id", "unknown")),
             goal=str(source.get("goal", "")),
@@ -83,6 +106,10 @@ class TaskReportBuilder:
                 dict(c) for c in source.get("code_changes", [])
             ),
             executions=executions,
+            round_records=tuple(
+                dict(item) for item in source.get("round_records", [])
+            ),
+            final_evaluation=final_evaluation,
             ablations=tuple(dict(a) for a in source.get("ablations", [])),
             failure_cases=tuple(
                 dict(f) for f in source.get("failure_cases", [])

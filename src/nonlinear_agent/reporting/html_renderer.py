@@ -47,13 +47,14 @@ def render_task_html(
     analysis = analysis or {}
     executions = list(spec.executions)
     best = spec.best()
+    selected = spec.selected()
     hit_count = sum(1 for run in executions if run.target_hit)
     hit_rate = hit_count / len(executions) if executions else 0.0
     nmse_values = [run.nmse_db for run in executions if run.nmse_db is not None]
     average_nmse = sum(nmse_values) / len(nmse_values) if nmse_values else None
     gain = (
-        best.baseline_nmse_db - best.nmse_db
-        if best and best.baseline_nmse_db is not None and best.nmse_db is not None
+        selected.baseline_nmse_db - selected.nmse_db
+        if selected and selected.baseline_nmse_db is not None and selected.nmse_db is not None
         else None
     )
     constraint_text = " / ".join(
@@ -71,6 +72,49 @@ def render_task_html(
             f'<td class="num">{run.parameter_count if run.parameter_count is not None else "—"}</td>'
             f'<td>{"PASS" if run.target_hit else "MISS"}</td>'
             f'<td>{"BEST" if is_best else ""}</td></tr>'
+        )
+    if spec.final_evaluation is not None:
+        final = spec.final_evaluation
+        execution_rows.append(
+            '<tr class="final">'
+            f'<td><b>{_esc(final.run_id)}</b></td><td>{_esc(final.model_type)}</td>'
+            f'<td class="num">{_fmt(final.baseline_nmse_db)}</td>'
+            f'<td class="num">{_fmt(final.nmse_db)}</td>'
+            f'<td class="num">{final.parameter_count if final.parameter_count is not None else "—"}</td>'
+            f'<td>{"PASS" if final.target_hit else "MISS"}</td><td>FINAL</td></tr>'
+        )
+
+    round_cards = []
+    for record in spec.round_records:
+        round_index = record.get("round_index", "—")
+        outcome_rows = []
+        for outcome in record.get("outcomes", []):
+            metrics = dict(outcome.get("metrics") or {})
+            outcome_rows.append(
+                f"<tr><td>{_esc(outcome.get('experiment_id', ''))}</td>"
+                f"<td>{_esc(outcome.get('candidate_name', ''))}</td>"
+                f"<td>{_esc(outcome.get('status', ''))}</td>"
+                f"<td class=\"num\">{_fmt(metrics.get('nmse_db'))}</td></tr>"
+            )
+        incoming = " ".join(
+            f'<span class="ref">{_esc(ref)}</span>'
+            for ref in record.get("incoming_fact_refs", [])
+        ) or "首轮无前序事实"
+        extracted = " ".join(
+            f'<span class="ref">{_esc(ref)}</span>'
+            for ref in record.get("extracted_facts", [])
+        ) or "—"
+        round_cards.append(
+            '<article class="round-card">'
+            f'<div class="round-index">ROUND {_esc(round_index)}</div>'
+            f'<h3>{_esc(record.get("hypothesis", "未提供假设"))}</h3>'
+            f'<p><b>输入事实：</b>{incoming}</p>'
+            f'<p><b>Planner 判断：</b>{_esc(record.get("decision_rationale", ""))}</p>'
+            '<table><thead><tr><th>Experiment</th><th>Candidate</th><th>Status</th><th>NMSE / dB</th></tr></thead>'
+            f'<tbody>{"".join(outcome_rows)}</tbody></table>'
+            f'<p><b>Reflection 提取事实：</b>{extracted}</p>'
+            f'<p><b>下一步：</b>{_esc(record.get("next_round_intent", ""))}</p>'
+            '</article>'
         )
 
     architecture_rows = []
@@ -143,6 +187,7 @@ def render_task_html(
   td {{ padding:7px 8px; border-bottom:1px solid #d8dde0; vertical-align:top; overflow-wrap:anywhere; }}
   tr:nth-child(even) td {{ background:#f4f6f7; }}
   tr.best td {{ background:#e6f4ef; border-bottom-color:#9bcbbd; }}
+  tr.final td {{ background:#fff1e8; border-bottom-color:#e6a387; font-weight:600; }}
   .num {{ text-align:right; font-family:Consolas,"Courier New",monospace; font-variant-numeric:tabular-nums; }}
   code {{ font-family:Consolas,"Courier New",monospace; font-size:10px; white-space:pre-wrap; overflow-wrap:anywhere; }}
   small {{ color:#768087; }}
@@ -151,6 +196,11 @@ def render_task_html(
   .provenance ul {{ margin:5px 0; padding-left:18px; }}
   .verified {{ display:inline-block; margin-top:16px; padding:4px 7px; border:1px solid #168579; color:#126d64; font:700 10px/1.2 Arial,sans-serif; }}
   .missing {{ padding:25px; border:1px dashed #9fa9af; color:#727c82; text-align:center; }}
+  .round-card {{ margin:12px 0 16px; padding:14px 16px; border:1px solid #b9c4c8; border-left:5px solid #168579; break-inside:avoid; }}
+  .round-card h3 {{ margin:4px 0 9px; font-size:14px; color:#20252a; }}
+  .round-card p {{ margin:7px 0; font-size:11px; }}
+  .round-card table {{ margin:9px 0; }}
+  .round-index {{ color:#168579; font:700 11px/1.2 Arial,sans-serif; }}
   @media print {{
     body {{ background:#fff; }} .report {{ width:auto; margin:0; padding:0; }}
     .metrics {{ grid-template-columns:repeat(3,1fr); }}
@@ -172,10 +222,10 @@ def render_task_html(
   </header>
 
   <div class="metrics">
-    <div class="metric"><b>{_fmt(best.nmse_db) if best else '—'}</b><span>BEST NMSE / dB</span></div>
+    <div class="metric"><b>{_fmt(selected.nmse_db) if selected else '—'}</b><span>FINAL NMSE / dB</span></div>
     <div class="metric"><b>{_fmt(gain, 2)}</b><span>GAIN / dB</span></div>
     <div class="metric"><b>{hit_rate * 100:.0f}%</b><span>TARGET HIT RATE</span></div>
-    <div class="metric"><b>{best.parameter_count if best else '—'}</b><span>BEST PARAMETERS</span></div>
+    <div class="metric"><b>{selected.parameter_count if selected else '—'}</b><span>FINAL PARAMETERS</span></div>
     <div class="metric"><b>{len(executions)}</b><span>EXECUTIONS</span></div>
     <div class="metric"><b>${_fmt(spec.cost_usd, 4)}</b><span>TOTAL LLM COST</span></div>
   </div>
@@ -209,7 +259,13 @@ def render_task_html(
   </section>
 
   <section>
-    <h2>04 / 失败、反思与经验</h2>
+    <h2>04 / 模型迭代与决策轨迹</h2>
+    {_narrative_block(narrative, 'round_journey')}
+    {''.join(round_cards) or '<div class="missing">No round decision evidence was supplied.</div>'}
+  </section>
+
+  <section>
+    <h2>05 / 失败、反思与经验</h2>
     <div class="two-col">
       <div><h3>Failure analysis</h3>{_narrative_block(narrative, 'failure_analysis')}</div>
       <div><h3>Lessons</h3>{_narrative_block(narrative, 'lessons', analysis.get('experience', ''))}</div>
@@ -224,7 +280,7 @@ def render_task_html(
   </section>
 
   <section>
-    <h2>05 / 代码、Trace 与复现</h2>
+    <h2>06 / 代码、Trace 与复现</h2>
     <table><thead><tr><th>File</th><th>Change</th></tr></thead><tbody>
       {code_rows or '<tr><td colspan="2">No code change evidence.</td></tr>'}
     </tbody></table>
@@ -233,7 +289,7 @@ def render_task_html(
   </section>
 
   <section>
-    <h2>06 / 适用边界</h2>
+    <h2>07 / 适用边界</h2>
     {_narrative_block(narrative, 'limitations', spec.limits)}
     <span class="verified">FIDELITY VERIFIED / SOURCE-BOUND NUMBERS</span>
   </section>
