@@ -49,6 +49,34 @@ Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 - **LLM Coding 闭环（v4.0.0-b）**：CodingAgent 通过 `ModelRouter` 的 `coding` 角色调用可配置模型，要求一次返回完整候选包（源码、manifest、descriptor、参数估算和 `train()`），而非只给 `ModelClass`。严格 JSON/候选目录/AST capability gate 通过后，固定 runner 执行 contract validation 与真实 smoke training；失败只提取语法、契约、预算或产物事实，最多回传两轮让 coding LLM 重写完整候选包。每轮只落 prompt/response/file hash 与 gate facts，避免把源码或密钥写进 trace。离线双轮修复 E2E 已覆盖，真实 DeepSeek pass rate 留待固定任务集评测
 - **证据驱动 WritingAgent（v4.0.0-c）**：`EvidenceBundle` 把目标、约束、`ModelDescriptor`、执行指标、真实 PSD、失败和 trace 压缩成带 ID 的事实；WritingAgent 通过 `ModelRouter(writing)` 输出六段 `NarrativeSpec`，每段必须引用已有 evidence ID，任何未知引用或源数据不存在的数字都会被 fidelity gate 拒绝。架构图按 descriptor 的任意 nodes/edges 动态布局，不再按 `model_type` 猜固定原理图；HTML 与 PDF 共用同一份 print-ready 页面，中文字体、A4 分页、表头续页和移动端均已覆盖。离线陌生 Wavelet-LUT fixture 的 3 页 PDF 已完成视觉复验，真实模型写作质量仍需在固定任务集上评测
 - **四角色 Supervisor 主链（v4.0.0-d）**：LangGraph 现在真实连接 `Idea/Plan -> PlanGate -> Coding -> tool-only Execution -> evidence-grounded Writing -> terminal`，不再只是互相独立的组件。结构化 state 保留 plan、code/execution/report result、失败事实和角色 timeline；timeout/NaN/缺产物可在有限预算内回到下一轮 Plan，cancel、invalid plan、模型预算越界和不可恢复错误都只产生一个终态。`MultiAgentRuntime` 复用现有 CodingAgent、ExecutionAgent、WritingAgent 和 ModelRouter，训练产物会从隔离 worktree 确定性发布到主工程 `reports/<run>/evidence/`，Web 的 Multi-Agent 面板通过 SSE 展示每个角色的输入/输出引用、provider/model、token、cost、latency、失败 handoff 和报告路径。离线 E2E 与故障注入已覆盖，真实 DeepSeek 全链评测留给 v4.0.0 收口
+- **真实 3x3 因果搜索（v4.0.0-e）**：一个连续 DeepSeek run 完成 3 轮、9 个搜索候选和 1 次独立终评。Round 2/3 接收的是压缩后的指标/失败事实，不含源码与原始 history；CodingAgent 为每个候选生成完整插件并在独立 worktree 做最多两次修复。固定 MPDPD `x/d`、`train_ratio=0.8`、seed=42；9 个候选中 8 个完成，最优 `LUTSplineV3` 为 24 参数、搜索/终评 NMSE 均为 `-23.0778 dB`，未达到 `-41 dB`。这次真实运行验证了失败隔离、跨轮修正和通用 WritingAgent，但也证明当前 LLM 自主算法质量仍明显弱于历史先验模型
+
+## v4.0.0-e 真实 DeepSeek 验收
+
+运行协议：`deepseek-chat` 分别承担 Idea/Plan、Coding、Writing；三个 round 每轮恰好三个候选，单候选参数不超过 4000、epoch 不超过 50，最后重新执行全局最优候选。主搜索 timeline 记录 21 次模型调用、37,914 prompt tokens、71,483 completion tokens，估算成本约 `$0.0889`（不含报告视觉调整时单独重跑的 Writing 调用）。
+
+| Round | Candidate | Status | NMSE / dB | Params |
+| --- | --- | --- | ---: | ---: |
+| 1 | ComplexMemoryPolynomial | completed | -0.0149 | 38 |
+| 1 | LUTSpline | failed | - | - |
+| 1 | ComplexRational | completed | -0.0474 | 146 |
+| 2 | ComplexMemoryPolynomialV2 | completed | 1.1011 | 20 |
+| 2 | ComplexRationalV2 | completed | -0.0272 | 34 |
+| 2 | LUTSplineV2 | completed | 0.6773 | 130 |
+| 3 | ComplexRationalV3 | completed | 12.9968 | 698 |
+| 3 | CompactComplexMLP | completed | -6.7960 | 266 |
+| 3 | **LUTSplineV3** | completed | **-23.0778** | **24** |
+| Final | **LUTSplineV3** | completed | **-23.0778** | **24** |
+
+[下载完整 6 页 PDF 报告](docs/reports/v4.0.0-e-deepseek-3x3-report.pdf)
+
+![最终模型架构](docs/assets/results/v4.0.0-e/architecture.png)
+
+![最终复评 PSD](docs/assets/results/v4.0.0-e/final-psd.png)
+
+![九次搜索实验 NMSE](docs/assets/results/v4.0.0-e/nine-experiment-nmse.png)
+
+结论边界：本轮目标未命中，不能把 `-23.08 dB` 包装成通信算法最优；它的价值是证明 Agent Harness 能让真实模型生成代码、受控执行、从失败事实调整计划并形成可审计报告。下一项质量硬化应由 Executor 根据标准预测 artifact 重新计算 NMSE，避免仅信任候选自报指标。
 
 ## 内置实验领域（3.1）
 
@@ -141,6 +169,7 @@ flowchart LR
 | --- | --- |
 | `python agent.py run --provider fake` | 离线 Agent Loop（预设计划） |
 | `python agent.py run --provider deepseek` | 真实 LLM Agent Loop（需 `DEEPSEEK_API_KEY`） |
+| `python agent.py multi-agent --provider deepseek --rounds 3 --experiments-per-round 3 --final-evaluation` | 四角色真实 3x3 搜索、独立终评与证据报告 |
 | `python agent.py benchmark` | Agent 行为回归 Benchmark（离线 fake，默认 10 case） |
 | `python examples\nonlinear_fit\run_benchmark.py --provider fake --case-count 50` | 参数化 **50-case** 对比（10 类型 × 5 阈值变体），[报告](docs/experiments/nonlinear-benchmark-50case.md) |
 | `python examples\nonlinear_fit\run_benchmark.py --provider deepseek` | 真实 LLM + 真实训练的 Benchmark（可 `--case-count` 扩展） |

@@ -1075,10 +1075,10 @@ class RoundDecisionRecord:
 - Test: `tests/test_supervisor_e2e.py`
 - Test: `tests/test_multi_agent_runtime.py`
 
-- [ ] 先写失败测试：Idea/Plan 每轮少于或多于三个候选均被 PlanGate 拒绝；三个候选 ID 必须唯一；Round 2/3 必须带已存在的 `incoming_fact_refs`；同轮候选可为仓库从未预置的模型名。
-- [ ] 运行聚焦测试，确认因现有 `_first_candidate()` 和单候选 state 而失败。
-- [ ] 把 planner contract 改为固定三候选，并为每个候选加入 `experiment_id`、`exploration_role`、`based_on_fact_refs`、`expected_information_gain`；PlanGate 校验数量、唯一性、预算和引用来源。
-- [ ] 将 graph state 从单个 `code_result/execution_result` 扩为批次结果，同时保留向后兼容读取；重跑聚焦测试至通过。
+- [x] 先写失败测试：Idea/Plan 每轮少于或多于三个候选均被 PlanGate 拒绝；三个候选 ID 必须唯一；Round 2/3 必须带已存在的 `incoming_fact_refs`；同轮候选可为仓库从未预置的模型名。
+- [x] 运行聚焦测试，确认因现有 `_first_candidate()` 和单候选 state 而失败。
+- [x] 把 planner contract 改为固定三候选，并为每个候选加入 `experiment_id`、`exploration_role`、`based_on_fact_refs`、`expected_information_gain`；PlanGate 校验数量、唯一性、预算和引用来源。
+- [x] 将 graph state 从单个 `code_result/execution_result` 扩为批次结果，同时保留向后兼容读取；重跑聚焦测试至通过。
 
 #### Task 2：批次 Coding/Execution、失败隔离与轮次事实
 
@@ -1089,10 +1089,10 @@ class RoundDecisionRecord:
 - Test: `tests/test_supervisor_e2e.py`
 - Test: `tests/test_reflection.py`
 
-- [ ] 先写失败测试：三个候选按稳定顺序执行；中间候选 coding 或 training 失败时其余候选仍完成；轮末生成完整 `RoundDecisionRecord`；Reflection 只提取结果、错误类型、预算和证据引用，不输出下一轮策略。
-- [ ] 运行测试确认失败，然后实现 batch worker orchestration。Coding 仍受 worktree/gate 约束，Execution 仍只能通过 ToolRegistry；每个 outcome 记录 role/model/token/cost/latency 与 artifact refs。
-- [ ] Planner 下一轮 prompt 显式包含上一轮 `extracted_facts` 与 outcome 摘要，并要求输出“旧问题原因 + 新计划”；不得传原始日志、源码或 secret。
-- [ ] 重跑聚焦测试，覆盖 one-failure-two-success、all-failed 和 mixed target-hit。
+- [x] 先写失败测试：三个候选按稳定顺序执行；中间候选 coding 或 training 失败时其余候选仍完成；轮末生成完整 `RoundDecisionRecord`；Reflection 只提取结果、错误类型、预算和证据引用，不输出下一轮策略。
+- [x] 运行测试确认失败，然后实现 batch worker orchestration。Coding 仍受 worktree/gate 约束，Execution 仍只能通过 ToolRegistry；每个 outcome 记录 role/model/token/cost/latency 与 artifact refs。
+- [x] Planner 下一轮 prompt 显式包含上一轮 `extracted_facts` 与 outcome 摘要，并要求输出“旧问题原因 + 新计划”；不得传原始日志、源码或 secret。
+- [x] 重跑聚焦测试，覆盖 one-failure-two-success、all-failed 和 mixed target-hit。
 
 #### Task 3：九次探索后的全局最优与独立终评
 
@@ -1101,10 +1101,10 @@ class RoundDecisionRecord:
 - Modify: `src/nonlinear_agent/multi_agent_runtime.py`
 - Test: `tests/test_supervisor_e2e.py`
 
-- [ ] 先写失败测试：严格完成三轮、共九个 exploration outcomes；按“有效且 NMSE 最低，参数预算内”选择全局最优；另运行一次 `final_evaluation`，不增加 exploration count。
-- [ ] 对终评使用原候选 manifest/config、固定 seed 和同一 dataset split；输出新 run ID，保留 search NMSE 与 final NMSE，禁止用终评替换历史记录。
-- [ ] 若全九次均失败，Writing 仍生成失败收口报告但不得生成架构图/PSD；若终评失败，报告明确 search best 未获终评确认。
-- [ ] 重跑聚焦测试并确认唯一 terminal state。
+- [x] 先写失败测试：严格完成三轮、共九个 exploration outcomes；按“有效且 NMSE 最低，参数预算内”选择全局最优；另运行一次 `final_evaluation`，不增加 exploration count。
+- [x] 对终评使用原候选 manifest/config、固定 seed 和同一 dataset split；输出新 run ID，保留 search NMSE 与 final NMSE，禁止用终评替换历史记录。
+- [x] 若全九次均失败，Writing 仍生成失败收口报告但不得生成架构图/PSD；若终评失败，报告明确 search best 未获终评确认。
+- [x] 重跑聚焦测试并确认唯一 terminal state。
 
 #### Task 4：通用 Writing Agent 的轮次心路与精选证据
 
@@ -1118,11 +1118,11 @@ class RoundDecisionRecord:
 - Test: `tests/test_task_reporting.py`
 - Test: `tests/test_reporting_tool.py`
 
-- [ ] 先写失败测试：报告接受任意未知模型 descriptor；架构图只来自全局最优/终评候选；“03 性能证据”只嵌入一张终评 PSD；九次探索仍全部出现在表格；三条 Round Journey 均引用对应事实。
-- [ ] 扩展 EvidenceBundle：为每轮 plan、三个 outcomes、reflection facts、next intent 和 final evaluation 分配稳定 evidence ID；Writing prompt 新增 `round_journey` 结构化章节，要求描述“假设 -> 尝试 -> 观察 -> 调整”，不允许补写未被引用的因果。
-- [ ] 通用 renderer 增加三轮 timeline；不按 `model_type` 分支。最佳架构节点正文从 `8.5 pt` 提升到至少 `11.5 pt`，边标签至少 `9.5 pt`，根据节点数量动态扩大画布、节点宽度和换行。
-- [ ] PSD 只接受 `final_evaluation.psd_path`；缺失或 hash 不符时结构化失败，不调用 synthetic PSD helper。图注同时显示 final NMSE、search NMSE、参数量、模型名、优化器、学习率、seed 和数据划分中实际存在的字段。
-- [ ] Fidelity gate 校验所有 round journey 引用、最优 descriptor 归属、PSD run ID 与终评 run ID 一致；重跑报告测试。
+- [x] 先写失败测试：报告接受任意未知模型 descriptor；架构图只来自全局最优/终评候选；“03 性能证据”只嵌入一张终评 PSD；九次探索仍全部出现在表格；三条 Round Journey 均引用对应事实。
+- [x] 扩展 EvidenceBundle：为每轮 plan、三个 outcomes、reflection facts、next intent 和 final evaluation 分配稳定 evidence ID；Writing prompt 新增 `round_journey` 结构化章节，要求描述“假设 -> 尝试 -> 观察 -> 调整”，不允许补写未被引用的因果。
+- [x] 通用 renderer 增加三轮 timeline；不按 `model_type` 分支。最佳架构节点正文从 `8.5 pt` 提升到至少 `11.5 pt`，边标签至少 `9.5 pt`，根据节点数量动态扩大画布、节点宽度和换行。
+- [x] PSD 只接受 `final_evaluation.psd_path`；缺失或 hash 不符时结构化失败，不调用 synthetic PSD helper。图注同时显示 final NMSE、search NMSE、参数量、模型名、优化器、学习率、seed 和数据划分中实际存在的字段。
+- [x] Fidelity gate 校验所有 round journey 引用、最优 descriptor 归属、PSD run ID 与终评 run ID 一致；重跑报告测试。
 
 #### Task 5：真实 DeepSeek 3x3 运行与终局验收
 
@@ -1134,12 +1134,12 @@ class RoundDecisionRecord:
 - Runtime artifacts: `runs/<timestamp>-deepseek-3x3/`
 - Runtime reports: `reports/<run-id>/`
 
-- [ ] 为 CLI 增加/接通正式 `multi-agent` 入口，参数固定支持 `--rounds 3 --experiments-per-round 3 --final-evaluation`；API key 仅从已 gitignore 的 `.env.local` 注入，不写 trace、report 或终端输出。
-- [ ] 先用 fake router 完成 3x3+1 E2E；运行 fast profile、full suite 和 `git diff --check`。
-- [ ] 用真实 DeepSeek 运行一次当前 nonlinear-modeling domain；保存九次探索、一次终评、每个角色 token/cost/latency、失败事实、最终 HTML/PDF 和完整可回放 timeline。
-- [ ] 验收计数：`rounds == 3`、`exploration_count == 9`、`final_evaluation_count == 1`；九次并非必须全成功，但每次必须有唯一可审计终态，且同轮失败不阻断剩余候选。
-- [ ] 渲染 PDF 为逐页 PNG，检查中文、字号、分页、PSD 来源、表格和 timeline；报告 numeric mismatch、artifact mismatch、unknown evidence ref 均为 0。
-- [ ] README 与 learning 只记录真实运行实际结果，明确 provider/model、预算、成功/失败数和限制；不得把搜索最好成绩冒充终评成绩。
+- [x] 为 CLI 增加/接通正式 `multi-agent` 入口，参数固定支持 `--rounds 3 --experiments-per-round 3 --final-evaluation`；API key 仅从已 gitignore 的 `.env.local` 注入，不写 trace、report 或终端输出。
+- [x] 先用 fake router 完成 3x3+1 E2E；运行 fast profile、full suite 和 `git diff --check`。
+- [x] 用真实 DeepSeek 运行一次当前 nonlinear-modeling domain；保存九次探索、一次终评、每个角色 token/cost/latency、失败事实、最终 HTML/PDF 和完整可回放 timeline。
+- [x] 验收计数：`rounds == 3`、`exploration_count == 9`、`final_evaluation_count == 1`；九次并非必须全成功，但每次必须有唯一可审计终态，且同轮失败不阻断剩余候选。
+- [x] 渲染 PDF 为逐页 PNG，检查中文、字号、分页、PSD 来源、表格和 timeline；报告 numeric mismatch、artifact mismatch、unknown evidence ref 均为 0。
+- [x] README 与 learning 只记录真实运行实际结果，明确 provider/model、预算、成功/失败数和限制；不得把搜索最好成绩冒充终评成绩。
 
 #### 验收标准
 
@@ -1150,6 +1150,18 @@ class RoundDecisionRecord:
 5. 报告中每个数字和因果陈述均能反查 evidence ID；fidelity errors = 0。
 6. 真实 DeepSeek 调用、真实训练和最终报告成功留痕；密钥泄漏数 = 0，worktree 外候选写入数 = 0，Execution 未注册 shell 数 = 0。
 7. 聚焦测试、fast profile、full suite、HTML/PDF 渲染检查全部通过后才允许提交版本。
+
+#### v4.0.0-e 真实验收记录（2026-08-11）
+
+- 连续 run：`deepseek-3x3-20260811-l`；3 个 RoundDecisionRecord、9 个搜索 outcome、1 个 final outcome。
+- 成功数：8/9；失败候选 `r1-candidate-2` 的参数量、样条索引与 JSON 截断事实未阻断同轮其他候选。
+- 跨轮修正：Round 2 明确引用 Round 1 的成功/失败事实并修复 LUT；Round 3 引用 Round 2 三个指标，最终把 LUT 从失败/`0.6773 dB` 改进到 `-23.0778 dB`。
+- 最优与终评：`LUTSplineV3`，24 参数，搜索 `-23.0778 dB`，独立终评 `-23.0778 dB`；未达到 `-41 dB`，target hit rate = 0%。
+- 模型调用：Idea/Plan 3 次、Coding 18 次；主搜索合计 37,914 prompt + 71,483 completion tokens，估算 `$0.08886808`。Writing 报告因 fidelity 修复与视觉重生成另有调用，不混入该数字。
+- 报告：`docs/reports/v4.0.0-e-deepseek-3x3-report.pdf`；仅一个最终架构、一个最终 PSD，保留 9 次搜索表和三轮 journey；6 页 PNG 视觉复验通过。
+- 原始 Supervisor 结果顶层仍为 `error`：搜索与独立终评已完成，错误来自随后第一次 Writing fidelity 校验；修复 WritingAgent 后使用同一份结构化运行证据重生成并复验报告。不得把该历史顶层状态改写成完整链路一次成功。
+- 真实运行暴露并修复：候选路径归一化、公共构造签名、固定复数 `x/d` 数据契约、跨轮事实传到 CodingTask、成功状态/产物映射/非数值 metadata 兼容、Writing fidelity 一次自修复、成本刷新时序。
+- 剩余硬化：Execution 应要求标准预测 artifact 并自行重算 NMSE；Coding JSON 应改为更不易截断的文件传输协议；候选执行可改成流水并发；Windows cancel 应终止完整进程树。
 
 ### 15.9 v4.0.0-a 实施计划：开放模型契约与可执行 CandidateRegistry
 
