@@ -41,17 +41,28 @@ def html_to_pdf(html_path: Path, pdf_path: Path, timeout_seconds: float = 60.0) 
             errors="replace",
             timeout=timeout_seconds,
         )
+        # Edge 返回时文件可能尚未落盘。profile 必须活到写入完成，
+        # 否则并发测试中会出现 returncode=0 但 PDF 不存在的竞争。
+        deadline = time.time() + 15
+        last_size = -1
+        stable_since: float | None = None
+        while time.time() < deadline:
+            size = pdf_path.stat().st_size if pdf_path.exists() else 0
+            if size > 0 and size == last_size:
+                stable_since = stable_since or time.time()
+                if time.time() - stable_since >= 0.75:
+                    break
+            else:
+                last_size = size
+                stable_since = None
+            time.sleep(0.2)
+        if not pdf_path.exists() or pdf_path.stat().st_size == 0:
+            raise RuntimeError(
+                f"Edge failed to produce PDF: returncode={process.returncode}; "
+                f"stderr={process.stderr[-800:]}"
+            )
+        return pdf_path
     finally:
         import shutil
 
         shutil.rmtree(profile, ignore_errors=True)
-    # Edge 返回时文件可能尚未落盘，等待出现
-    deadline = time.time() + 15
-    while not pdf_path.exists() and time.time() < deadline:
-        time.sleep(0.5)
-    if not pdf_path.exists() or pdf_path.stat().st_size == 0:
-        raise RuntimeError(
-            f"Edge failed to produce PDF: returncode={process.returncode}; "
-            f"stderr={process.stderr[-800:]}"
-        )
-    return pdf_path

@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 
 def _source(run_id: str = "run-001", nmse: float = -36.5, params: int = 218) -> dict:
@@ -155,6 +159,44 @@ class TestPDFRenderer(unittest.TestCase):
                 )
                 self.assertTrue(pdf_path.exists())
                 self.assertGreater(pdf_path.stat().st_size, 1000)
+
+
+class TestHtmlToPdfLifecycle(unittest.TestCase):
+    def test_profile_lives_until_delayed_pdf_is_written(self):
+        from nonlinear_agent.reporting.html_pdf import html_to_pdf
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            html_path = root / "report.html"
+            pdf_path = root / "report.pdf"
+            html_path.write_text("<html><body>report</body></html>", encoding="utf-8")
+            writers = []
+
+            def fake_run(command, **kwargs):
+                profile = Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("--user-data-dir=")))
+
+                def delayed_write():
+                    time.sleep(0.1)
+                    if profile.exists():
+                        pdf_path.write_bytes(b"%PDF")
+                    time.sleep(0.7)
+                    if profile.exists():
+                        with pdf_path.open("ab") as handle:
+                            handle.write(b" complete")
+
+                writer = threading.Thread(target=delayed_write)
+                writer.start()
+                writers.append(writer)
+                return SimpleNamespace(returncode=0, stderr="")
+
+            with patch("nonlinear_agent.reporting.html_pdf.subprocess.run", fake_run):
+                result = html_to_pdf(html_path, pdf_path, timeout_seconds=1)
+            for writer in writers:
+                writer.join()
+
+            self.assertEqual(result, pdf_path)
+            self.assertTrue(pdf_path.exists())
+            self.assertEqual(pdf_path.read_bytes(), b"%PDF complete")
 
 
 if __name__ == "__main__":
