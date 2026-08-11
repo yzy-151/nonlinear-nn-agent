@@ -1030,6 +1030,127 @@ ModelPlugin Registry -> ExecutionAgent -> EvidenceBundle
 
 完成前：称“开放式 Coding/Writing Agent 的契约与组件实现中”。完成并通过 E2E 后：可称“基于结构化 handoff、隔离代码生成、tool-only 执行与 evidence-grounded reporting 的多 Agent 实验运行时”。任何测试桩结果不得包装成真实 LLM coding pass rate。
 
+### 15.10 v4.0.0-e 设计与实施计划：三轮批次搜索、终局复评与通用实验叙事
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `executing-plans` task-by-task. 本项目继续只维护本 handoff，不新建 plan/handoff 碎片文档。
+
+**Goal:** 用真实 DeepSeek 完成一个连续的 `3 rounds x 3 experiments` 非线性建模任务，再对九次探索中的全局最优候选进行一次独立终局复评；报告保留完整实验过程，但只展示最优架构和终评最优 PSD。
+
+**Architecture:** 扩展现有 Supervisor，而非循环调用九次单候选任务。每轮 Idea/Plan 一次生成三个候选，Coding/Execution 独立处理并汇总，Reflection 只形成事实，下一轮 Planner 必须引用这些事实。Writing Agent 只消费通用 `ModelDescriptor`、`RoundDecisionRecord` 与 verified artifacts，所有叙事经过 evidence fidelity gate。
+
+**Tech Stack:** Python dataclasses/TypedDict、LangGraph、ModelRouter/DeepSeek、现有 CandidateRegistry/ExecutionAgent、HTML/CSS、Matplotlib、unittest。
+
+#### 数据契约
+
+```python
+@dataclass(frozen=True)
+class ExperimentOutcome:
+    experiment_id: str
+    candidate_name: str
+    status: str
+    nmse_db: float | None
+    parameter_count: int | None
+    failure_facts: tuple[str, ...]
+    evidence_refs: tuple[str, ...]
+
+@dataclass(frozen=True)
+class RoundDecisionRecord:
+    round_index: int
+    incoming_fact_refs: tuple[str, ...]
+    hypothesis: str
+    decision_rationale: str
+    experiment_ids: tuple[str, str, str]
+    outcomes: tuple[ExperimentOutcome, ...]
+    extracted_facts: tuple[str, ...]
+    next_round_intent: str
+```
+
+约束：一轮恰好三个 experiment；同轮失败相互隔离；下一轮 `incoming_fact_refs` 必须来自之前轮次；第三轮结束后产生一个 `final_evaluation`，它不计入九次探索；终评配置必须与入选候选一致，但使用新 run ID、固定评测 seed/数据划分并单独保存 evidence。
+
+#### Task 1：批次 Planner 契约与三实验校验
+
+**Files:**
+- Modify: `src/nonlinear_agent/multi_agent_runtime.py`
+- Modify: `src/nonlinear_agent/supervisor_graph.py`
+- Test: `tests/test_supervisor_e2e.py`
+- Test: `tests/test_multi_agent_runtime.py`
+
+- [ ] 先写失败测试：Idea/Plan 每轮少于或多于三个候选均被 PlanGate 拒绝；三个候选 ID 必须唯一；Round 2/3 必须带已存在的 `incoming_fact_refs`；同轮候选可为仓库从未预置的模型名。
+- [ ] 运行聚焦测试，确认因现有 `_first_candidate()` 和单候选 state 而失败。
+- [ ] 把 planner contract 改为固定三候选，并为每个候选加入 `experiment_id`、`exploration_role`、`based_on_fact_refs`、`expected_information_gain`；PlanGate 校验数量、唯一性、预算和引用来源。
+- [ ] 将 graph state 从单个 `code_result/execution_result` 扩为批次结果，同时保留向后兼容读取；重跑聚焦测试至通过。
+
+#### Task 2：批次 Coding/Execution、失败隔离与轮次事实
+
+**Files:**
+- Modify: `src/nonlinear_agent/multi_agent_runtime.py`
+- Modify: `src/nonlinear_agent/supervisor_graph.py`
+- Modify: `src/nonlinear_agent/reflection.py`
+- Test: `tests/test_supervisor_e2e.py`
+- Test: `tests/test_reflection.py`
+
+- [ ] 先写失败测试：三个候选按稳定顺序执行；中间候选 coding 或 training 失败时其余候选仍完成；轮末生成完整 `RoundDecisionRecord`；Reflection 只提取结果、错误类型、预算和证据引用，不输出下一轮策略。
+- [ ] 运行测试确认失败，然后实现 batch worker orchestration。Coding 仍受 worktree/gate 约束，Execution 仍只能通过 ToolRegistry；每个 outcome 记录 role/model/token/cost/latency 与 artifact refs。
+- [ ] Planner 下一轮 prompt 显式包含上一轮 `extracted_facts` 与 outcome 摘要，并要求输出“旧问题原因 + 新计划”；不得传原始日志、源码或 secret。
+- [ ] 重跑聚焦测试，覆盖 one-failure-two-success、all-failed 和 mixed target-hit。
+
+#### Task 3：九次探索后的全局最优与独立终评
+
+**Files:**
+- Modify: `src/nonlinear_agent/supervisor_graph.py`
+- Modify: `src/nonlinear_agent/multi_agent_runtime.py`
+- Test: `tests/test_supervisor_e2e.py`
+
+- [ ] 先写失败测试：严格完成三轮、共九个 exploration outcomes；按“有效且 NMSE 最低，参数预算内”选择全局最优；另运行一次 `final_evaluation`，不增加 exploration count。
+- [ ] 对终评使用原候选 manifest/config、固定 seed 和同一 dataset split；输出新 run ID，保留 search NMSE 与 final NMSE，禁止用终评替换历史记录。
+- [ ] 若全九次均失败，Writing 仍生成失败收口报告但不得生成架构图/PSD；若终评失败，报告明确 search best 未获终评确认。
+- [ ] 重跑聚焦测试并确认唯一 terminal state。
+
+#### Task 4：通用 Writing Agent 的轮次心路与精选证据
+
+**Files:**
+- Modify: `src/nonlinear_agent/writing_agent.py`
+- Modify: `src/nonlinear_agent/reporting/task_report_spec.py`
+- Modify: `src/nonlinear_agent/reporting/html_renderer.py`
+- Modify: `src/nonlinear_agent/reporting/figures.py`
+- Modify: `src/nonlinear_agent/reporting/tool.py`
+- Test: `tests/test_writing_agent.py`
+- Test: `tests/test_task_reporting.py`
+- Test: `tests/test_reporting_tool.py`
+
+- [ ] 先写失败测试：报告接受任意未知模型 descriptor；架构图只来自全局最优/终评候选；“03 性能证据”只嵌入一张终评 PSD；九次探索仍全部出现在表格；三条 Round Journey 均引用对应事实。
+- [ ] 扩展 EvidenceBundle：为每轮 plan、三个 outcomes、reflection facts、next intent 和 final evaluation 分配稳定 evidence ID；Writing prompt 新增 `round_journey` 结构化章节，要求描述“假设 -> 尝试 -> 观察 -> 调整”，不允许补写未被引用的因果。
+- [ ] 通用 renderer 增加三轮 timeline；不按 `model_type` 分支。最佳架构节点正文从 `8.5 pt` 提升到至少 `11.5 pt`，边标签至少 `9.5 pt`，根据节点数量动态扩大画布、节点宽度和换行。
+- [ ] PSD 只接受 `final_evaluation.psd_path`；缺失或 hash 不符时结构化失败，不调用 synthetic PSD helper。图注同时显示 final NMSE、search NMSE、参数量、模型名、优化器、学习率、seed 和数据划分中实际存在的字段。
+- [ ] Fidelity gate 校验所有 round journey 引用、最优 descriptor 归属、PSD run ID 与终评 run ID 一致；重跑报告测试。
+
+#### Task 5：真实 DeepSeek 3x3 运行与终局验收
+
+**Files:**
+- Modify: `src/nonlinear_agent/cli.py`
+- Modify: `README.md`
+- Modify: `docs/handoff/llm-continuation-plan.md`
+- Modify: `docs/learning/experiment-agent-harness-v1.6.2.md`
+- Runtime artifacts: `runs/<timestamp>-deepseek-3x3/`
+- Runtime reports: `reports/<run-id>/`
+
+- [ ] 为 CLI 增加/接通正式 `multi-agent` 入口，参数固定支持 `--rounds 3 --experiments-per-round 3 --final-evaluation`；API key 仅从已 gitignore 的 `.env.local` 注入，不写 trace、report 或终端输出。
+- [ ] 先用 fake router 完成 3x3+1 E2E；运行 fast profile、full suite 和 `git diff --check`。
+- [ ] 用真实 DeepSeek 运行一次当前 nonlinear-modeling domain；保存九次探索、一次终评、每个角色 token/cost/latency、失败事实、最终 HTML/PDF 和完整可回放 timeline。
+- [ ] 验收计数：`rounds == 3`、`exploration_count == 9`、`final_evaluation_count == 1`；九次并非必须全成功，但每次必须有唯一可审计终态，且同轮失败不阻断剩余候选。
+- [ ] 渲染 PDF 为逐页 PNG，检查中文、字号、分页、PSD 来源、表格和 timeline；报告 numeric mismatch、artifact mismatch、unknown evidence ref 均为 0。
+- [ ] README 与 learning 只记录真实运行实际结果，明确 provider/model、预算、成功/失败数和限制；不得把搜索最好成绩冒充终评成绩。
+
+#### 验收标准
+
+1. 一个连续 run 产生 3 个 `RoundDecisionRecord`、9 个探索 outcome 和 1 个独立终评 outcome。
+2. Round 2/3 的 plan 各至少引用一条前序真实事实；抽查 trace 能回答“为什么换方案”。
+3. Writing Agent 对陌生 descriptor 无模型名分支，架构图仅显示终评候选且节点正文不小于 11.5 pt。
+4. “03 性能证据”只有一张经过路径/hash/run-id 校验的终评 PSD；探索结果全部保留在表格和 timeline。
+5. 报告中每个数字和因果陈述均能反查 evidence ID；fidelity errors = 0。
+6. 真实 DeepSeek 调用、真实训练和最终报告成功留痕；密钥泄漏数 = 0，worktree 外候选写入数 = 0，Execution 未注册 shell 数 = 0。
+7. 聚焦测试、fast profile、full suite、HTML/PDF 渲染检查全部通过后才允许提交版本。
+
 ### 15.9 v4.0.0-a 实施计划：开放模型契约与可执行 CandidateRegistry
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` or `executing-plans` task-by-task. 本项目按用户要求只维护本 handoff，不新增 plan 文档。
