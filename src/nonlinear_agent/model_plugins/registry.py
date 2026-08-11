@@ -95,6 +95,14 @@ class CandidateRegistry:
         parameter_count_max: int,
     ) -> CandidateValidation:
         plugin = self.load_plugin(manifest_path)
+        return self.validate_plugin(plugin, config, parameter_count_max)
+
+    def validate_plugin(
+        self,
+        plugin: ModelPlugin,
+        config: dict[str, Any],
+        parameter_count_max: int,
+    ) -> CandidateValidation:
         _validate_config(config, plugin.descriptor.config_schema)
         parameter_count = plugin.estimate_parameters(dict(config))
         if (

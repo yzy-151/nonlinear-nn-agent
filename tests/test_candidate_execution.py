@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -145,6 +146,24 @@ class CandidateExecutionTest(unittest.TestCase):
     def test_rejects_failed_terminal_status(self):
         self._replace('status="completed"', 'status="failed"')
         with self.assertRaisesRegex(RuntimeError, "terminal status"):
+            self._run()
+
+    def test_candidate_import_cannot_mutate_parent_environment(self):
+        os.environ.pop("CANDIDATE_IMPORT_LEAK", None)
+        self.addCleanup(os.environ.pop, "CANDIDATE_IMPORT_LEAK", None)
+        self._replace(
+            "import base64",
+            'import base64\nimport os\nos.environ["CANDIDATE_IMPORT_LEAK"] = "1"',
+        )
+        self._run()
+        self.assertNotIn("CANDIDATE_IMPORT_LEAK", os.environ)
+
+    def test_rejects_metrics_artifact_that_disagrees_with_result(self):
+        self._replace(
+            "return TrainingResult(",
+            'metrics["nmse_db"] = -12.0\n        return TrainingResult(',
+        )
+        with self.assertRaisesRegex(ValueError, "metrics artifact"):
             self._run()
 
 

@@ -39,6 +39,7 @@ def run(
     manifest_path: str,
     request_path: str,
     result_path: str,
+    action: str = "train",
 ) -> int:
     root = Path(workspace).resolve()
     result_file = _inside(root, result_path)
@@ -50,16 +51,34 @@ def run(
         request = TrainingRequest.from_dict(request_payload)
         registry = CandidateRegistry(root)
         parameter_count_max = int(request_payload["parameter_count_max"])
-        registry.validate_candidate(
-            manifest_path,
-            request.config,
-            parameter_count_max,
-        )
         plugin = registry.load_plugin(manifest_path)
+        validation = registry.validate_plugin(
+            plugin, request.config, parameter_count_max
+        )
+        validation_payload = {
+            "descriptor": validation.descriptor.to_dict(),
+            "descriptor_hash": validation.descriptor_hash,
+            "parameter_count": validation.parameter_count,
+        }
+        if action == "validate":
+            _write_json(
+                result_file,
+                {"ok": True, "validation": validation_payload},
+            )
+            return 0
+        if action != "train":
+            raise ValueError(f"unsupported runner action: {action}")
         result = plugin.train(request)
         if not isinstance(result, TrainingResult):
             raise TypeError("plugin train() must return TrainingResult")
-        _write_json(result_file, {"ok": True, "result": result.to_dict()})
+        _write_json(
+            result_file,
+            {
+                "ok": True,
+                "validation": validation_payload,
+                "result": result.to_dict(),
+            },
+        )
         return 0
     except Exception as exc:
         _write_json(
@@ -79,8 +98,15 @@ def main() -> int:
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--request", required=True)
     parser.add_argument("--result", required=True)
+    parser.add_argument("--action", choices=("validate", "train"), default="train")
     args = parser.parse_args()
-    return run(args.workspace, args.manifest, args.request, args.result)
+    return run(
+        args.workspace,
+        args.manifest,
+        args.request,
+        args.result,
+        action=args.action,
+    )
 
 
 if __name__ == "__main__":

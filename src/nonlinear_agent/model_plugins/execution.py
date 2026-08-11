@@ -9,11 +9,17 @@ import re
 import subprocess
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
-from nonlinear_agent.model_plugins.contracts import TrainingRequest, TrainingResult
-from nonlinear_agent.model_plugins.registry import CandidateRegistry
+from nonlinear_agent.model_plugins.contracts import (
+    ModelDescriptor,
+    TrainingRequest,
+    TrainingResult,
+    descriptor_hash,
+    validate_descriptor,
+)
 
 
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -26,18 +32,32 @@ def validate_candidate_model_tool(
     config: dict[str, Any],
     parameter_count_max: int,
 ) -> dict[str, Any]:
-    validation = CandidateRegistry(workspace).validate_candidate(
-        manifest_path,
-        dict(config),
-        int(parameter_count_max),
+    root = Path(workspace).resolve()
+    run_id = f"validate-{uuid.uuid4().hex[:12]}"
+    request = TrainingRequest(
+        run_id=run_id,
+        workspace=str(root),
+        config=dict(config),
+        output_dir=f"runs/candidate-agent/{run_id}/validation",
     )
+    payload, elapsed, process = _invoke_candidate_runner(
+        root=root,
+        manifest_path=manifest_path,
+        request=request,
+        parameter_count_max=parameter_count_max,
+        timeout_seconds=60.0,
+        action="validate",
+    )
+    descriptor, validated_hash, parameter_count = _validation_from_payload(payload)
     return {
-        "descriptor": validation.descriptor.to_dict(),
-        "descriptor_hash": validation.descriptor_hash,
-        "parameter_count": validation.parameter_count,
+        "descriptor": descriptor.to_dict(),
+        "descriptor_hash": validated_hash,
+        "parameter_count": parameter_count,
+        "elapsed_seconds": elapsed,
+        "runner_returncode": process.returncode,
         "context_summary": (
-            f"Candidate {validation.descriptor.name} satisfies the plugin contract "
-            f"with {validation.parameter_count} parameters."
+            f"Candidate {descriptor.name} satisfies the plugin contract "
+            f"with {parameter_count} parameters."
         ),
     }
 
@@ -56,15 +76,6 @@ def run_candidate_model_tool(
     if not _RUN_ID.fullmatch(run_id):
         raise ValueError("run_id contains unsupported characters")
     output_relative = _relative_inside(root, output_dir, "output_dir")
-    registry = CandidateRegistry(root)
-    validation = registry.validate_candidate(
-        manifest_path, dict(config), int(parameter_count_max)
-    )
-
-    control_dir = root / "runs" / "candidate-agent" / run_id
-    control_dir.mkdir(parents=True, exist_ok=True)
-    request_file = control_dir / "request.json"
-    result_file = control_dir / "result.json"
     request = TrainingRequest(
         run_id=run_id,
         workspace=str(root),
@@ -72,16 +83,51 @@ def run_candidate_model_tool(
         output_dir=output_relative,
         seed=int(seed),
     )
+    payload, elapsed, process = _invoke_candidate_runner(
+        root=root,
+        manifest_path=manifest_path,
+        request=request,
+        parameter_count_max=parameter_count_max,
+        timeout_seconds=timeout_seconds,
+        action="train",
+    )
+    descriptor, validated_hash, parameter_count = _validation_from_payload(payload)
+    result = TrainingResult.from_dict(dict(payload.get("result") or {}))
+    _validate_result(root, result, validated_hash, parameter_count)
+    return {
+        "metrics": dict(result.metrics),
+        "artifacts": list(result.artifacts),
+        "descriptor": descriptor.to_dict(),
+        "descriptor_hash": validated_hash,
+        "elapsed_seconds": elapsed,
+        "runner_returncode": process.returncode,
+        "stdout_tail": process.stdout[-1000:],
+        "stderr_tail": process.stderr[-1000:],
+        "context_summary": (
+            f"Candidate {descriptor.name} completed in {elapsed:.2f}s "
+            f"with NMSE {result.metrics['nmse_db']:.4f} dB."
+        ),
+    }
+
+
+def _invoke_candidate_runner(
+    root: Path,
+    manifest_path: Path | str,
+    request: TrainingRequest,
+    parameter_count_max: int,
+    timeout_seconds: float,
+    action: str,
+) -> tuple[dict[str, Any], float, subprocess.CompletedProcess[str]]:
+    control_dir = root / "runs" / "candidate-agent" / request.run_id
+    control_dir.mkdir(parents=True, exist_ok=True)
+    request_file = control_dir / "request.json"
+    result_file = control_dir / f"{action}-result.json"
     request_payload = request.to_dict()
     request_payload["parameter_count_max"] = int(parameter_count_max)
     request_file.write_text(
         json.dumps(request_payload, ensure_ascii=False), encoding="utf-8"
     )
     result_file.unlink(missing_ok=True)
-
-    manifest_relative = _relative_inside(root, manifest_path, "manifest_path")
-    request_relative = request_file.relative_to(root).as_posix()
-    result_relative = result_file.relative_to(root).as_posix()
     command = [
         sys.executable,
         "-m",
@@ -89,11 +135,13 @@ def run_candidate_model_tool(
         "--workspace",
         str(root),
         "--manifest",
-        manifest_relative,
+        _relative_inside(root, manifest_path, "manifest_path"),
         "--request",
-        request_relative,
+        request_file.relative_to(root).as_posix(),
         "--result",
-        result_relative,
+        result_file.relative_to(root).as_posix(),
+        "--action",
+        action,
     ]
     environment = _scrubbed_environment()
     source_root = str(Path(__file__).resolve().parents[2])
@@ -124,22 +172,27 @@ def run_candidate_model_tool(
             "candidate runner failed: "
             f"{payload.get('error_type', 'error')}: {payload.get('error', '')}"
         )
-    result = TrainingResult.from_dict(dict(payload.get("result") or {}))
-    _validate_result(root, result, validation.descriptor_hash, validation.parameter_count)
-    return {
-        "metrics": dict(result.metrics),
-        "artifacts": list(result.artifacts),
-        "descriptor": validation.descriptor.to_dict(),
-        "descriptor_hash": validation.descriptor_hash,
-        "elapsed_seconds": elapsed,
-        "runner_returncode": process.returncode,
-        "stdout_tail": process.stdout[-1000:],
-        "stderr_tail": process.stderr[-1000:],
-        "context_summary": (
-            f"Candidate {validation.descriptor.name} completed in {elapsed:.2f}s "
-            f"with NMSE {result.metrics['nmse_db']:.4f} dB."
-        ),
-    }
+    return payload, elapsed, process
+
+
+def _validation_from_payload(
+    payload: dict[str, Any],
+) -> tuple[ModelDescriptor, str, int]:
+    raw = dict(payload.get("validation") or {})
+    descriptor = ModelDescriptor.from_dict(dict(raw.get("descriptor") or {}))
+    validate_descriptor(descriptor)
+    actual_hash = descriptor_hash(descriptor)
+    reported_hash = str(raw.get("descriptor_hash", ""))
+    if actual_hash != reported_hash:
+        raise ValueError("runner validation descriptor hash is inconsistent")
+    parameter_count = raw.get("parameter_count")
+    if (
+        not isinstance(parameter_count, int)
+        or isinstance(parameter_count, bool)
+        or parameter_count < 0
+    ):
+        raise ValueError("runner validation parameter_count is invalid")
+    return descriptor, actual_hash, parameter_count
 
 
 def _relative_inside(root: Path, value: Path | str, label: str) -> str:
@@ -178,11 +231,28 @@ def _validate_result(
         raise ValueError("reported parameter_count does not match validated estimate")
     if not result.artifacts:
         raise FileNotFoundError("candidate result has no artifacts")
+    resolved_artifacts: dict[str, Path] = {}
     for artifact in result.artifacts:
         relative = _relative_inside(root, artifact, "artifact")
         path = root / relative
         if not path.is_file():
             raise FileNotFoundError(f"candidate artifact does not exist: {artifact}")
+        resolved_artifacts[path.name] = path
+    for required_artifact in ("metrics.json", "psd.png"):
+        if required_artifact not in resolved_artifacts:
+            raise FileNotFoundError(
+                f"candidate result is missing required artifact: {required_artifact}"
+            )
+    artifact_metrics = json.loads(
+        resolved_artifacts["metrics.json"].read_text(encoding="utf-8")
+    )
+    for name, value in result.metrics.items():
+        if name not in artifact_metrics or float(artifact_metrics[name]) != float(value):
+            raise ValueError(
+                f"metrics artifact disagrees with result for metric {name}"
+            )
+    if resolved_artifacts["psd.png"].read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("psd.png artifact is not a valid PNG file")
 
 
 def _scrubbed_environment() -> dict[str, str]:
