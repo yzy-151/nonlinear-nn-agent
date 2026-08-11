@@ -154,7 +154,13 @@ class TestTaskPDF(unittest.TestCase):
             _png(psd1)
             source["executions"][0]["psd_path"] = str(psd1)
             pdf_path = render_task_pdf(
-                TaskReportBuilder().build(source), output_dir=root
+                TaskReportBuilder().build(source),
+                output_dir=root,
+                figures={
+                    "architecture": str(psd1),
+                    "psd": str(psd1),
+                    "improvement": str(psd1),
+                },
             )
             self.assertTrue(pdf_path.exists())
             self.assertGreater(pdf_path.stat().st_size, 1000)

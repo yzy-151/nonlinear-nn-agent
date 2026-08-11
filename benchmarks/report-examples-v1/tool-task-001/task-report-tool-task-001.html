@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+  :root { --blue:#1d4ed8; --green:#16a34a; --red:#dc2626; --slate:#334155; --bg:#f8fafc; }
+  body { font-family:"Microsoft YaHei","SimHei",sans-serif; margin:0; background:var(--bg); color:var(--slate); }
+  .wrap { max-width:960px; margin:0 auto; padding:24px 28px 48px; background:#fff; }
+  h1 { font-size:24px; color:#0f172a; border-bottom:3px solid var(--blue); padding-bottom:10px; }
+  h2 { font-size:18px; color:#0f172a; margin-top:28px; border-left:5px solid var(--blue); padding-left:10px; }
+  .meta { color:#64748b; font-size:13px; margin:6px 0 16px; }
+  .cards { display:flex; flex-wrap:wrap; gap:12px; margin:18px 0; }
+  .card { flex:1 1 140px; background:#f1f5f9; border-radius:10px; padding:12px 14px; text-align:center; }
+  .card .v { font-size:20px; font-weight:700; color:var(--blue); }
+  .card .k { font-size:12px; color:#64748b; }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; }
+  th,td { border:1px solid #cbd5e1; padding:7px 9px; text-align:left; }
+  th { background:#e2e8f0; }
+  tr.best { background:#f0fdf4; font-weight:600; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  img { max-width:100%; border:1px solid #e2e8f0; border-radius:8px; margin:10px 0; }
+  .note { font-size:12px; color:#64748b; font-style:italic; }
+  .analysis { background:#f8fafc; border-left:4px solid var(--green); padding:12px 16px; border-radius:0 8px 8px 0; margin:10px 0; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:4px; }
+  .fidelity { display:inline-block; margin-top:20px; padding:8px 14px; background:#f0fdf4; color:var(--green);
+              border:1px solid #86efac; border-radius:8px; font-size:13px; }
+</style></head><body><div class="wrap">
+  <h1>实验任务报告 — tool-task-001</h1>
+  <div class="meta">目标：在 4000 参数预算内找到 NMSE &lt;= -35 dB 的非线性模型</div>
+  <div class="cards">
+    <div class="card"><div class="v">-37.4900 dB</div><div class="k">最优 NMSE</div></div><div class="card"><div class="v">-15.66 dB</div><div class="k">相对基线提升</div></div><div class="card"><div class="v">67%</div><div class="k">达标率</div></div><div class="card"><div class="v">3980</div><div class="k">参数量(最优)</div></div><div class="card"><div class="v">3</div><div class="k">实验数</div></div><div class="card"><div class="v">$0.1010</div><div class="k">总成本</div></div>
+  </div>
+
+  <h2>网络原理框图</h2>
+  <img src="file:///benchmarks/report-examples-v1/tool-task-001/figures/architecture.png" alt="架构图">
+
+  <h2>改进过程与效果</h2>
+  <img src="file:///benchmarks/report-examples-v1/tool-task-001/figures/improvement.png" alt="改进对比">
+  <div class="analysis">从基线 complex_lstsq（-21.8 dB）出发，增大 memory depth 至 24/220 后 NMSE 达到 -36.0 / -37.5 dB，相对基线提升约 15 dB。</div>
+
+  <h2>为什么有效</h2>
+  <img src="file:///benchmarks/report-examples-v1/tool-task-001/figures/psd.png" alt="PSD">
+  <p class="note">误差谱显著低于输入谱 → 非线性对消有效（示意谱，真实谱以实验产出的 psd.png 为准）</p>
+  <div class="analysis">memory depth 增加让模型捕获更长的非线性记忆；hidden_units 与激活函数选择影响表达能力，silu 在保持稳定训练的同时提升拟合精度。</div>
+
+  <h2>实验结果</h2>
+  <table>
+    <tr><th>实验</th><th>模型</th><th>NMSE (dB)</th><th>参数量</th><th>达标</th><th>标注</th></tr>
+    <tr class=""><td>exp_019</td><td>complex_lstsq</td><td class="num">-36.0300</td><td class="num">202</td><td>达标</td><td></td></tr><tr class="best"><td>exp016</td><td>complex_lstsq</td><td class="num">-37.4900</td><td class="num">3980</td><td>达标</td><td>最优</td></tr><tr class=""><td>exp_020</td><td>tiny_mlp</td><td class="num">-29.5000</td><td class="num">900</td><td>未达标</td><td></td></tr>
+  </table>
+
+  <h2>数据化总结</h2>
+  <table>
+    <tr><th>指标</th><th>数值</th></tr>
+    <tr><td>实验总数</td><td>3</td></tr>
+    <tr><td>达标实验数</td><td>2（67%）</td></tr>
+    <tr><td>最优 NMSE</td><td>-37.4900 dB</td></tr>
+    <tr><td>平均 NMSE</td><td>-34.3400 dB</td></tr>
+    <tr><td>相对基线提升</td><td>-15.66 dB</td></tr>
+    <tr><td>最优参数量</td><td>3980</td></tr>
+    <tr><td>总成本</td><td>$0.1010</td></tr>
+  </table>
+
+  <h2>经验总结</h2>
+  <div class="analysis">先验注入 + 邻域搜索让 LLM 从已知最优区域起步；Guard 拦截非法参数避免无效训练；下次可优先探索更大 memory depth 与更小参数量组合。</div>
+
+  <h2>消融</h2>
+  <table><tr><th>策略</th><th>best NMSE (dB)</th></tr><tr><td>llm_direct</td><td class="num">-33.5900</td></tr><tr><td>llm_program_reflection</td><td class="num">-37.8700</td></tr></table>
+
+  <h2>失败案例</h2>
+  <table><tr><th>ID</th><th>状态</th><th>错误</th></tr><tr><td>exp_021</td><td>rejected</td><td>非法字段 spline_range</td></tr></table>
+
+  <h2>限制</h2>
+  <p>训练预算 1 小时；仅非线性建模域</p>
+
+  <h2>复现</h2>
+  <p><code>python agent.py run --provider deepseek</code></p>
+
+  <span class="fidelity">✓ 数字经 Fidelity 校验，与源数据一致</span>
+</div></body></html>

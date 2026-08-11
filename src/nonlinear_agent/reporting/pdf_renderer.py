@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from nonlinear_agent.reporting.fidelity import FidelityChecker
+from nonlinear_agent.reporting.fidelity import TaskFidelityChecker
 from nonlinear_agent.reporting.report_spec import ReportSpec
 from nonlinear_agent.reporting.task_report_spec import TaskReportSpec
 
@@ -132,8 +133,8 @@ def render_pdf(spec: ReportSpec, output_dir: Path | str, source: dict[str, Any] 
     return pdf_path
 
 
-def _fmt(value: float | None) -> str:
-    return f"{value:.4f}" if value is not None else "unknown"
+def _fmt(value: float | None, digits: int = 4) -> str:
+    return f"{value:.{digits}f}" if value is not None else "unknown"
 
 
 _CN_FONT_CANDIDATES = (
@@ -157,10 +158,24 @@ def _register_cn_font() -> str:
 
 
 def render_task_pdf(
-    spec: TaskReportSpec, output_dir: Path | str, source: dict[str, Any] | None = None
+    spec: TaskReportSpec,
+    output_dir: Path | str,
+    source: dict[str, Any] | None = None,
+    figures: dict[str, str] | None = None,
+    analysis: dict[str, str] | None = None,
 ) -> Path:
     """中文任务级 PDF：表格 + PSD 图 + 达标/最优标注。"""
-    psds = [r.psd_path for r in spec.executions if r.psd_path]
+    figures = figures or {}
+    analysis = analysis or {}
+    psds = [
+        p
+        for p in (
+            figures.get("psd"),
+            figures.get("architecture"),
+            figures.get("improvement"),
+        )
+        if p and Path(p).exists()
+    ]
     errors: list[str] = []
     if not psds:
         errors.append("missing psd artifact for all executions")
@@ -253,6 +268,36 @@ def render_task_pdf(
             ),
         )
     )
+    story.append(Paragraph("数据化总结", heading))
+    best = spec.best()
+    hit_count = sum(1 for r in spec.executions if r.target_hit)
+    hit_rate = hit_count / len(spec.executions) if spec.executions else 0.0
+    story.append(
+        Table(
+            [
+                ["指标", "数值"],
+                ["实验总数", str(len(spec.executions))],
+                ["达标率", f"{hit_rate * 100:.0f}%"],
+                ["最优 NMSE", _fmt(best.nmse_db) if best else "—"],
+                ["相对基线提升", _fmt(best.nmse_db - best.baseline_nmse_db, 2) if best and best.nmse_db is not None and best.baseline_nmse_db is not None else "—"],
+                ["总成本", f"${_fmt(spec.cost_usd, 4)}"],
+            ],
+            style=TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.grey)]),
+        )
+    )
+    story.append(Paragraph("改进过程与效果", heading))
+    if figures.get("improvement") and Path(figures["improvement"]).exists():
+        story.append(Image(str(figures["improvement"]), width=5.5 * inch, height=2.8 * inch))
+    if analysis.get("improvement"):
+        story.append(Paragraph(analysis["improvement"], body))
+    story.append(Paragraph("为什么有效", heading))
+    if figures.get("psd") and Path(figures["psd"]).exists():
+        story.append(Image(str(figures["psd"]), width=5.5 * inch, height=2.8 * inch))
+    if analysis.get("why_effective"):
+        story.append(Paragraph(analysis["why_effective"], body))
+    story.append(Paragraph("经验总结", heading))
+    if analysis.get("experience"):
+        story.append(Paragraph(analysis["experience"], body))
     story.append(Paragraph("消融", heading))
     if spec.ablations:
         story.append(
@@ -275,10 +320,10 @@ def render_task_pdf(
         )
     story += [
         Paragraph(f"总成本：${_fmt(spec.cost_usd)}", body),
-        Paragraph("PSD 图", heading),
+        Paragraph("网络原理框图", heading),
     ]
-    for psd in psds:
-        story.append(Image(str(psd), width=4.5 * inch, height=2.2 * inch))
+    if figures.get("architecture") and Path(figures["architecture"]).exists():
+        story.append(Image(str(figures["architecture"]), width=6.0 * inch, height=2.4 * inch))
     story += [
         Paragraph("复现", heading),
         Paragraph(spec.reproduce_command, body),

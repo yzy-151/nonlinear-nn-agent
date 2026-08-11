@@ -825,6 +825,14 @@ confidence, valid_from, supersedes, invalidated_at
 - 示例：`benchmarks/report-examples-v1/task-001/task-report-task-001.pdf`（中文，fitz 验证段落文本可提取、数字正确）；
 - 测试：`tests/test_task_reporting.py` 6 个（builder/最优标注/fidelity/中文 Markdown/中文 PDF/缺图错误）；full offline suite **386 tests OK**。
 
+**报告工具化（nnagent 自主作报告，2026-08-11）**：
+
+- **`write_task_report` 已注册为 ToolRegistry 工具**（`reporting/tool.py` + `experiment_tools.py`）：Writing Agent 通过 ExecutionAgent 调用一个工具即可生成分析型中文 HTML+PDF 报告；
+- 报告内容（HTML + Edge headless 转 PDF）：网络原理框图（matplotlib 绘制，含 hidden_units/memory_depth/activation）、PSD 功率谱对比（含图注）、改进效果柱状图（标注 dB 提升）、实验结果表（最优/达标标注）、**数据化总结**（达标率/最优/平均 NMSE/提升/成本）、**Agent 提供的分析文本**（改进过程/为什么有效/经验总结，经 `analysis` 参数注入）、消融/失败案例/复现/限制、fidelity 校验标记；
+- 工具内部：`TaskFidelityChecker` 逐项核对数字 → 缺执行数据或 fidelity 不符 → 结构化错误返回给 Agent（error_policy=return_error）；
+- 测试：`tests/test_reporting_tool.py` 4 个——Agent 调用工具生成报告（completed、artifacts 含 html+pdf）、HTML 必需章节与图片、PDF 中文可读、空数据失败；
+- 说明：PSD 为示意谱（图注已注明），真实谱以实验产出的 psd.png 为准；架构图由工具自动绘制。
+
 ### v3.6 检索评测最终状态（2026-08-11）
 
 真实 30 查询（用户视角中文，2242 chunks）：

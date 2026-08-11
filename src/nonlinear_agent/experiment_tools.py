@@ -457,6 +457,18 @@ def build_experiment_tool_registry(
         ),
     )
 
+    # 工具 5：任务级中文报告（Writing Agent 能力）
+    from nonlinear_agent.reporting.tool import (
+        write_task_report_spec,
+        write_task_report_tool,
+    )
+
+    registry.register(
+        "write_task_report",
+        partial(write_task_report_tool, workspace=root),
+        spec=write_task_report_spec(),
+    )
+
     return registry
 
 
