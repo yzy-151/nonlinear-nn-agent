@@ -370,6 +370,11 @@ def build_experiment_tool_registry(
     root = Path(workspace)
     registry = ToolRegistry(default_timeout_seconds=default_timeout_seconds)
 
+    from nonlinear_agent.model_plugins.execution import (
+        run_candidate_model_tool,
+        validate_candidate_model_tool,
+    )
+
     # 工具 1：生成配置
     registry.register(
         "generate_config",
@@ -411,6 +416,66 @@ def build_experiment_tool_registry(
             },
             category="experiment",
             error_policy="return_error",  # 训练失败返回结构化错误，让 Agent 继续
+        ),
+    )
+
+    candidate_properties = {
+        "manifest_path": {"type": "string"},
+        "config": {"type": "object"},
+        "parameter_count_max": {"type": "integer", "minimum": 1},
+    }
+    registry.register(
+        "validate_candidate_model",
+        partial(validate_candidate_model_tool, workspace=root),
+        spec=ToolSpec(
+            name="validate_candidate_model",
+            description=(
+                "Validate an open model plugin manifest, configuration schema, "
+                "architecture descriptor, and parameter budget."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": candidate_properties,
+                "required": [
+                    "manifest_path",
+                    "config",
+                    "parameter_count_max",
+                ],
+                "additionalProperties": False,
+            },
+            category="coding",
+            error_policy="return_error",
+        ),
+    )
+    registry.register(
+        "run_candidate_model",
+        partial(run_candidate_model_tool, workspace=root),
+        spec=ToolSpec(
+            name="run_candidate_model",
+            description=(
+                "Execute a validated open model plugin through the fixed isolated "
+                "runner and return verified metrics and artifacts."
+            ),
+            input_schema={
+                "type": "object",
+                "properties": {
+                    **candidate_properties,
+                    "run_id": {"type": "string"},
+                    "output_dir": {"type": "string"},
+                    "seed": {"type": "integer"},
+                    "timeout_seconds": {"type": "number", "minimum": 0.1},
+                },
+                "required": [
+                    "manifest_path",
+                    "run_id",
+                    "config",
+                    "output_dir",
+                    "parameter_count_max",
+                ],
+                "additionalProperties": False,
+            },
+            category="experiment",
+            error_policy="return_error",
         ),
     )
 

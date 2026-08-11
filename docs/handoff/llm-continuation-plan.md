@@ -860,6 +860,18 @@ confidence, valid_from, supersedes, invalidated_at
 - 桌面/移动 Web 可下载 PDF；至少 3 份不同 run 报告通过视觉检查，无裁切、重叠、乱码；
 - 建立 `version/v3.9.0`。
 
+#### v4.0.0-b：LLM Coding 闭环（实施完成，待真实模型评测）
+
+- `CodingTaskSpec` 固定目标、候选名、smoke config、参数上限、超时和约束；
+- `CodeChangePlan` 要求 coding LLM 返回完整 Python plugin + manifest，不接受只给 `ModelClass`、Markdown fence、额外字段或候选目录外文件；
+- `CodingAgent.generate_candidate()` 依次执行 JSON/path gate、Python AST capability gate、CandidateRegistry contract gate 和固定 runner smoke training；失败只回传事实，默认最多修复两轮；
+- `ModelRouter` 使用独立 `coding` role；compat 与 SDK 客户端支持 planner/coding/writing 角色化 system prompt，可分别配置不同模型；
+- trace 仅记录 prompt/response/file SHA-256、attempt、gate status 和失败事实，不保存源代码或密钥；
+- 离线 FakeLLM E2E 已覆盖“首轮 SyntaxError -> 第二轮完整未知插件 -> 80 参数、NMSE -36.5 dB、PSD 成功”；这是闭环 fixture，不是 DeepSeek coding pass rate；
+- 安全边界：AST gate + 环境清理 + 子进程不是 OS sandbox，生产化仍需容器/网络/只读挂载/资源隔离。
+
+下一阶段只做 **v4.0.0-c 动态 Writing**：WritingAgent 从 `ModelDescriptor + TrainingResult + trace` 生成 `EvidenceBundle/NarrativeSpec/ArchitectureGraphSpec`，通用画任意模型架构并重做专业 HTML/PDF；不得再按固定模型名选择原理图。
+
 #### v4.0.0：Multi-Agent Evaluation & Closeout
 
 实现：single-agent vs multi-agent、memory off/on、shared-model vs role-model、writer off/on 四组消融；更新 README、学习文档、简历证据。

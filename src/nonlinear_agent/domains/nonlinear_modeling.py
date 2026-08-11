@@ -301,7 +301,14 @@ class NonlinearModelingDomain:
         return set(ExperimentConfig.__dataclass_fields__)
 
     def planner_allowed_tools(self) -> list[str]:
-        return ["generate_config", "run_training", "verify_artifacts", "write_report"]
+        return [
+            "generate_config",
+            "run_training",
+            "validate_candidate_model",
+            "run_candidate_model",
+            "verify_artifacts",
+            "write_report",
+        ]
 
 
 # ── Migrated from planner_validation.py ────────────────────────────

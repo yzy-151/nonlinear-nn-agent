@@ -209,12 +209,11 @@ def compute_method_statistics(
     return stats
 
 
-def write_summary_json(
+def build_summary(
     trial_rows: list[dict[str, Any]],
     methods: list[str],
-    output_path: Path,
 ) -> dict[str, Any]:
-    """Write full summary.json with per-method stats and paired comparisons."""
+    """Build per-method statistics and paired comparisons without file I/O."""
     # Detect primary metric from first non-rejected row
     metric = "nmse_db"
     lower_is_better = True
@@ -255,7 +254,7 @@ def write_summary_json(
                 lower_is_better=lower_is_better,
             )
 
-    summary = {
+    return {
         "protocol_version": "1.9.0",
         "bootstrap_seed": BOOTSTRAP_SEED,
         "bootstrap_samples": BOOTSTRAP_SAMPLES,
@@ -263,6 +262,15 @@ def write_summary_json(
         "per_method": per_method,
         "paired_comparisons": paired,
     }
+
+
+def write_summary_json(
+    trial_rows: list[dict[str, Any]],
+    methods: list[str],
+    output_path: Path,
+) -> dict[str, Any]:
+    """Build and write full summary.json."""
+    summary = build_summary(trial_rows, methods)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(

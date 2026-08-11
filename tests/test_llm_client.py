@@ -18,6 +18,33 @@ from nonlinear_agent.llm import (
 
 
 class TestCompatibleClientRetry(unittest.TestCase):
+    def test_coding_role_uses_role_specific_system_prompt(self):
+        client = create_llm_client(
+            kind="compat",
+            api_key="k",
+            base_url="https://example.com",
+            model="coding-model",
+            role="coding",
+        )
+        payload = client._build_payload("write candidate", stream=False)
+        system = payload["messages"][0]["content"]
+        self.assertIn("coding agent", system.lower())
+        self.assertNotIn("listed model names", system.lower())
+
+    def test_explicit_system_prompt_overrides_role_default(self):
+        client = create_llm_client(
+            kind="compat",
+            api_key="k",
+            base_url="https://example.com",
+            model="m",
+            role="coding",
+            system_prompt="custom role contract",
+        )
+        payload = client._build_payload("hello", stream=False)
+        self.assertEqual(
+            payload["messages"][0]["content"], "custom role contract"
+        )
+
     def test_retries_on_retryable_http_error_then_succeeds(self):
         client = OpenAICompatibleClient(
             api_key="k", base_url="https://example.com", model="m",

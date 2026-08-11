@@ -25,6 +25,7 @@ from nonlinear_agent.evaluation_protocol import (
     build_smoke_protocol,
 )
 from nonlinear_agent.evaluation_statistics import (
+    build_summary,
     write_summary_json,
     write_summary_csv,
 )
@@ -480,7 +481,7 @@ async def run_compare_protocol(
         write_best_so_far_plot(rows, output_dir)
         write_reflection_ablation_plot(rows, summary, output_dir)
     else:
-        summary = write_summary_json(rows, protocol.methods, Path(".") / "_tmp_summary.json")
+        summary = build_summary(rows, protocol.methods)
 
     return rows, summary, None
 
@@ -569,10 +570,12 @@ async def stream_compare_events(
         with (output_dir / "trials.jsonl").open("w", encoding="utf-8") as fh:
             for row in rows:
                 fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
-    summary = write_summary_json(rows, protocol.methods, (output_dir or Path(".")) / "summary.json")
     if output_dir is not None:
+        summary = write_summary_json(rows, protocol.methods, output_dir / "summary.json")
         write_summary_csv(summary, output_dir / "summary.csv")
         write_best_so_far_plot(rows, output_dir)
         write_reflection_ablation_plot(rows, summary, output_dir)
+    else:
+        summary = build_summary(rows, protocol.methods)
 
     yield {"type": "compare_complete", "summary": summary, "n_trials": len(rows)}
