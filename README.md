@@ -44,6 +44,7 @@ Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 - **SQLite 控制面**：请求去重、任务 lease、原子 claim、单调事件序列（WAL + busy timeout），并发压测通过
 - **层级 Trace**：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token/cost` 全链路
 - **Web UI + CLI + Dashboard** 三套交付面，浏览器一键跑实验并实时看事件流
+- **开放模型候选执行（v4.0.0-a）**：CodingAgent 未来生成的模型不再受现有 `model_type` 名称白名单限制；候选代码以 `ModelPlugin + ModelDescriptor + manifest` 描述模型、训练入口和架构图，经 CandidateRegistry 路径/契约/配置/参数预算校验后，由 ExecutionAgent 调用固定子进程 runner 执行。父进程复核有限指标、参数量、descriptor hash 和全部 artifact 路径；当前阶段提供执行基础设施，尚不代表真实 LLM coding pass rate
 
 ## 内置实验领域（3.1）
 

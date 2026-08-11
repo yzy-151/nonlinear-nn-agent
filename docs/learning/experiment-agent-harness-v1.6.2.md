@@ -110,3 +110,27 @@ python agent.py serve --host 127.0.0.1 --port 8000
 - 不再无目标堆新模块。
 
 RAG、长期语义记忆、多 Agent 协作等内容交给 Storm 或新的独立项目覆盖。
+## 9. v4.0.0-a 补充：CodingAgent 生成的新模型怎样被执行
+
+本阶段解决的不是“再给 `build_model()` 增加一个 `if model_type == ...`”，而是建立一个开放契约：模型名称可以完全未知，但它必须说明自己是谁、怎样训练、怎样估算参数量、架构由哪些节点和边组成。
+
+### 四个核心对象
+
+- `ModelDescriptor`：模型名、版本、训练模式、配置 schema、架构节点和边。WritingAgent 后续应读取它画图，而不是按模型名猜结构。
+- `ModelPlugin`：插件必须实现 `estimate_parameters(config)` 和 `train(request)`。普通神经网络可在 `train()` 中复用公共 trainer，闭式算法或特殊优化也可提供自定义训练。
+- `CandidateRegistry`：从 `models/candidates/*.json` manifest 加载插件。它不限制模型名字，但入口文件 resolve 后必须留在候选目录，并校验 descriptor、配置和参数预算。
+- `TrainingResult`：统一返回终态、数值指标、artifact 路径和 descriptor hash，使 ExecutionAgent 与 WritingAgent 不依赖模型内部实现。
+
+### 为什么要固定 runner
+
+ExecutionAgent 不接受 CodingAgent 提供的任意 shell 命令，只能调用 `run_candidate_model`。工具内部启动固定的 `python -m nonlinear_agent.model_plugins.runner`，清理 secret 环境变量，并在子进程结束后重新检查：
+
+1. `nmse_db`、`parameter_count` 等指标必须是有限数；
+2. 报告参数量必须等于契约校验阶段的估算；
+3. descriptor hash 必须和执行前一致，防止训练时替换模型描述；
+4. 所有 artifact 必须真实存在且位于 workspace 内；
+5. 插件返回 failed 或 runner 非零退出都不能伪装成成功。
+
+### 当前边界
+
+v4.0.0-a 证明的是“未知模型插件可被安全边界检查并由 ExecutionAgent 执行”，不是“LLM 已能稳定自主写模型”。当前子进程提供崩溃隔离和环境清理，但不是容器级 OS sandbox；后续 v4.0.0-b 仍需加入 LLM `CodeChangePlan`、AST/import gate、测试门和最多两轮事实修复，之后才能统计真实 CodingAgent pass rate。
