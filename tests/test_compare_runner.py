@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -79,6 +80,34 @@ class TestCompareRunner(unittest.TestCase):
             self.assertGreater(types.count("trial_done"), 0)
             complete = events[-1]
             self.assertIn("summary", complete)
+
+    def test_no_output_dir_does_not_write_summary_into_process_cwd(self):
+        original = Path.cwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            try:
+                os.chdir(root)
+                asyncio.run(
+                    run_compare_protocol(
+                        self._smoke_protocol(), self.domain, root / "workspace"
+                    )
+                )
+                self.assertFalse((root / "_tmp_summary.json").exists())
+
+                async def collect():
+                    return [
+                        event
+                        async for event in stream_compare_events(
+                            self._smoke_protocol(),
+                            self.domain,
+                            root / "workspace",
+                        )
+                    ]
+
+                asyncio.run(collect())
+                self.assertFalse((root / "summary.json").exists())
+            finally:
+                os.chdir(original)
 
     def test_optuna_strategy_isolation(self):
         """If one strategy fails, others still produce trials."""
