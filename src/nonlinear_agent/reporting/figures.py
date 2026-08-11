@@ -14,6 +14,9 @@ import matplotlib.pyplot as plt
 plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]
 plt.rcParams["axes.unicode_minus"] = False
 
+ARCH_NODE_FONT_SIZE = 15.0
+ARCH_EDGE_FONT_SIZE = 11.5
+
 
 def draw_architecture_graph(graph: Any, output_path: Path) -> Path:
     """Draw any ModelDescriptor graph without model-name branching."""
@@ -54,34 +57,36 @@ def draw_architecture_graph(graph: Any, output_path: Path) -> Path:
         grouped.setdefault(levels[node_id], []).append(node_id)
     max_level = max(grouped)
     max_rows = max(len(items) for items in grouped.values())
-    fig_width = max(8.5, 2.7 * (max_level + 1))
-    fig_height = max(3.5, 1.65 * max_rows + 1.7)
+    level_spacing = 3.55
+    row_spacing = 1.95
+    fig_width = max(10.0, level_spacing * (max_level + 1))
+    fig_height = max(4.2, row_spacing * max_rows + 2.0)
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis("off")
-    ax.set_xlim(-0.7, max_level * 2.7 + 2.5)
-    ax.set_ylim(-0.6, max_rows * 1.55 + 0.8)
+    ax.set_xlim(-0.7, max_level * level_spacing + 3.25)
+    ax.set_ylim(-0.6, max_rows * row_spacing + 0.9)
 
     palette = ("#dff4ef", "#fce7de", "#fff2c7", "#dfeaf7", "#ece8f5")
     positions: dict[str, tuple[float, float]] = {}
     by_id = {node.node_id: node for node in nodes}
-    box_width = 2.15
-    box_height = 1.02
+    box_width = 2.85
+    box_height = 1.38
     for level, ids in grouped.items():
-        total_height = len(ids) * 1.55
-        start = (max_rows * 1.55 - total_height) / 2 + 0.45
+        total_height = len(ids) * row_spacing
+        start = (max_rows * row_spacing - total_height) / 2 + 0.45
         for index, node_id in enumerate(ids):
-            x = level * 2.7
-            y = start + (len(ids) - index - 1) * 1.55
+            x = level * level_spacing
+            y = start + (len(ids) - index - 1) * row_spacing
             positions[node_id] = (x, y)
             node = by_id[node_id]
             details = " · ".join(
                 f"{key}={value}" for key, value in list(node.details.items())[:3]
             )
-            label = "\n".join(textwrap.wrap(node.label, width=24))
-            operation = "\n".join(textwrap.wrap(node.operation, width=26))
+            label = "\n".join(textwrap.wrap(node.label, width=17))
+            operation = "\n".join(textwrap.wrap(node.operation, width=18))
             text = f"{label}\n{operation}"
             if details:
-                text += "\n" + "\n".join(textwrap.wrap(details, width=30))
+                text += "\n" + "\n".join(textwrap.wrap(details, width=24))
             rect = plt.Rectangle(
                 (x, y),
                 box_width,
@@ -97,7 +102,7 @@ def draw_architecture_graph(graph: Any, output_path: Path) -> Path:
                 text,
                 ha="center",
                 va="center",
-                fontsize=8.5,
+                fontsize=ARCH_NODE_FONT_SIZE,
                 color="#20252b",
                 linespacing=1.25,
             )
@@ -122,7 +127,7 @@ def draw_architecture_graph(graph: Any, output_path: Path) -> Path:
                 edge.label,
                 ha="center",
                 va="bottom",
-                fontsize=7.5,
+                fontsize=ARCH_EDGE_FONT_SIZE,
                 color="#626b75",
             )
 
@@ -130,7 +135,7 @@ def draw_architecture_graph(graph: Any, output_path: Path) -> Path:
     ax.set_title(
         f"{graph.name}  |  v{graph.version}  |  {graph.training_mode}  |  "
         f"{len(nodes)} nodes / {len(edges)} edges  |  {descriptor_state}",
-        fontsize=11.5,
+        fontsize=13.0,
         color="#20252b",
         pad=12,
     )
@@ -261,36 +266,50 @@ def draw_psd_figure(
 
 
 def draw_improvement_bars(
-    rows: list[tuple[str, float, float]], output_path: Path
+    rows: list[tuple[str, float | None, float]], output_path: Path
 ) -> Path:
-    """Draw a baseline-vs-improved NMSE bar chart with improvement labels."""
+    """Draw a readable run-level NMSE comparison with optional baselines."""
     names = [r[0] for r in rows]
     baselines = [r[1] for r in rows]
     improved = [r[2] for r in rows]
     import numpy as np
 
-    x = np.arange(len(names))
-    width = 0.36
-    fig, ax = plt.subplots(figsize=(7.5, 3.8))
-    ax.bar(x - width / 2, baselines, width, label="基线", color="#94a3b8")
-    ax.bar(x + width / 2, improved, width, label="改进后", color="#16a34a")
-    for i, (b, imp) in enumerate(zip(baselines, improved)):
-        gain = b - imp
+    y = np.arange(len(names))
+    colors = ["#0f8b78" if value == min(improved) else "#7aa6a1" for value in improved]
+    fig_height = max(4.2, 0.48 * len(names) + 1.6)
+    fig, ax = plt.subplots(figsize=(8.8, fig_height))
+    ax.barh(y, improved, height=0.58, color=colors, label="候选 NMSE")
+    for i, value in enumerate(improved):
+        offset = -0.35 if value <= 0 else 0.35
         ax.text(
-            i + width / 2,
-            imp + 0.4,
-            f"{gain:+.1f} dB",
-            ha="center",
-            fontsize=9,
+            value + offset,
+            i,
+            f"{value:.2f} dB",
+            ha="right" if value <= 0 else "left",
+            va="center",
+            fontsize=9.5,
             fontweight="bold",
-            color="#16a34a",
+            color="#155e55" if value <= 0 else "#7f1d1d",
         )
-    ax.set_xticks(x)
-    ax.set_xticklabels(names)
-    ax.set_ylabel("NMSE (dB, 越低越好)")
-    ax.set_title("改进效果对比", fontsize=13)
-    ax.legend()
-    ax.grid(axis="y", alpha=0.25)
+    baseline_points = [(i, value) for i, value in enumerate(baselines) if value is not None]
+    if baseline_points:
+        ax.scatter(
+            [value for _, value in baseline_points],
+            [i for i, _ in baseline_points],
+            marker="D",
+            s=42,
+            color="#475569",
+            label="基线 NMSE",
+            zorder=3,
+        )
+    ax.axvline(0.0, color="#334155", linewidth=0.8)
+    ax.set_yticks(y)
+    ax.set_yticklabels(names, fontsize=9.5)
+    ax.invert_yaxis()
+    ax.set_xlabel("NMSE / dB（越低越好）")
+    ax.set_title("九次搜索实验 NMSE 对比", fontsize=13)
+    ax.legend(loc="lower right")
+    ax.grid(axis="x", alpha=0.22)
     fig.tight_layout()
     fig.savefig(output_path, dpi=140, bbox_inches="tight")
     plt.close(fig)

@@ -260,3 +260,46 @@ CodingAgent 继续只在自有 worktree 写候选源码，main 的新模型源�
 ### 面试表达
 
 > 我把原先可单测但互相独立的四个 Agent 接进同一 LangGraph。Supervisor 只负责结构化状态、路由、预算、取消和唯一终态；Execution 保持 tool-only。失败由程序提取成 FailureSpec，再由 Plan Agent 基于这些事实重规划，最大次数受限。每个节点产生可回放 timeline，记录 handoff 引用和实际模型 token/cost。候选代码始终留在隔离 worktree，只有校验后的实验产物和报告由确定性 runtime 发布到主工程。离线测试证明编排与安全契约成立，真实 DeepSeek 的成功率和收益需要下一阶段固定协议评测。
+
+## 13. v4.0.0-e：真实 3x3 API 验收学到了什么
+
+### 13.1 “Planner 看见错误”不等于“Coding 能修错误”
+
+第一版 batch graph 只把上一轮 facts 交给 Planner；CodingTask 仍只有总目标、候选 config 和 risk，所以 Planner 即使解释了 `ArchitectureNode(id=...)` 错误，CodingAgent 仍会重复。修复后 Supervisor 把 prior outcomes 压成 `{round, experiment_id, candidate, status, metrics, failure_facts}`，去掉源码、worktree 和原始 execution payload，再交给 CodingTask。面试时应强调：**reflection 的消费者不只 Planner，事实必须沿 handoff 到真正能采取行动的角色。**
+
+### 13.2 开放 Coding 契约必须精确，不应靠模型猜内部 API
+
+真实 DeepSeek 连续暴露了 `id/node_id`、非法 `training_mode`、不存在的 `train_data`、`success/completed`、artifact dict/tuple 和 metrics 元数据问题。处理原则分两类：
+
+1. 研究语义必须严格：同一 MPDPD `x/d`、固定 split/seed、保留复数 I/Q、参数/epoch 预算、真实 PSD；
+2. 等价表示可以规范化：成功状态同义词、命名 artifact mapping 的 values、非数值 metrics metadata、候选目录名漂移。
+
+这比“提示词写详细一点”更重要：LLM 输出位于不可信边界，适配层要把常见表示差异变成 canonical contract，再由确定性 gate 检查真正影响正确性和安全性的条件。
+
+### 13.3 三轮真实结果怎样解读
+
+连续 run `deepseek-3x3-20260811-l` 完成 9 次搜索与一次终评，8/9 搜索成功。Round 1 最好只有 `-0.0474 dB`；Round 2 修复 LUT 但仍为 `0.6773 dB`；Round 3 的 `LUTSplineV3` 达到 `-23.0778 dB / 24 params`，独立终评复现同一数值。它证明 Agent 能从失败事实逐轮推进，但没有达到 `-41 dB`，也明显弱于项目历史先验。
+
+面试时不要说“Agent 找到最优通信模型”，应说：
+
+> 我用真实 DeepSeek 跑了 3 轮 9 候选，8 个完成。系统从第一轮实现失败和接近 0 dB 的弱模型出发，第三轮找到 24 参数、-23.08 dB 的 LUT-Spline，并在独立终评复现。目标 -41 dB 没命中，所以结论是 Harness 的闭环和故障恢复成立，但自主算法质量仍需知识检索、标准 evaluator 和更强 coding 模型提升。
+
+### 13.4 WritingAgent 为什么需要“生成后自修复”
+
+真实报告两次被 fidelity gate 拒绝：一次把错误行号写进 failure analysis，却没有把字符串中的数字纳入被引事实；一次在 limitations 中写 `-23.08`，却只引用 `task:limits`。最终实现保留 section-scoped citation，不放宽成“全报告数字都可用”；第一次失败后把具体 fidelity errors 回传 WritingAgent，允许一次修改文本或 evidence refs。第二次仍失败才终止。
+
+### 13.5 当前还很 toy 的部分
+
+- 候选自己上报 NMSE，Executor 只检查有限值和参数一致性；下一版应要求预测 artifact，由 Executor 在固定测试集上重算 NMSE。
+- Coding 源码塞在单个 JSON 字符串中，长响应会截断；应改为结构化文件流、patch tool 或分文件 tool call。
+- batch 内是先完成三个 Coding 再执行，长候选拖慢整轮；可改为候选级流水并发，同时保持 round barrier。
+- Windows 外层取消没有杀完整进程树，曾留下孤儿 run；应使用 Job Object 或 control plane 记录并递归终止 owned process tree。
+- 最终 PSD 来自候选插件，能证明 artifact 链路真实，但图的领域基线和统一绘图语义仍应由 Executor 负责。
+
+### 13.6 本阶段可核验资产
+
+- PDF：`docs/reports/v4.0.0-e-deepseek-3x3-report.pdf`
+- 架构：`docs/assets/results/v4.0.0-e/architecture.png`
+- 最终 PSD：`docs/assets/results/v4.0.0-e/final-psd.png`
+- 九实验 NMSE：`docs/assets/results/v4.0.0-e/nine-experiment-nmse.png`
+- 主搜索：21 次模型调用，37,914 prompt tokens，71,483 completion tokens，估算 `$0.08886808`

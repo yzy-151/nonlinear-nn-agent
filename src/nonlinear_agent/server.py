@@ -615,24 +615,42 @@ def _build_default_multi_agent_graph(
         for role in ("idea_plan", "coding", "writing")
     }
     timeout_seconds = float(payload.get("llm_timeout_seconds", 180.0))
-    router = ModelRouter(
-        roles=roles,
-        client_factory=lambda role, config: create_llm_client(
+    def client_factory(role: str, config: Any) -> Any:
+        client = create_llm_client(
             model=config.model,
             timeout_seconds=timeout_seconds,
             role=role,
-        ),
-    )
+        )
+        return _configure_multi_agent_client(
+            client,
+            role,
+            temperature=float(config.temperature),
+            payload=payload,
+        )
+
+    router = ModelRouter(roles=roles, client_factory=client_factory)
     router.set_budgets(
         cost_budget_usd=float(payload.get("cost_budget_usd", 1.0)),
         token_budget=int(payload.get("token_budget", 100_000)),
     )
-    coding = CodingAgent(repo_root=workspace, model_router=router)
+    coding_temp_root = (
+        Path.home() / "Desktop" / "codex" / "nonlinear-nn-agent" / "coding-worktrees"
+    )
+    coding = CodingAgent(
+        repo_root=workspace,
+        model_router=router,
+        temp_root=coding_temp_root,
+    )
     writing = WritingAgent(model_router=router)
     runtime = MultiAgentRuntime(
         repo_root=workspace,
         model_router=router,
         coding_agent=coding,
+        coding_agent_factory=lambda: CodingAgent(
+            repo_root=workspace,
+            model_router=router,
+            temp_root=coding_temp_root,
+        ),
         writing_agent=writing,
         nmse_threshold_db=float(payload.get("nmse_threshold_db", -35.0)),
     )
@@ -641,7 +659,29 @@ def _build_default_multi_agent_graph(
         max_replans=int(payload.get("max_replans", 1)),
         model_router=router,
         cancel_check=cancel_check,
+        rounds=int(payload.get("rounds", 1)),
+        experiments_per_round=int(payload.get("experiments_per_round", 1)),
+        final_evaluation=bool(payload.get("final_evaluation", False)),
     )
+
+
+def _configure_multi_agent_client(
+    client: Any,
+    role: str,
+    temperature: float,
+    payload: dict[str, Any],
+) -> Any:
+    """Apply role-specific output and retry bounds to compatible clients."""
+    default_tokens = {"idea_plan": 4000, "coding": 8000, "writing": 5000}
+    if hasattr(client, "max_tokens"):
+        client.max_tokens = int(
+            payload.get(f"{role}_max_tokens", default_tokens.get(role, 4000))
+        )
+    if hasattr(client, "max_retries"):
+        client.max_retries = int(payload.get("llm_max_retries", 1))
+    if hasattr(client, "temperature"):
+        client.temperature = float(temperature)
+    return client
 
 # ============================================================
 # create_app — FastAPI 应用工厂（核心）

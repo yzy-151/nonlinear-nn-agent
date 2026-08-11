@@ -6,6 +6,26 @@ from tests.test_supervisor_e2e import _plan
 
 
 class TestMultiAgentServer(unittest.TestCase):
+    def test_role_client_limits_bound_long_coding_responses(self):
+        from nonlinear_agent.server import _configure_multi_agent_client
+
+        class Client:
+            max_tokens = None
+            max_retries = 3
+            temperature = 0.2
+
+        coding = _configure_multi_agent_client(
+            Client(), "coding", temperature=0.0, payload={}
+        )
+        writing = _configure_multi_agent_client(
+            Client(), "writing", temperature=0.1, payload={}
+        )
+
+        self.assertEqual(coding.max_tokens, 8000)
+        self.assertEqual(writing.max_tokens, 5000)
+        self.assertEqual(coding.max_retries, 1)
+        self.assertEqual(coding.temperature, 0.0)
+
     def test_sse_endpoint_streams_each_role_and_one_terminal(self):
         try:
             from fastapi.testclient import TestClient

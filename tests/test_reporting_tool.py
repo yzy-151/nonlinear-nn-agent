@@ -113,6 +113,85 @@ def _png(path: Path) -> None:
     plt.close(fig)
 
 
+def _three_round_task_source(root: Path) -> dict:
+    source = _task_source(root)
+    descriptor = dict(source["executions"][1]["model_descriptor"])
+    descriptor["name"] = "final_unseen_model"
+    executions = []
+    round_records = []
+    for round_index in range(1, 4):
+        outcomes = []
+        for experiment_index in range(1, 4):
+            run_id = f"r{round_index}-exp{experiment_index}"
+            nmse = -30.0 - round_index - experiment_index
+            if run_id == "r3-exp3":
+                nmse = -39.0
+            execution = {
+                "run_id": run_id,
+                "round_index": round_index,
+                "model_type": f"unseen_model_{round_index}_{experiment_index}",
+                "nmse_db": nmse,
+                "parameter_count": 1000 + round_index * 100 + experiment_index,
+                "baseline_nmse_db": -21.83,
+                "psd_path": None,
+                "target_hit": nmse <= -35.0,
+                "config": {"optimizer": "adam", "learning_rate": 0.001},
+            }
+            executions.append(execution)
+            outcomes.append(
+                {
+                    "experiment_id": run_id,
+                    "candidate_name": execution["model_type"],
+                    "status": "completed",
+                    "metrics": {
+                        "nmse_db": nmse,
+                        "parameter_count": execution["parameter_count"],
+                    },
+                    "evidence_refs": [f"metric:{run_id}"],
+                }
+            )
+        round_records.append(
+            {
+                "round_index": round_index,
+                "incoming_fact_refs": (
+                    [] if round_index == 1 else [f"fact:round-{round_index - 1}:best"]
+                ),
+                "hypothesis": f"round {round_index} hypothesis",
+                "decision_rationale": f"round {round_index} evidence-driven rationale",
+                "experiment_ids": [item["experiment_id"] for item in outcomes],
+                "outcomes": outcomes,
+                "extracted_facts": [f"fact:round-{round_index}:best"],
+                "next_round_intent": (
+                    "refine from measured error" if round_index < 3 else "final evaluation"
+                ),
+            }
+        )
+    final_psd = root / "final-real-psd.png"
+    _png(final_psd)
+    source["executions"] = executions
+    source["round_records"] = round_records
+    source["final_evaluation"] = {
+        "run_id": "r3-exp3-final",
+        "source_experiment_id": "r3-exp3",
+        "evaluation_kind": "final",
+        "status": "completed",
+        "model_type": "final_unseen_model",
+        "nmse_db": -38.5,
+        "parameter_count": 1303,
+        "baseline_nmse_db": -21.83,
+        "psd_path": str(final_psd),
+        "target_hit": True,
+        "model_descriptor": descriptor,
+        "config": {
+            "optimizer": "adam",
+            "learning_rate": 0.001,
+            "seed": 2026,
+            "dataset_split": "fixed-test",
+        },
+    }
+    return source
+
+
 def _analysis() -> dict[str, str]:
     return {
         "improvement": (
@@ -131,6 +210,50 @@ def _analysis() -> dict[str, str]:
 
 
 class TestWriteTaskReportTool(unittest.TestCase):
+    def test_architecture_graph_uses_readable_report_font_sizes(self):
+        from nonlinear_agent.reporting.figures import (
+            ARCH_EDGE_FONT_SIZE,
+            ARCH_NODE_FONT_SIZE,
+        )
+
+        self.assertGreaterEqual(ARCH_NODE_FONT_SIZE, 14.0)
+        self.assertGreaterEqual(ARCH_EDGE_FONT_SIZE, 11.0)
+
+    def test_three_round_report_keeps_all_runs_but_uses_only_final_psd_and_architecture(self):
+        from nonlinear_agent.reporting.tool import write_task_report_tool
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            result = write_task_report_tool(
+                workspace=root,
+                task_source=_three_round_task_source(root),
+                output_dir="reports/three-round",
+            )
+            html = (root / result["html_path"]).read_text(encoding="utf-8")
+
+            self.assertEqual(html.count('class="round-card"'), 3)
+            self.assertEqual(html.count("figures/psd.png"), 1)
+            self.assertIn("final_unseen_model", html)
+            self.assertIn("r3-exp3-final", html)
+            for round_index in range(1, 4):
+                for experiment_index in range(1, 4):
+                    self.assertIn(f"r{round_index}-exp{experiment_index}", html)
+
+    def test_final_evaluation_must_supply_the_report_psd(self):
+        from nonlinear_agent.reporting.pdf_renderer import RenderError
+        from nonlinear_agent.reporting.tool import write_task_report_tool
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source = _three_round_task_source(root)
+            source["final_evaluation"]["psd_path"] = None
+            with self.assertRaisesRegex(RenderError, "final evaluation.*PSD"):
+                write_task_report_tool(
+                    workspace=root,
+                    task_source=source,
+                    output_dir="reports/missing-final-psd",
+                )
+
     def _agent(self) -> ExecutionAgent:
         from nonlinear_agent.experiment_tools import build_experiment_tool_registry
 

@@ -11,6 +11,15 @@ from nonlinear_agent.cli import build_parser, main
 
 
 class CliTest(unittest.TestCase):
+    def test_multi_agent_parser_exposes_three_by_three_final_evaluation_defaults(self):
+        args = build_parser().parse_args(["multi-agent", "--provider", "deepseek"])
+
+        self.assertEqual(args.command, "multi-agent")
+        self.assertEqual(args.rounds, 3)
+        self.assertEqual(args.experiments_per_round, 3)
+        self.assertTrue(args.final_evaluation)
+        self.assertEqual(args.nmse_threshold_db, -35.0)
+
     def test_parser_exposes_operational_subcommands(self):
         parser = build_parser()
 

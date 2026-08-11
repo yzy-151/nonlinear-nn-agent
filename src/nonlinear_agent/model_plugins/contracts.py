@@ -79,6 +79,8 @@ class TrainingRequest:
     workspace: str
     config: dict[str, Any]
     output_dir: str
+    data_file: str = "examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat"
+    train_ratio: float = 0.8
     seed: int = 42
 
     def to_dict(self) -> dict[str, Any]:
@@ -91,6 +93,11 @@ class TrainingRequest:
             workspace=str(value.get("workspace", "")),
             config=dict(value.get("config") or {}),
             output_dir=str(value.get("output_dir", "")),
+            data_file=str(
+                value.get("data_file")
+                or "examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat"
+            ),
+            train_ratio=float(value.get("train_ratio", 0.8)),
             seed=int(value.get("seed", 42)),
         )
 
@@ -107,13 +114,27 @@ class TrainingResult:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "TrainingResult":
+        status = str(value.get("status", "")).strip().lower()
+        if status in {"success", "succeeded", "ok"}:
+            status = "completed"
+        raw_artifacts = value.get("artifacts", [])
+        artifact_values = (
+            raw_artifacts.values()
+            if isinstance(raw_artifacts, dict)
+            else raw_artifacts
+        )
+        metrics: dict[str, float] = {}
+        for key, metric in dict(value.get("metrics") or {}).items():
+            if isinstance(metric, bool):
+                continue
+            try:
+                metrics[str(key)] = float(metric)
+            except (TypeError, ValueError):
+                continue
         return cls(
-            status=str(value.get("status", "")),
-            metrics={
-                str(key): float(metric)
-                for key, metric in dict(value.get("metrics") or {}).items()
-            },
-            artifacts=tuple(str(item) for item in value.get("artifacts", [])),
+            status=status,
+            metrics=metrics,
+            artifacts=tuple(str(item) for item in artifact_values),
             descriptor_hash=str(value.get("descriptor_hash", "")),
         )
 

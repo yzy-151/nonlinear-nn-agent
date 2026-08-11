@@ -645,7 +645,7 @@ document.getElementById("agBtn").addEventListener("click",function(){
   go("/agent/ui-agent-"+Date.now()+"/events",body,document.getElementById("agBtn"))
 });
 document.getElementById("maBtn").addEventListener("click",function(){
-  var body={provider:"deepseek",goal:document.getElementById("maGoal").value,idea_plan_model:document.getElementById("maPlanModel").value,coding_model:document.getElementById("maCodeModel").value,writing_model:document.getElementById("maWriteModel").value,max_replans:Number(document.getElementById("maReplans").value),nmse_threshold_db:Number(document.getElementById("maThreshold").value),token_budget:Number(document.getElementById("maTokens").value),cost_budget_usd:Number(document.getElementById("maCost").value)};
+  var body={provider:"deepseek",goal:document.getElementById("maGoal").value,idea_plan_model:document.getElementById("maPlanModel").value,coding_model:document.getElementById("maCodeModel").value,writing_model:document.getElementById("maWriteModel").value,max_replans:Number(document.getElementById("maReplans").value),nmse_threshold_db:Number(document.getElementById("maThreshold").value),token_budget:Number(document.getElementById("maTokens").value),cost_budget_usd:Number(document.getElementById("maCost").value),rounds:3,experiments_per_round:3,final_evaluation:true};
   go("/multi-agent/ui-multi-"+Date.now()+"/events",body,document.getElementById("maBtn"))
 });
 document.getElementById("bmBtn").addEventListener("click",function(){

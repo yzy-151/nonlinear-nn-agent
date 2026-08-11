@@ -83,6 +83,61 @@ class PlanGate:
                     )
         return errors
 
+    def validate_batch(
+        self,
+        plan: dict[str, Any],
+        expected_experiments: int,
+        round_index: int = 1,
+        available_fact_refs: set[str] | None = None,
+    ) -> list[str]:
+        """Validate the cross-experiment contract for one search round."""
+        errors = self.validate(plan)
+        candidates = plan.get("candidate_experiments", [])
+        if not isinstance(candidates, list):
+            return errors
+        if len(candidates) != expected_experiments:
+            errors.append(
+                f"candidate_experiments must contain exactly {expected_experiments} items"
+            )
+
+        experiment_ids: list[str] = []
+        known_facts = set(available_fact_refs or set())
+        for index, candidate in enumerate(candidates):
+            if not isinstance(candidate, dict):
+                continue
+            for field in (
+                "experiment_id",
+                "exploration_role",
+                "based_on_fact_refs",
+                "expected_information_gain",
+            ):
+                if field not in candidate:
+                    errors.append(
+                        f"candidate_experiments[{index}] missing batch field: {field}"
+                    )
+            experiment_id = str(candidate.get("experiment_id", "")).strip()
+            if experiment_id:
+                experiment_ids.append(experiment_id)
+            refs = candidate.get("based_on_fact_refs", [])
+            if not isinstance(refs, list):
+                errors.append(
+                    f"candidate_experiments[{index}] based_on_fact_refs must be a list"
+                )
+                continue
+            if round_index > 1 and not refs:
+                errors.append(
+                    f"candidate_experiments[{index}] must reference a prior fact"
+                )
+            for ref in refs:
+                if str(ref) not in known_facts:
+                    errors.append(
+                        f"candidate_experiments[{index}] unknown fact ref: {ref}"
+                    )
+
+        if len(experiment_ids) != len(set(experiment_ids)):
+            errors.append("candidate experiment_id must be unique")
+        return errors
+
     def is_duplicate(
         self, plan: dict[str, Any], history_hashes: set[str]
     ) -> bool:

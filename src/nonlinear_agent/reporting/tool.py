@@ -74,8 +74,11 @@ def write_task_report_tool(
         )
 
     best = spec.best()
+    selected = spec.selected()
     best_source: dict[str, Any] = {}
-    if best is not None:
+    if spec.final_evaluation is not None:
+        best_source = dict(task_source.get("final_evaluation") or {})
+    elif best is not None:
         best_source = next(
             (
                 e
@@ -86,7 +89,8 @@ def write_task_report_tool(
         )
     psd_value = best_source.get("psd_path")
     if not psd_value:
-        raise RenderError(["best execution is missing a real PSD artifact"])
+        label = "final evaluation" if spec.final_evaluation is not None else "best execution"
+        raise RenderError([f"{label} is missing a real PSD artifact"])
     source_psd = Path(str(psd_value))
     if not source_psd.is_absolute():
         source_psd = root / source_psd
@@ -104,7 +108,7 @@ def write_task_report_tool(
         shutil.copy2(source_psd, psd)
     improvement = draw_improvement_bars(
         [
-            (r.run_id, r.baseline_nmse_db or 0.0, r.nmse_db or 0.0)
+            (r.run_id, r.baseline_nmse_db, r.nmse_db)
             for r in spec.executions
             if r.nmse_db is not None
         ],
@@ -116,7 +120,10 @@ def write_task_report_tool(
             "architecture": str(arch),
             "psd": str(psd),
             "improvement": str(improvement),
-            "psd_note": f"真实实验 PSD，来源：{best.run_id if best else 'unknown'} / {source_psd.name}",
+            "psd_note": (
+                "终局复评 PSD，来源："
+                f"{selected.run_id if selected else 'unknown'} / {source_psd.name}"
+            ),
         },
         analysis=analysis,
         architecture=evidence.architecture,

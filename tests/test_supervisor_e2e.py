@@ -27,7 +27,111 @@ def _plan(plan_id: str = "plan-001") -> dict:
     }
 
 
+def _three_candidate_plan(round_index: int, fact_refs=()) -> dict:
+    plan = _plan(f"plan-round-{round_index}")
+    plan["decision_rationale"] = (
+        "establish diverse baselines"
+        if round_index == 1
+        else "adapt architecture and optimization from prior evidence"
+    )
+    plan["candidate_experiments"] = [
+        {
+            **plan["candidate_experiments"][0],
+            "experiment_id": f"candidate-{index}",
+            "model_type": f"unseen_round_{round_index}_model_{index}",
+            "exploration_role": "exploit" if index == 3 else "explore",
+            "based_on_fact_refs": list(fact_refs),
+            "expected_information_gain": 1.0 / index,
+        }
+        for index in range(1, 4)
+    ]
+    return plan
+
+
 class TestSupervisorE2E(unittest.TestCase):
+    def test_three_round_batch_search_runs_nine_experiments_and_one_final_evaluation(self):
+        from nonlinear_agent.supervisor_graph import (
+            MultiAgentWorkers,
+            build_multi_agent_graph,
+            run_multi_agent_graph,
+        )
+
+        plan_requests = []
+        coding_ids = []
+        coding_requests = []
+        execution_ids = []
+        writing_requests = []
+
+        def idea_plan(request: dict) -> dict:
+            plan_requests.append(request)
+            refs = request.get("available_fact_refs", [])[:1]
+            return _three_candidate_plan(request["round_index"], refs)
+
+        def coding(request: dict) -> dict:
+            coding_requests.append(request)
+            experiment_id = request["candidate"]["experiment_id"]
+            coding_ids.append(experiment_id)
+            return {
+                "passed": True,
+                "manifest_path": f"models/candidates/{experiment_id}/manifest.json",
+            }
+
+        def execution(request: dict) -> dict:
+            experiment_id = request["candidate"]["experiment_id"]
+            execution_ids.append(experiment_id)
+            score = -30.0 - len(execution_ids)
+            if request.get("evaluation_kind") == "final":
+                score = -40.5
+            return {
+                "status": "completed",
+                "classification": "ok",
+                "metrics": {"nmse_db": score, "parameter_count": 100 + len(execution_ids)},
+                "artifacts": [f"reports/{experiment_id}/psd.png"],
+            }
+
+        def writing(request: dict) -> dict:
+            writing_requests.append(request)
+            return {"report_path": "reports/task/report.pdf"}
+
+        result = run_multi_agent_graph(
+            build_multi_agent_graph(
+                MultiAgentWorkers(
+                    idea_plan=idea_plan,
+                    coding=coding,
+                    execution=execution,
+                    writing=writing,
+                ),
+                rounds=3,
+                experiments_per_round=3,
+                final_evaluation=True,
+            ),
+            goal="run a three-round compact-model search",
+            run_id="run-3x3",
+        )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(plan_requests), 3)
+        self.assertEqual(coding_ids, [f"r{r}-candidate-{e}" for r in range(1, 4) for e in range(1, 4)])
+        self.assertEqual(len(execution_ids), 10)
+        self.assertEqual(execution_ids[-1], "r3-candidate-3")
+        self.assertEqual(len(result["round_records"]), 3)
+        self.assertEqual(len(result["exploration_outcomes"]), 9)
+        self.assertEqual(result["final_evaluation"]["metrics"]["nmse_db"], -40.5)
+        self.assertTrue(plan_requests[1]["available_fact_refs"])
+        self.assertTrue(plan_requests[2]["available_fact_refs"])
+        self.assertNotIn("code_result", str(plan_requests[1]["round_records"]))
+        self.assertNotIn("execution_result", str(plan_requests[1]["round_records"]))
+        self.assertIn("metrics", str(plan_requests[1]["round_records"]))
+        self.assertIn("prior_facts", coding_requests[3])
+        self.assertIn("nmse_db", str(coding_requests[3]["prior_facts"]))
+        self.assertNotIn("code_result", str(coding_requests[3]["prior_facts"]))
+        self.assertEqual(len(writing_requests), 1)
+        self.assertEqual(len(writing_requests[0]["round_records"]), 3)
+        self.assertEqual(len(writing_requests[0]["exploration_outcomes"]), 9)
+        self.assertEqual(
+            writing_requests[0]["final_evaluation"]["evaluation_kind"], "final"
+        )
+
     def test_success_path_records_role_timeline_and_unique_terminal(self):
         from nonlinear_agent.supervisor_graph import (
             MultiAgentWorkers,
