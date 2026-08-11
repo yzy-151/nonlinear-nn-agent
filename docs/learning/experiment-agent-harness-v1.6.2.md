@@ -303,3 +303,32 @@ CodingAgent 继续只在自有 worktree 写候选源码，main 的新模型源�
 - 最终 PSD：`docs/assets/results/v4.0.0-e/final-psd.png`
 - 九实验 NMSE：`docs/assets/results/v4.0.0-e/nine-experiment-nmse.png`
 - 主搜索：21 次模型调用，37,914 prompt tokens，71,483 completion tokens，估算 `$0.08886808`
+
+## 14. v4.1.0：从“页签表单”到 Agent Operations Console
+
+### 14.1 为什么要拆掉单文件 Web UI
+
+旧 `web_ui.py` 把 HTML、CSS、表单、SSE 解析和结果绘制混在一个大字符串中。它能运行，但事件语义、视觉布局和后端接口相互牵连，修改日志颜色也可能误伤表单。v4.1.0 将边界拆成 `index.html`、`styles.css`、`event_view_model.js` 和 `app.js`；Python 只从白名单读取这些资产，wheel 也显式打包 `web/*`，因此源码运行和安装运行保持一致。
+
+### 14.2 Timeline、Console、Raw 与 Inspector 各自回答什么
+
+- Timeline 回答“哪一个 Agent/Tool 按什么顺序做了什么”，适合讲 Agentic Loop 和角色 handoff。
+- Console 回答“运行时具体输出了什么”，保留错误原因、reflection facts、新计划、metrics 和 artifacts。
+- Raw Events 回答“后端实际上发了什么”，用于核对 UI 没有改写指标或隐去错误。
+- Inspector 回答“当前事件来自哪里、输入输出引用什么、模型用量是多少”，原始 payload 默认折叠。
+
+`normalizeEvent(raw)` 是四种视图的共同语义层。未知事件仍保留 raw；warning、failure、planner、reflection 和 benchmark 使用不同状态色。这样面试时可以从 Timeline 讲全链路，再下钻到 Inspector 证明 provenance，而不是滚动一整屏字符串。
+
+### 14.3 为什么 Multi-Agent 结果需要后端裁剪
+
+九次实验的真实指标原本存在 Supervisor state，旧 SSE 只发送角色和 artifact refs，前端无法诚实生成实验表。现在 execution 事件增加 `experiments`，final-evaluation 事件增加 `final_evaluation`，但服务端只公开 experiment ID、模型名、状态、有限数值 metrics、artifacts 和失败计数。候选源码、CodingAgent 内部结果、详细失败文本和 worker state 不进入浏览器。
+
+运行控制采用单活动 run 互斥：任何工作流运行时，其他启动按钮一起禁用，防止覆盖当前 `AbortController/session_id`。Stop 只设置该 session 的协作式取消事件，不再扫描并误杀系统内所有 `train.py`；训练中的即时终止需要后续在 control plane 建立 `session_id -> owned process` 映射。
+
+### 14.4 知识库入口为何是禁用状态
+
+UI 已预留 `docs/knowledge/nonlinear-modeling/`、文件选择、`knowledge_context_enabled` 和 Sources 预览，但后端尚未把检索结果接入 Multi-Agent Idea/Plan prompt。此时让开关可用会制造“Agent 已利用知识”的假象，所以界面明确显示“尚未接入”。下一阶段应接通 `KnowledgeIngestor -> Retrieval -> PlannerContextBuilder -> PlanGate citation allowlist -> Inspector provenance`，并做 knowledge on/off 同预算消融。
+
+### 14.5 当前可用于面试的工程点
+
+> 我把单文件演示页重构成无 Node 构建步骤的 Agent Operations Console。FastAPI 通过静态资产白名单交付 UI；浏览器把 SSE 规范化为 Timeline、Console、Raw 和 Inspector 四种视图。Multi-Agent 执行摘要由服务端裁剪后进入结果表，既能展示九次搜索与终评，也不会泄露候选源码。知识库 UI 只声明接口和未接通状态，避免把占位能力包装成已完成 RAG。

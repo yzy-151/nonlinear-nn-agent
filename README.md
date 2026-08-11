@@ -44,7 +44,7 @@ Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 - **SSE 实时观测**：事件 ID、15 秒心跳、`/cancel`、Last-Event-ID 断线重放
 - **SQLite 控制面**：请求去重、任务 lease、原子 claim、单调事件序列（WAL + busy timeout），并发压测通过
 - **层级 Trace**：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token/cost` 全链路
-- **Web UI + CLI + Dashboard** 三套交付面，浏览器一键跑实验并实时看事件流
+- **Hybrid Operations Console（v4.1.0）**：Multi-Agent 为默认首页，统一承载 Agent Planner、Fixed Workflow、实验对照、Benchmark、Memory、Reports 与 Diagnostics。SSE 同时驱动 Timeline、Console、Raw Events 和 Inspector；Multi-Agent 结果区展示经服务端安全裁剪的搜索/终评摘要、NMSE、参数量、PSD 与报告链接。知识库文件、启用开关和 Sources 预览已预留 UI 契约，但当前明确标记为“尚未接入”，不会伪装成已影响 PlanAgent
 - **开放模型候选执行（v4.0.0-a）**：CodingAgent 未来生成的模型不再受现有 `model_type` 名称白名单限制；候选代码以 `ModelPlugin + ModelDescriptor + manifest` 描述模型、训练入口和架构图，经 CandidateRegistry 路径/契约/配置/参数预算校验后，由 ExecutionAgent 调用固定子进程 runner 执行。父进程复核有限指标、参数量、descriptor hash 和全部 artifact 路径；当前阶段提供执行基础设施，尚不代表真实 LLM coding pass rate
 - **LLM Coding 闭环（v4.0.0-b）**：CodingAgent 通过 `ModelRouter` 的 `coding` 角色调用可配置模型，要求一次返回完整候选包（源码、manifest、descriptor、参数估算和 `train()`），而非只给 `ModelClass`。严格 JSON/候选目录/AST capability gate 通过后，固定 runner 执行 contract validation 与真实 smoke training；失败只提取语法、契约、预算或产物事实，最多回传两轮让 coding LLM 重写完整候选包。每轮只落 prompt/response/file hash 与 gate facts，避免把源码或密钥写进 trace。离线双轮修复 E2E 已覆盖，真实 DeepSeek pass rate 留待固定任务集评测
 - **证据驱动 WritingAgent（v4.0.0-c）**：`EvidenceBundle` 把目标、约束、`ModelDescriptor`、执行指标、真实 PSD、失败和 trace 压缩成带 ID 的事实；WritingAgent 通过 `ModelRouter(writing)` 输出六段 `NarrativeSpec`，每段必须引用已有 evidence ID，任何未知引用或源数据不存在的数字都会被 fidelity gate 拒绝。架构图按 descriptor 的任意 nodes/edges 动态布局，不再按 `model_type` 猜固定原理图；HTML 与 PDF 共用同一份 print-ready 页面，中文字体、A4 分页、表头续页和移动端均已覆盖。离线陌生 Wavelet-LUT fixture 的 3 页 PDF 已完成视觉复验，真实模型写作质量仍需在固定任务集上评测
@@ -115,6 +115,10 @@ python agent.py run --provider fake --max-rounds 2 --max-experiments 1 --artifac
 python agent.py serve --host 127.0.0.1 --port 8000
 ```
 
+Web 首页默认进入 `Multi-Agent`。左栏选择运行模式，中栏在 `Timeline / Console / Raw Events` 间切换，点击 Timeline 事件可在右侧 Inspector 查看 `input_refs`、`output_refs`、`model_usage`、失败事实和原始 payload。`docs/knowledge/nonlinear-modeling/` 目前只是下一阶段检索接线的预留路径，禁用状态是有意的真实性约束。
+
+![v4.1.0 Hybrid Operations Console](docs/assets/ui/v4.1.0-operations-console.png)
+
 ## 架构
 
 ```mermaid
@@ -161,7 +165,8 @@ flowchart LR
 | `coding_agent.py` | 完整候选包 JSON 契约、候选路径/AST 闸、coding 角色路由、两轮事实修复与 hash trace |
 | `model_plugins/` | 开放模型 descriptor/plugin 契约、CandidateRegistry、固定子进程 runner 和证据复核 |
 | `server.py` | FastAPI + SSE 服务层（含 Last-Event-ID 重放与取消） |
-| `web_ui.py` / `dashboard.py` | 浏览器操作面板与诊断 Dashboard |
+| `web_ui.py` / `web/` | 静态资产白名单入口，以及无构建步骤的 HTML/CSS/ES modules Operations Console |
+| `dashboard.py` | 离线诊断 Dashboard 生成器 |
 
 ## 命令行速查
 

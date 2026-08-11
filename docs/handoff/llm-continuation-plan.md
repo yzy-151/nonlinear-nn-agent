@@ -1517,3 +1517,18 @@ docs/knowledge/nonlinear-modeling/*
 - [ ] 修复视觉问题后运行 `python scripts/run_tests.py fast`、`python scripts/run_tests.py full`、`git diff --check`。
 - [ ] README 更新当前 UI 截图与功能说明；learning 解释事件视图模型、主从 Inspector 和知识接口为何只做占位；handoff 勾选真实完成项并记录剩余知识后端接线。
 - [ ] 提交：`docs: document operations console`；建立 `version/v4.1.0-ui` 并按用户要求推送/合并。
+
+#### v4.1.0 实施记录（2026-08-11）
+
+状态：**实现与验收完成，待提交与推送。**
+
+- 已将 780 行内联 `web_ui.py` 收缩为白名单资源入口，新增 `web/index.html`、`styles.css`、`event_view_model.js`、`app.js`，并在 `pyproject.toml` 中加入 package data；版本统一为 `4.1.0`。
+- 默认首页为 Multi-Agent；左栏八个入口均已迁移。中栏提供 Timeline / Console / Raw Events，右栏 Inspector 展示 refs、usage、facts 和 raw payload；1280 以下 Inspector 为可关闭抽屉。
+- 知识库 UI 已预留 source path、文件输入、启用开关和 Sources 按钮，全部禁用并标记“尚未接入”；当前不向 PlanAgent 注入任何虚构 context。
+- Multi-Agent SSE 新增安全裁剪后的 `experiments` / `final_evaluation` 摘要。前端结果区展示 experiment、kind、model、status、有限数值 metrics、PSD 和报告链接；候选源码、详细失败文本、`code_result` 与 worker state 不外发。
+- 已用 Playwright/Edge 检查 `1440x1000`、`1024x768`、`390x844`：页面非空、body 无横向溢出、八个入口可达、移动菜单可开。真实 Fixed Workflow 经 UI 完整收口为 16 个 SSE 事件，终态“已完成”，浏览器无 JS error。
+- 已通过聚焦测试：`tests.test_web_ui`、`tests.test_server_streaming`、`tests.test_multi_agent_server`；最终 fast `234/234`、full `474/474` 通过。`nonlinear_nn_agent-4.1.0-py3-none-any.whl` 已核验包含四个 Web 资产，JS syntax、secret scan 与 `git diff --check` 通过。
+- 全量测试暴露并修复既有 Edge PDF 延迟落盘竞争：现在先等待 PDF 存在，再清理独立 profile；新增确定性生命周期回归测试。
+- 独立审查后补强：Diagnostics 路径使用 `resolve()` 边界；SSE 兼容 CRLF、无尾分隔符和 decoder flush；前端限制单活动 run 并按真实 terminal 显示 completed/cancelled/budget/error；取消接口移除全局 WMIC 杀进程。当前 Stop 为 session 级协作取消，单训练进程即时终止仍需 control-plane 进程所有权映射。
+
+与原设计的有意差异：本轮未引入 Node 构建、第三方图标/CDN 或真正的知识检索后端；知识与长期记忆接线仍按上节“下一阶段”验收标准实施。页面刷新后的 SSE replay 暂未新增前端重连逻辑，沿用现有服务端能力，后续应单独补 reconnect/Last-Event-ID 浏览器验收。
