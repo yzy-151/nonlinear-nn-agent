@@ -45,6 +45,7 @@ Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 - **层级 Trace**：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token/cost` 全链路
 - **Web UI + CLI + Dashboard** 三套交付面，浏览器一键跑实验并实时看事件流
 - **开放模型候选执行（v4.0.0-a）**：CodingAgent 未来生成的模型不再受现有 `model_type` 名称白名单限制；候选代码以 `ModelPlugin + ModelDescriptor + manifest` 描述模型、训练入口和架构图，经 CandidateRegistry 路径/契约/配置/参数预算校验后，由 ExecutionAgent 调用固定子进程 runner 执行。父进程复核有限指标、参数量、descriptor hash 和全部 artifact 路径；当前阶段提供执行基础设施，尚不代表真实 LLM coding pass rate
+- **LLM Coding 闭环（v4.0.0-b）**：CodingAgent 通过 `ModelRouter` 的 `coding` 角色调用可配置模型，要求一次返回完整候选包（源码、manifest、descriptor、参数估算和 `train()`），而非只给 `ModelClass`。严格 JSON/候选目录/AST capability gate 通过后，固定 runner 执行 contract validation 与真实 smoke training；失败只提取语法、契约、预算或产物事实，最多回传两轮让 coding LLM 重写完整候选包。每轮只落 prompt/response/file hash 与 gate facts，避免把源码或密钥写进 trace。离线双轮修复 E2E 已覆盖，真实 DeepSeek pass rate 留待固定任务集评测
 
 ## 内置实验领域（3.1）
 
@@ -98,6 +99,21 @@ flowchart LR
     SSE --> SQLite["Control Plane (idempotent / lease / replay)"]
 ```
 
+开放模型的代码生成与执行链路独立受控：
+
+```mermaid
+flowchart LR
+    Idea["Idea / Plan"] --> Task["CodingTaskSpec"]
+    Task --> Coding["CodingAgent via ModelRouter(coding)"]
+    Coding --> Plan["CodeChangePlan: complete candidate package"]
+    Plan --> Gate["JSON + path + AST capability gates"]
+    Gate --> Registry["CandidateRegistry contract validation"]
+    Registry --> Runner["Fixed subprocess runner"]
+    Runner --> Evidence["NMSE + parameter count + metrics.json + PSD"]
+    Gate -->|failure facts, at most 2 repairs| Coding
+    Runner -->|failure facts, at most 2 repairs| Coding
+```
+
 核心模块：
 
 | 模块 | 职责 |
@@ -111,6 +127,8 @@ flowchart LR
 | `search/` | SearchStrategy 协议 + Random / Optuna TPE / LLM 策略 |
 | `evaluation_statistics.py` | bootstrap 95% CI、paired delta、summary 生成 |
 | `control_plane.py` | SQLite 控制面（请求去重、任务 lease、事件序列） |
+| `coding_agent.py` | 完整候选包 JSON 契约、候选路径/AST 闸、coding 角色路由、两轮事实修复与 hash trace |
+| `model_plugins/` | 开放模型 descriptor/plugin 契约、CandidateRegistry、固定子进程 runner 和证据复核 |
 | `server.py` | FastAPI + SSE 服务层（含 Last-Event-ID 重放与取消） |
 | `web_ui.py` / `dashboard.py` | 浏览器操作面板与诊断 Dashboard |
 

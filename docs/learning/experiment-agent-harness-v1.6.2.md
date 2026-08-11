@@ -133,4 +133,46 @@ ExecutionAgent 不接受 CodingAgent 提供的任意 shell 命令，只能调用
 
 ### 当前边界
 
-v4.0.0-a 证明的是“未知模型插件可被安全边界检查并由 ExecutionAgent 执行”，不是“LLM 已能稳定自主写模型”。当前子进程提供崩溃隔离和环境清理，但不是容器级 OS sandbox；后续 v4.0.0-b 仍需加入 LLM `CodeChangePlan`、AST/import gate、测试门和最多两轮事实修复，之后才能统计真实 CodingAgent pass rate。
+v4.0.0-a 证明的是“未知模型插件可被安全边界检查并由 ExecutionAgent 执行”，不是“LLM 已能稳定自主写模型”。当前子进程提供崩溃隔离和环境清理，但不是容器级 OS sandbox。
+
+## 10. v4.0.0-b 补充：CodingAgent 怎样写出可执行的新模型
+
+### 为什么不能只返回 ModelClass
+
+单独一个网络类不能被 ExecutionAgent 直接执行，因为系统仍不知道输入怎样加载、损失怎样计算、参数量怎样估算、训练结果写到哪里。v4.0.0-b 使用两个结构化交接对象：
+
+- `CodingTaskSpec`：包含任务目标、候选名、smoke config、参数上限、超时和额外约束；
+- `CodeChangePlan`：LLM 必须返回完整替换文件集，包括 Python plugin 与 manifest。plugin 自己实现 `descriptor`、`estimate_parameters()` 和 `train()`。
+
+因此 CodingAgent 可以设计仓库从未出现过的网络、闭式算法或自定义训练过程；ExecutionAgent 不需要认识模型名字，只认识稳定的 `ModelPlugin` 协议。
+
+### 一次 coding 尝试经过哪些闸
+
+1. 严格 JSON：拒绝 Markdown fence、缺字段、额外字段和不匹配的 task/candidate；
+2. 路径：所有文件必须位于 `models/candidates/<candidate>/`，拒绝绝对路径、反斜杠和 `..`；
+3. AST capability gate：先检查语法，再拒绝 `os/subprocess/socket/network/dynamic import/eval/exec` 等能力与模块顶层执行；
+4. contract gate：子进程加载 manifest，校验 descriptor、配置 schema 和参数预算；
+5. smoke gate：固定 runner 真实调用 `train()`，复核有限 NMSE、参数量、descriptor hash、`metrics.json` 与有效 PNG；
+6. trace：只记录 prompt、response、文件的 SHA-256 和失败事实，不保存 API key 或整段生成源码。
+
+AST gate 与清理环境的子进程是工程防线，不是容器或虚拟机级 OS sandbox。它能阻止常见越权代码和隔离崩溃，但不能对恶意 Python 给出形式化安全保证；生产环境仍应增加容器、只读挂载、网络隔离和资源 cgroup/job object。
+
+### 两轮修复为什么算 agentic coding
+
+第一次生成失败后，程序不替 LLM 写修复策略，只提取可验证事实，例如：
+
+```text
+static: plugin.py: SyntaxError line 18: '(' was never closed
+RuntimeError: candidate runner failed: ValueError: estimated parameter count 4200 exceeds parameter budget 4000
+FileNotFoundError: candidate result is missing required artifact: psd.png
+```
+
+下一次 coding prompt 同时包含原始 `CodingTaskSpec` 和这些干净事实，要求 LLM 重写完整候选包。默认最多修复两轮，即总计最多三次模型调用。离线 E2E 已验证“首轮语法错误 -> 第二轮完整插件 -> runner smoke 成功”，但这只证明闭环机制，不代表真实 DeepSeek 的 pass rate；后续必须在固定 coding task 集上单独统计 pass@1、pass@3、平均修复轮数和未授权写入数。
+
+### 模型怎样切换
+
+CodingAgent 接受 `ModelRouter`，固定使用 `coding` role。角色配置可以把 idea/planner 交给便宜模型，把复杂代码交给专用 coding 模型；OpenAI-compatible 与 SDK 客户端都支持角色化 system prompt，避免 coding 调用仍携带旧 planner 的“只能选择预置 model_type”限制。
+
+### 面试表达
+
+> 我没有让 CodingAgent 输出任意 shell，也没有把新网络硬塞进已有 model_type 分支。LLM 生成完整 ModelPlugin 候选包，Harness 先做 JSON、路径和 AST capability gate，再由固定子进程验证契约并真实 smoke 训练。失败只抽取事实回传，最多两轮修复；ExecutionAgent 最终只接收经过 descriptor hash、参数预算、NMSE 和 PSD 证据复核的结果。当前离线 E2E 证明闭环可用，真实模型能力用独立 pass@1/pass@3 评测，不混为一谈。
