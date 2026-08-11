@@ -138,7 +138,15 @@ class ExperimentToolsTest(unittest.TestCase):
 
         experiment_tools = registry.describe_tools(category="experiment")
 
-        self.assertEqual([tool["name"] for tool in experiment_tools], ["generate_config", "run_training", "verify_artifacts"])
+        self.assertEqual(
+            [tool["name"] for tool in experiment_tools],
+            [
+                "generate_config",
+                "run_candidate_model",
+                "run_training",
+                "verify_artifacts",
+            ],
+        )
         self.assertEqual(experiment_tools[0]["input_schema"]["required"], ["base_config_path", "experiment_id"])
         self.assertEqual(experiment_tools[1]["error_policy"], "return_error")
 

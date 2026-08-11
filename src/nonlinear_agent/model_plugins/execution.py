@@ -20,6 +20,28 @@ _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SECRET_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
 
 
+def validate_candidate_model_tool(
+    workspace: Path | str,
+    manifest_path: Path | str,
+    config: dict[str, Any],
+    parameter_count_max: int,
+) -> dict[str, Any]:
+    validation = CandidateRegistry(workspace).validate_candidate(
+        manifest_path,
+        dict(config),
+        int(parameter_count_max),
+    )
+    return {
+        "descriptor": validation.descriptor.to_dict(),
+        "descriptor_hash": validation.descriptor_hash,
+        "parameter_count": validation.parameter_count,
+        "context_summary": (
+            f"Candidate {validation.descriptor.name} satisfies the plugin contract "
+            f"with {validation.parameter_count} parameters."
+        ),
+    }
+
+
 def run_candidate_model_tool(
     workspace: Path | str,
     manifest_path: Path | str,
