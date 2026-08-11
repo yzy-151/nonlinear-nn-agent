@@ -1588,3 +1588,15 @@ Goal -> Plan -> Validate -> Code -> Execute -> Evaluate -> Reflect -> Write -> E
 4. 从 Goal 沿箭头可以无歧义到达 Evidence；从任何失败节点可以找到 rejected/failure facts 和有限 replan/terminal 路径。
 5. 当前链路与 planned 链路的图例、线型和标签一致；随机抽查五条连线与源码/README 相符。
 6. README 只保留一张主总览图，旧 UI 截图可继续作为后续细节，不与总览图争夺首屏叙事。
+
+#### 实施清单（2026-08-12）
+
+> 本清单继续维护在唯一 handoff 中；已批准采用方案 A，并在当前会话内直接实施。
+
+- [x] 创建 `docs/assets/architecture/nonlinear-agent-system.drawio`，用独立节点、正交连线和分区背景表达六个系统区域。
+- [x] 从同一图形定义导出 `nonlinear-agent-system.svg` 与宽度不少于 2800px 的 `nonlinear-agent-system.png`。
+- [x] 在 README 简介后增加系统总览、编辑源文件和高清 PNG 入口，保留后续 UI 截图作为细节证据。
+- [x] 验证 Draw.io XML 可解析、关键节点/连线/PLANNED 标识齐全，抽查数据流与源码叙述一致。
+- [x] 检查 SVG/PNG 非空、PNG 尺寸和可读性，执行 `git diff --check` 后提交并推送。
+
+实施记录：正式图包含 6 个分区、47 个业务节点、53 条数据/控制连线；Draw.io XML 共 55 个可编辑 vertex（含分区、标题和叙事带），不是嵌入位图。SVG 已由 XML 解析器验证，PNG 经 Edge 实际渲染为 `3200 x 1800`。抽查 `PlanGate -> CodingAgent`、`ExecutionAgent -> ToolRegistry`、`Evaluator -> metrics`、Reflection facts 回到下一轮 planner、`PlannerContextBuilder -> Multi-Agent` 的 planned 链路均与源码和当前能力边界一致。

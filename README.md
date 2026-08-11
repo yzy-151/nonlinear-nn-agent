@@ -4,6 +4,16 @@
 
 项目把"让模型做实验"这件事工程化：**计划与执行解耦**、**领域知识插件化**、**四种搜索策略可公平对照**、**运行可靠性可压测**。所有结论都能从 JSON/CSV 复算。
 
+## 系统总览
+
+下图按真实数据流串起交付入口、四种运行模式、Multi-Agent 编排、Knowledge/Memory、受控代码执行、真实训练、Reflection、报告与 Benchmark。实线表示当前已接通链路；灰蓝虚线和 `PLANNED` 表示已设计但尚未接入 Multi-Agent PlanAgent 的知识上下文，避免把路线图画成现状。
+
+[在 Draw.io 中编辑源文件](docs/assets/architecture/nonlinear-agent-system.drawio) · [打开高清 PNG](docs/assets/architecture/nonlinear-agent-system.png)
+
+[![Nonlinear NN Agent 端到端系统总览](docs/assets/architecture/nonlinear-agent-system.svg)](docs/assets/architecture/nonlinear-agent-system.svg)
+
+面试讲解可沿图底部主线展开：`Goal → Plan → Validate → Code → Execute → Evaluate → Reflect → Write → Evidence`。核心边界是 LLM 负责提出候选和选择策略，Harness 负责验证与受控执行，Evaluator 独立复核指标，WritingAgent 只能引用 `EvidenceBundle` 中存在的事实。
+
 ## 界面预览
 
 Agent Planner 界面——内置多种任务 Domain（非线性建模 / PIM 对消 / 寄存器配置 / 合成回归），切换即更新可寻优白名单：
@@ -119,35 +129,9 @@ Web 首页默认进入 `Multi-Agent`。左栏选择运行模式，中栏在 `Tim
 
 ![v4.1.0 Hybrid Operations Console](docs/assets/ui/v4.1.0-operations-console.png)
 
-## 架构
+## 实现索引
 
-```mermaid
-flowchart LR
-    User -->|goal / constraints| Planner
-    Planner -->|JSON plan| Guard
-    Guard -->|validated overrides| Runtime
-    Runtime -->|ToolCall| ToolRegistry
-    ToolRegistry -->|execution| Train["train.py / fit"]
-    Runtime -->|TraceEvent / metric| SSE["SSE / Trace / Session"]
-    SSE --> History["History + Reflection"]
-    History -->|compressed context| Planner
-    SSE --> SQLite["Control Plane (idempotent / lease / replay)"]
-```
-
-开放模型的代码生成与执行链路独立受控：
-
-```mermaid
-flowchart LR
-    Idea["Idea / Plan"] --> Task["CodingTaskSpec"]
-    Task --> Coding["CodingAgent via ModelRouter(coding)"]
-    Coding --> Plan["CodeChangePlan: complete candidate package"]
-    Plan --> Gate["JSON + path + AST capability gates"]
-    Gate --> Registry["CandidateRegistry contract validation"]
-    Registry --> Runner["Fixed subprocess runner"]
-    Runner --> Evidence["NMSE + parameter count + metrics.json + PSD"]
-    Gate -->|failure facts, at most 2 repairs| Coding
-    Runner -->|failure facts, at most 2 repairs| Coding
-```
+总览图中的节点均可映射到下列实现模块；开放模型执行复用 `ToolRegistry`、四层 Gate、`CandidateRegistry` 和固定 subprocess runner，不允许 LLM 绕过 Harness 直接调用 shell 或训练程序。
 
 核心模块：
 
