@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="1350" viewBox="0 0 2400 1350">
+<defs><marker id="exec-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4B7FA5"/></marker><marker id="exec-loop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8A67B5"/></marker></defs>
+<rect width="2400" height="1350" fill="#F8FAFC"/>
+<text x="80" y="70" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="42" font-weight="750" fill="#172C3D">NONLINEAR NN AGENT</text>
+<text x="80" y="115" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="24" font-weight="400" fill="#536B7D">让 Agent 自主设计实验，同时把代码执行、训练、评测与报告约束在可审计的工程闭环中</text>
+<rect x="1040" y="130" width="290" height="120" rx="6" fill="#EDF6FF" stroke="#3478B9" stroke-width="2"/>
+<text x="1062" y="177" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="26" font-weight="750" fill="#173D5C">3 rounds</text>
+<text x="1062" y="213" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16" font-weight="450" fill="#173D5C">9 search experiments</text>
+<rect x="1350" y="130" width="330" height="120" rx="6" fill="#EAF8F1" stroke="#258466" stroke-width="2"/>
+<text x="1372" y="177" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="26" font-weight="750" fill="#124D3B">8 / 9</text>
+<text x="1372" y="213" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="450" fill="#124D3B">completed with failure isolation</text>
+<rect x="1700" y="130" width="300" height="120" rx="6" fill="#EAF8F1" stroke="#258466" stroke-width="2"/>
+<text x="1722" y="177" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="26" font-weight="750" fill="#124D3B">24 params</text>
+<text x="1722" y="213" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16" font-weight="450" fill="#124D3B">best candidate package</text>
+<rect x="2020" y="130" width="300" height="120" rx="6" fill="#FFF0F0" stroke="#C94B4B" stroke-width="2"/>
+<text x="2042" y="177" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="26" font-weight="750" fill="#672626">−23.0778 dB</text>
+<text x="2042" y="213" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16" font-weight="450" fill="#672626">target −41 dB not hit</text>
+<line x1="440" y1="455" x2="517" y2="455" stroke="#4B7FA5" stroke-width="5" marker-end="url(#exec-arrow)"/>
+<line x1="925" y1="455" x2="1002" y2="455" stroke="#4B7FA5" stroke-width="5" marker-end="url(#exec-arrow)"/>
+<line x1="1430" y1="455" x2="1507" y2="455" stroke="#4B7FA5" stroke-width="5" marker-end="url(#exec-arrow)"/>
+<line x1="1915" y1="455" x2="1992" y2="455" stroke="#4B7FA5" stroke-width="5" marker-end="url(#exec-arrow)"/>
+<polyline points="1720,580 1720,660 730,660 730,580" fill="none" stroke="#8A67B5" stroke-width="4" stroke-dasharray="11 8" marker-end="url(#exec-loop)"/>
+<text x="1225" y="646" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="18" font-weight="650" fill="#7656A0">verified metrics + failure facts → next plan</text>
+<rect x="80" y="330" width="360" height="250" rx="6" fill="#FFFFFF" stroke="#8794A1" stroke-width="3"/>
+<text x="104" y="374" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#263442">01 业务目标</text>
+<text x="104" y="421" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#263442">输入实验目标与约束</text>
+<text x="104" y="455" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#263442">模型 / 参数 / 时间预算</text>
+<text x="104" y="489" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#263442">自动寻找可验证候选</text>
+<rect x="535" y="330" width="390" height="250" rx="6" fill="#F4EFFF" stroke="#7557C5" stroke-width="3"/>
+<text x="559" y="374" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#30245B">02 Multi-Agent 团队</text>
+<text x="559" y="421" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#30245B">Plan：提出实验假设</text>
+<text x="559" y="455" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#30245B">Code：生成完整候选包</text>
+<text x="559" y="489" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#30245B">Run：执行真实训练</text>
+<text x="559" y="523" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#30245B">Write：形成证据报告</text>
+<rect x="1020" y="330" width="410" height="250" rx="6" fill="#FFF5DC" stroke="#C28316" stroke-width="3"/>
+<text x="1044" y="374" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#60420C">03 Agent Harness 护栏</text>
+<text x="1044" y="421" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#60420C">PlanGate + Schema / AST</text>
+<text x="1044" y="455" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#60420C">ToolRegistry + 隔离 Worktree</text>
+<text x="1044" y="489" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#60420C">预算、超时、取消与唯一终态</text>
+<text x="1044" y="523" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#60420C">LLM 不直接操作 shell</text>
+<rect x="1525" y="330" width="390" height="250" rx="6" fill="#EDF6FF" stroke="#3478B9" stroke-width="3"/>
+<text x="1549" y="374" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#173D5C">04 实验闭环</text>
+<text x="1549" y="421" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#173D5C">真实 Train + 独立 Evaluator</text>
+<text x="1549" y="455" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#173D5C">NMSE / PSD / 参数量复核</text>
+<text x="1549" y="489" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#173D5C">失败提取为干净事实</text>
+<text x="1549" y="523" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#173D5C">下一轮 LLM 重新规划</text>
+<rect x="2010" y="330" width="310" height="250" rx="6" fill="#EAF8F1" stroke="#258466" stroke-width="3"/>
+<text x="2034" y="374" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#124D3B">05 证据交付</text>
+<text x="2034" y="421" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#124D3B">Trace / SSE / Inspector</text>
+<text x="2034" y="455" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#124D3B">HTML / PDF / Dashboard</text>
+<text x="2034" y="489" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#124D3B">Benchmark + 95% CI</text>
+<text x="2034" y="523" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#124D3B">结果与过程均可审计</text>
+<text x="80" y="725" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="28" font-weight="750" fill="#20384B">项目已经证明什么</text>
+<rect x="80" y="760" width="520" height="190" rx="6" fill="#F4EFFF" stroke="#7557C5" stroke-width="2"/>
+<text x="105" y="808" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#30245B">自主实验</text>
+<text x="105" y="856" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#30245B">LLM 设计、编码、执行、汇总</text>
+<text x="105" y="890" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#30245B">跨轮消费验证后的失败事实</text>
+<rect x="650" y="760" width="520" height="190" rx="6" fill="#FFF5DC" stroke="#C28316" stroke-width="2"/>
+<text x="675" y="808" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#60420C">工程控制</text>
+<text x="675" y="856" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#60420C">受控工具调用与隔离执行</text>
+<text x="675" y="890" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#60420C">预算、幂等、取消、失败收口</text>
+<rect x="1220" y="760" width="520" height="190" rx="6" fill="#EAF8F1" stroke="#258466" stroke-width="2"/>
+<text x="1245" y="808" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#124D3B">可信证据</text>
+<text x="1245" y="856" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#124D3B">Evaluator 复核有限指标</text>
+<text x="1245" y="890" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#124D3B">报告只能引用 EvidenceBundle</text>
+<rect x="1790" y="760" width="530" height="190" rx="6" fill="#FFF0F0" stroke="#C94B4B" stroke-width="2"/>
+<text x="1815" y="808" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="23" font-weight="750" fill="#672626">真实边界</text>
+<text x="1815" y="856" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#672626">Agent 工程闭环已经验证</text>
+<text x="1815" y="890" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="17" font-weight="450" fill="#672626">算法性能超过历史先验尚未验证</text>
+<rect x="80" y="1025" width="2240" height="220" rx="6" fill="#FFFFFF" stroke="#AFC0CD" stroke-width="2"/>
+<text x="110" y="1075" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="21" font-weight="700" fill="#41657D">领导视角的一句话</text>
+<text x="110" y="1125" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="22" font-weight="600" fill="#20384B">这不是一个只会调用训练脚本的工作流，而是一套把 LLM 决策、代码生成、受控执行、错误恢复和证据交付连接起来的 Agent Harness。</text>
+<text x="110" y="1175" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="21" font-weight="550" fill="#8B3E3E">当前价值集中在工程闭环与可观测性；真实 3×3 运行完成了 8 个候选，但 −23.08 dB 未达到 −41 dB 目标。</text>
+</svg>

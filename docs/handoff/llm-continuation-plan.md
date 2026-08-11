@@ -1614,9 +1614,11 @@ Goal -> Plan -> Validate -> Code -> Execute -> Evaluate -> Reflect -> Write -> E
 
 #### 实施与验收清单
 
-- [ ] 详细版 Draw.io/SVG/PNG 同步生成，PNG 不低于 3200px 宽；浅色底部叙事带；自动检查节点文字估算宽度和行数。
-- [ ] 领导版 Draw.io/SVG/PNG 同步生成，PNG 不低于 2400px 宽；主流程在 README 默认宽度下仍能快速辨认。
-- [ ] 两张 Draw.io 均可由 XML 解析，节点是独立 vertex；SVG 可解析且不依赖外部字体/CDN。
-- [ ] README 控制在约 180-240 行，只展示领导简版与一张当前 Operations Console；详细版通过链接或折叠区访问。
-- [ ] README 的所有相对链接存在；真实结果保持 `8/9`、`-23.0778 dB`、`24 params`、`-41 dB not hit`，不把历史 `-42 dB` 与本次 Multi-Agent 结果混写。
-- [ ] 目视检查两张 PNG：无文字越界、无深色大底、无关键连线穿过正文；运行 fast tests、链接检查和 `git diff --check` 后提交推送。
+- [x] 详细版 Draw.io/SVG/PNG 同步生成，PNG 不低于 3200px 宽；浅色底部叙事带；自动检查节点文字估算宽度和行数。
+- [x] 领导版 Draw.io/SVG/PNG 同步生成，PNG 不低于 2400px 宽；主流程在 README 默认宽度下仍能快速辨认。
+- [x] 两张 Draw.io 均可由 XML 解析，节点是独立 vertex；SVG 可解析且不依赖外部字体/CDN。
+- [x] README 控制在约 180-240 行，只展示领导简版与一张当前 Operations Console；详细版通过链接或折叠区访问。
+- [x] README 的所有相对链接存在；真实结果保持 `8/9`、`-23.0778 dB`、`24 params`、`-41 dB not hit`，不把历史 `-42 dB` 与本次 Multi-Agent 结果混写。
+- [x] 目视检查两张 PNG：无文字越界、无深色大底、无关键连线穿过正文；运行 fast tests、链接检查和 `git diff --check` 后提交推送。
+
+实施记录：详细版保留 55 个可编辑 vertex 和 53 条 edge，移除狭窄节点间的冗余 edge label，并以宽度感知字号和动态行距消除溢出；底部改为浅灰蓝叙事带。领导版提供 15 个可编辑 vertex、5 条主流程/反馈 edge，默认展示五阶段主线和四项真实性数字。两张 PNG 分别为 `3200 x 1800`、`2400 x 1350`。README 从 393 行收敛到 207 行，19 个相对链接全部存在；fast tests `234/234` 与 `git diff --check` 通过。
