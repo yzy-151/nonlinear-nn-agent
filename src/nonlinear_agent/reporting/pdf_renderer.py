@@ -7,6 +7,7 @@ from typing import Any
 
 from nonlinear_agent.reporting.fidelity import FidelityChecker
 from nonlinear_agent.reporting.report_spec import ReportSpec
+from nonlinear_agent.reporting.task_report_spec import TaskReportSpec
 
 
 class RenderError(RuntimeError):
@@ -133,3 +134,156 @@ def render_pdf(spec: ReportSpec, output_dir: Path | str, source: dict[str, Any] 
 
 def _fmt(value: float | None) -> str:
     return f"{value:.4f}" if value is not None else "unknown"
+
+
+_CN_FONT_CANDIDATES = (
+    r"C:\Windows\Fonts\simhei.ttf",
+    r"C:\Windows\Fonts\simsun.ttc",
+    r"C:\Windows\Fonts\msyh.ttc",
+)
+
+
+def _register_cn_font() -> str:
+    """Register a Chinese font with reportlab; returns font family name."""
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    for path in _CN_FONT_CANDIDATES:
+        if Path(path).exists():
+            name = f"CN-{Path(path).stem}"
+            pdfmetrics.registerFont(TTFont(name, path))
+            return name
+    return "Helvetica"
+
+
+def render_task_pdf(
+    spec: TaskReportSpec, output_dir: Path | str, source: dict[str, Any] | None = None
+) -> Path:
+    """中文任务级 PDF：表格 + PSD 图 + 达标/最优标注。"""
+    psds = [r.psd_path for r in spec.executions if r.psd_path]
+    errors: list[str] = []
+    if not psds:
+        errors.append("missing psd artifact for all executions")
+    if source is not None:
+        errors.extend(TaskFidelityChecker().check(spec, source))
+    if errors:
+        raise RenderError(errors)
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = output_dir / f"task-report-{spec.task_id}.pdf"
+
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import (
+        Image,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    cn_font = _register_cn_font()
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "CNTitle", parent=styles["Title"], fontName=cn_font, fontSize=16, spaceAfter=10
+    )
+    heading = ParagraphStyle(
+        "CNHeading", parent=styles["Heading2"], fontName=cn_font, fontSize=12, spaceBefore=10
+    )
+    body = ParagraphStyle(
+        "CNBody", parent=styles["BodyText"], fontName=cn_font, fontSize=9
+    )
+
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        leftMargin=0.7 * inch,
+        rightMargin=0.7 * inch,
+        topMargin=0.7 * inch,
+        bottomMargin=0.7 * inch,
+    )
+    story: list[Any] = [
+        Paragraph(f"任务报告 — {spec.task_id}", title_style),
+        Paragraph(f"目标：{spec.goal}", body),
+        Spacer(1, 6),
+        Paragraph("约束", heading),
+        Paragraph("；".join(f"{k}={v}" for k, v in spec.constraints.items()), body),
+        Paragraph("计划", heading),
+    ]
+    for h in spec.plan.get("hypotheses", []):
+        story.append(Paragraph(f"假设：{h.get('假设', h)}", body))
+    if spec.code_changes:
+        story.append(Paragraph("代码变更", heading))
+        story.append(
+            Table(
+                [["文件", "变更"]]
+                + [[c.get("file", ""), c.get("change", "")] for c in spec.code_changes],
+                style=TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.grey)]),
+            )
+        )
+    story.append(Paragraph("实验结果", heading))
+    best = spec.best()
+    rows = [["实验", "模型", "NMSE (dB)", "参数量", "达标", "标注"]]
+    for run in spec.executions:
+        # 纯文字标注：SimHei 无 emoji 字形，避免渲染成方框
+        mark = "最优" if best is not None and run.run_id == best.run_id else ""
+        hit = "达标" if run.target_hit else "未达标"
+        rows.append(
+            [
+                run.run_id,
+                run.model_type,
+                _fmt(run.nmse_db),
+                str(run.parameter_count),
+                hit,
+                mark,
+            ]
+        )
+    story.append(
+        Table(
+            rows,
+            style=TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ]
+            ),
+        )
+    )
+    story.append(Paragraph("消融", heading))
+    if spec.ablations:
+        story.append(
+            Table(
+                [["策略", "best NMSE (dB)"], *[
+                    [a.get("名称", a.get("name", "")), _fmt(a.get("best_nmse_db"))]
+                    for a in spec.ablations
+                ]],
+                style=TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.grey)]),
+            )
+        )
+    story.append(Paragraph("失败案例", heading))
+    for case in spec.failure_cases:
+        story.append(
+            Paragraph(
+                f"- {case.get('id', '')}: {case.get('状态', case.get('status', ''))} "
+                f"({case.get('错误', case.get('error', ''))})",
+                body,
+            )
+        )
+    story += [
+        Paragraph(f"总成本：${_fmt(spec.cost_usd)}", body),
+        Paragraph("PSD 图", heading),
+    ]
+    for psd in psds:
+        story.append(Image(str(psd), width=4.5 * inch, height=2.2 * inch))
+    story += [
+        Paragraph("复现", heading),
+        Paragraph(spec.reproduce_command, body),
+        Paragraph("限制", heading),
+        Paragraph(spec.limits, body),
+    ]
+    doc.build(story)
+    return pdf_path

@@ -816,6 +816,15 @@ confidence, valid_from, supersedes, invalidated_at
 - 示例报告（`benchmarks/report-examples-v1/`）：exp016-lstsq（-37.49 dB）、exp_019-self-correction（-36.03 dB）、v26-llm-designed（-42.43 dB）三份 PDF 均 1 页、文本可读、数字与 source 一致；
 - 验收：数字 fidelity mismatch=0 ✅、必需内容 ✅、结构化错误（缺 PSD → RenderError）✅、Web 下载（/artifacts/reports/*.pdf）✅、3 份报告生成+文本验证 ✅；PDF 视觉无裁切/重叠/乱码由示例文件可复核。
 
+**任务级中文报告（2026-08-11 追加）**：
+
+- 报告单位从"单个 run"修正为**任务级**（文档 15.2 要求）：`reporting/task_report_spec.py` 的 `TaskReportSpec` 覆盖 目标/约束/知识引用/计划（假设+候选+DAG）/代码变更/多次执行聚合/消融/失败案例/汇总成本/trace/复现/限制；
+- **中文渲染**：`render_task_markdown`（Markdown 表格 + ✅/⭐ 标注）与 `render_task_pdf`（reportlab 注册 `C:\Windows\Fonts\simhei.ttf`，中文字体嵌入；表格用纯文字"达标/未达标/最优"标注，避免 SimHei 无 emoji 字形）；
+- 结果用**表格 + PSD 图片**呈现；最优实验自动标注；达标行标"达标"；
+- `TaskFidelityChecker`：每个 run 的 NMSE/参数量/基线/成本与 source 逐项核对，篡改可检出；
+- 示例：`benchmarks/report-examples-v1/task-001/task-report-task-001.pdf`（中文，fitz 验证段落文本可提取、数字正确）；
+- 测试：`tests/test_task_reporting.py` 6 个（builder/最优标注/fidelity/中文 Markdown/中文 PDF/缺图错误）；full offline suite **386 tests OK**。
+
 ### v3.6 检索评测最终状态（2026-08-11）
 
 真实 30 查询（用户视角中文，2242 chunks）：
