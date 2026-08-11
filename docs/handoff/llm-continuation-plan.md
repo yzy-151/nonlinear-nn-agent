@@ -1600,3 +1600,23 @@ Goal -> Plan -> Validate -> Code -> Execute -> Evaluate -> Reflect -> Write -> E
 - [x] 检查 SVG/PNG 非空、PNG 尺寸和可读性，执行 `git diff --check` 后提交并推送。
 
 实施记录：正式图包含 6 个分区、47 个业务节点、53 条数据/控制连线；Draw.io XML 共 55 个可编辑 vertex（含分区、标题和叙事带），不是嵌入位图。SVG 已由 XML 解析器验证，PNG 经 Edge 实际渲染为 `3200 x 1800`。抽查 `PlanGate -> CodingAgent`、`ExecutionAgent -> ToolRegistry`、`Evaluator -> metrics`、Reflection facts 回到下一轮 planner、`PlannerContextBuilder -> Multi-Agent` 的 planned 链路均与源码和当前能力边界一致。
+
+### 15.14 架构图排版修订、领导简版与 README 收口（2026-08-12）
+
+#### 已批准设计
+
+采用“同一结构化定义、两种叙事层级”的方案，不在导出的 SVG/PNG 上手工修补：
+
+1. **工程详细版**继续使用 `nonlinear-agent-system.*` 三件套。保留六个分区和真实数据流，移除非必要 edge label，长标题使用宽度感知字号，窄节点改为短标题加副标题；底部深色区域改成浅灰蓝叙事带和低饱和步骤块。所有节点正文必须留出上下边距，连线标签不得压住节点正文。
+2. **领导简化版**新增 `nonlinear-agent-executive.*` 三件套。只回答四个问题：解决什么问题、系统怎样工作、工程护栏是什么、产生什么证据。画面控制在 12 个以内的主节点、5 个阶段和 3 个真实结果数字，不列源码文件、协议细节或每个子 Agent 的内部字段。
+3. **README**由版本流水账改为项目主页：一句话定位、领导简图、项目价值、当前能力与真实性边界、真实 3x3 证据、快速开始、详细架构入口、核心实现、评测方法、文档导航。删除旧 UI 六连图、v3 早期 synthetic 大表、过时参数敏感性和重复命令；原始报告与 benchmark 文件继续保留并从文档导航访问。
+4. **编辑方式**写入 README：在 diagrams.net 选择 `File -> Open from -> Device` 打开 `.drawio`；编辑后从源文件导出 SVG/PNG，禁止直接修改 PNG。详细版与领导版均提供独立可编辑源文件。
+
+#### 实施与验收清单
+
+- [ ] 详细版 Draw.io/SVG/PNG 同步生成，PNG 不低于 3200px 宽；浅色底部叙事带；自动检查节点文字估算宽度和行数。
+- [ ] 领导版 Draw.io/SVG/PNG 同步生成，PNG 不低于 2400px 宽；主流程在 README 默认宽度下仍能快速辨认。
+- [ ] 两张 Draw.io 均可由 XML 解析，节点是独立 vertex；SVG 可解析且不依赖外部字体/CDN。
+- [ ] README 控制在约 180-240 行，只展示领导简版与一张当前 Operations Console；详细版通过链接或折叠区访问。
+- [ ] README 的所有相对链接存在；真实结果保持 `8/9`、`-23.0778 dB`、`24 params`、`-41 dB not hit`，不把历史 `-42 dB` 与本次 Multi-Agent 结果混写。
+- [ ] 目视检查两张 PNG：无文字越界、无深色大底、无关键连线穿过正文；运行 fast tests、链接检查和 `git diff --check` 后提交推送。
