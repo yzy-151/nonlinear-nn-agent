@@ -870,7 +870,18 @@ confidence, valid_from, supersedes, invalidated_at
 - 离线 FakeLLM E2E 已覆盖“首轮 SyntaxError -> 第二轮完整未知插件 -> 80 参数、NMSE -36.5 dB、PSD 成功”；这是闭环 fixture，不是 DeepSeek coding pass rate；
 - 安全边界：AST gate + 环境清理 + 子进程不是 OS sandbox，生产化仍需容器/网络/只读挂载/资源隔离。
 
-下一阶段只做 **v4.0.0-c 动态 Writing**：WritingAgent 从 `ModelDescriptor + TrainingResult + trace` 生成 `EvidenceBundle/NarrativeSpec/ArchitectureGraphSpec`，通用画任意模型架构并重做专业 HTML/PDF；不得再按固定模型名选择原理图。
+#### v4.0.0-c：动态 WritingAgent（实施完成，待真实模型评测）
+
+- `writing_agent.py` 新增 `EvidenceBundle`、`ArchitectureGraphSpec`、`NarrativeSpec`、`NarrativeFidelityChecker` 与 `WritingAgent`；WritingAgent 固定走 `ModelRouter` 的 `writing` role；
+- EvidenceBundle 为 goal/constraints/descriptor/metrics/PSD/failure/trace/derived aggregate 建立稳定 evidence ID；prompt 不要求模型猜测仓库状态；
+- 六个叙事 section 均须给出 `evidence_refs`；未知引用、task_id 漂移、额外 schema 字段和 source 中不存在的数字均拒绝；
+- `draw_architecture_graph()` 直接布局任意 `ModelDescriptor.nodes/edges`，展示 operation、details 和 edge label；缺 descriptor 时明确写 `Descriptor unavailable`，绝不由模型名推断隐藏层；
+- `write_task_report` 接受已校验 NarrativeSpec；无 LLM 输出时使用只陈述结构化事实的 deterministic fallback，旧 `analysis` 不再决定架构归因；
+- HTML 与 PDF 统一由一份 print-ready HTML 生成，Edge 使用 UTF-8 输出、独立临时 profile 和本地图片访问；报告覆盖指标、动态架构、真实 PSD、实验表、失败/消融、代码、trace、复现和限制；
+- 视觉验收：陌生 `adaptive_wavelet_lut` 四节点 descriptor 生成 3 页 A4 PDF，无乱码、重叠、黑框和孤立尾页，表头跨页可重复；预览位于 Codex 临时目录，不作为真实实验结果提交；
+- 当前只证明报告协议、fidelity 和渲染链，不代表真实 DeepSeek 写作优于 deterministic fallback。
+
+下一阶段只做 **v4.0.0-d Supervisor E2E**：把 Idea/Plan -> Coding -> Execute -> Writing 接入同一状态图，建立失败回路、唯一终态、角色 timeline、预算与 Web 事件；不得先做最终消融或宣称四角色主链完成。
 
 #### v4.0.0：Multi-Agent Evaluation & Closeout
 

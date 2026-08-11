@@ -47,6 +47,7 @@ Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 - **Web UI + CLI + Dashboard** 三套交付面，浏览器一键跑实验并实时看事件流
 - **开放模型候选执行（v4.0.0-a）**：CodingAgent 未来生成的模型不再受现有 `model_type` 名称白名单限制；候选代码以 `ModelPlugin + ModelDescriptor + manifest` 描述模型、训练入口和架构图，经 CandidateRegistry 路径/契约/配置/参数预算校验后，由 ExecutionAgent 调用固定子进程 runner 执行。父进程复核有限指标、参数量、descriptor hash 和全部 artifact 路径；当前阶段提供执行基础设施，尚不代表真实 LLM coding pass rate
 - **LLM Coding 闭环（v4.0.0-b）**：CodingAgent 通过 `ModelRouter` 的 `coding` 角色调用可配置模型，要求一次返回完整候选包（源码、manifest、descriptor、参数估算和 `train()`），而非只给 `ModelClass`。严格 JSON/候选目录/AST capability gate 通过后，固定 runner 执行 contract validation 与真实 smoke training；失败只提取语法、契约、预算或产物事实，最多回传两轮让 coding LLM 重写完整候选包。每轮只落 prompt/response/file hash 与 gate facts，避免把源码或密钥写进 trace。离线双轮修复 E2E 已覆盖，真实 DeepSeek pass rate 留待固定任务集评测
+- **证据驱动 WritingAgent（v4.0.0-c）**：`EvidenceBundle` 把目标、约束、`ModelDescriptor`、执行指标、真实 PSD、失败和 trace 压缩成带 ID 的事实；WritingAgent 通过 `ModelRouter(writing)` 输出六段 `NarrativeSpec`，每段必须引用已有 evidence ID，任何未知引用或源数据不存在的数字都会被 fidelity gate 拒绝。架构图按 descriptor 的任意 nodes/edges 动态布局，不再按 `model_type` 猜固定原理图；HTML 与 PDF 共用同一份 print-ready 页面，中文字体、A4 分页、表头续页和移动端均已覆盖。离线陌生 Wavelet-LUT fixture 的 3 页 PDF 已完成视觉复验，真实模型写作质量仍需在固定任务集上评测
 
 ## 内置实验领域（3.1）
 

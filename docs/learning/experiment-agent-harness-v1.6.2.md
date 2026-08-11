@@ -176,3 +176,43 @@ CodingAgent 接受 `ModelRouter`，固定使用 `coding` role。角色配置可�
 ### 面试表达
 
 > 我没有让 CodingAgent 输出任意 shell，也没有把新网络硬塞进已有 model_type 分支。LLM 生成完整 ModelPlugin 候选包，Harness 先做 JSON、路径和 AST capability gate，再由固定子进程验证契约并真实 smoke 训练。失败只抽取事实回传，最多两轮修复；ExecutionAgent 最终只接收经过 descriptor hash、参数预算、NMSE 和 PSD 证据复核的结果。当前离线 E2E 证明闭环可用，真实模型能力用独立 pass@1/pass@3 评测，不混为一谈。
+
+## 11. v4.0.0-c 补充：WritingAgent 怎样避免“漂亮地胡说”
+
+### EvidenceBundle 不是把全部日志塞进 prompt
+
+WritingAgent 不直接读取杂乱 history，而是接收压缩后的 `EvidenceBundle`。每条事实都有稳定 ID：
+
+- `architecture:<name>`：ModelDescriptor 的节点、边、operation 和 details；
+- `metric:<run_id>`：NMSE、基线、参数量、达标状态和成本；
+- `artifact:psd:<run_id>`：真实 PSD 路径；
+- `failure:<id>`：确定性失败事实；
+- `constraint:<name>`、`plan:hypotheses`、`trace:<n>` 和 `aggregate:performance`。
+
+这使 LLM 的任务从“重新理解整个工程”缩小为“在已给事实之间组织叙事”，也让报告结论可以反向追到来源。
+
+### NarrativeSpec 的双层 fidelity
+
+WritingAgent 输出执行摘要、架构分析、性能分析、失败分析、经验和限制六段内容。每段必须引用 EvidenceBundle 中存在的 ID。随后确定性 checker 做两层检查：
+
+1. 引用 fidelity：未知或虚构 evidence ID 直接拒绝；
+2. 数字 fidelity：叙事里的数字必须来自原始 source 或派生聚合指标，并允许与显示精度一致的舍入。比如把真实 `-37.49 dB` 写成 `-99 dB` 会失败。
+
+LLM 负责语言与归纳，程序负责事实边界。这样比让程序写固定模板更灵活，也比完全相信 LLM 更可审计。
+
+### 为什么报告能支持任意新模型
+
+旧架构图根据 `model_type` 在 `complex_lstsq` 和神经网络模板之间二选一，会把未知模型画错。v4.0.0-c 的 `ArchitectureGraphSpec` 直接读取 `ModelDescriptor.nodes/edges`，通用 DAG 布局器展示每个节点的 label、operation、details 和边标签。缺 descriptor 时只显示 `Descriptor unavailable`，不会猜测隐藏层、激活函数或卷积结构。
+
+### 为什么 HTML 和 PDF 必须同源
+
+旧实现的网页和 ReportLab PDF 是两套模板，同一报告会出现章节、字体和分页差异。新实现先生成一份 print-ready HTML，再由 headless Edge 打印为 PDF：
+
+- A4 print CSS 控制页边距、不可拆分图像和跨页表头；
+- Microsoft YaHei 优先，消除中文与 Unicode 黑框；
+- 页面同时包含关键指标、架构、真实 PSD、执行表、失败/消融、代码、trace、复现与限制；
+- HTML 仍可响应式浏览，PDF 与浏览器看到的是同一份事实和版式。
+
+### 面试表达
+
+> WritingAgent 不直接自由发挥。我先把 ModelDescriptor、TrainingResult、PSD、失败和 trace 转成带 evidence ID 的 EvidenceBundle；LLM 输出每段带引用的 NarrativeSpec，确定性 fidelity gate 再检查未知引用和不受支持的数字。架构图完全由 descriptor 的节点和边动态生成，HTML 与 PDF 同源。这样新模型不需要预制原理图，报告也不会因为 LLM 文笔流畅就绕过事实校验。
