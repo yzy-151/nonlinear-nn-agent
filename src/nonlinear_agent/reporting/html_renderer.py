@@ -35,7 +35,7 @@ def render_task_html(
     nmse_values = [r.nmse_db for r in executions if r.nmse_db is not None]
     avg_nmse = sum(nmse_values) / len(nmse_values) if nmse_values else None
     gain = (
-        best.nmse_db - best.baseline_nmse_db
+        best.baseline_nmse_db - best.nmse_db
         if best and best.nmse_db is not None and best.baseline_nmse_db is not None
         else None
     )

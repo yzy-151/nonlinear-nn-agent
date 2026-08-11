@@ -13,10 +13,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 
-PROMPT_TOKEN_PRICE_USD = 0.27 / 1_000_000
-COMPLETION_TOKEN_PRICE_USD = 1.10 / 1_000_000
-
-
 @dataclass(frozen=True)
 class ModelRoleConfig:
     provider: str
@@ -24,6 +20,8 @@ class ModelRoleConfig:
     temperature: float = 0.0
     token_budget: int = 0
     cost_budget: float = 0.0
+    prompt_price_per_million: float = 0.27
+    completion_price_per_million: float = 1.10
 
 
 @dataclass(frozen=True)
@@ -114,8 +112,14 @@ class ModelRouter:
                 model=str(getattr(client, "model", config.model)),
                 prompt_tokens=max(0, prompt_tokens),
                 completion_tokens=max(0, completion_tokens),
-                cost_usd=max(0, prompt_tokens) * PROMPT_TOKEN_PRICE_USD
-                + max(0, completion_tokens) * COMPLETION_TOKEN_PRICE_USD,
+                cost_usd=(
+                    max(0, prompt_tokens)
+                    * config.prompt_price_per_million
+                    / 1_000_000
+                    + max(0, completion_tokens)
+                    * config.completion_price_per_million
+                    / 1_000_000
+                ),
                 latency_ms=latency_ms,
                 timestamp=time.time(),
             )

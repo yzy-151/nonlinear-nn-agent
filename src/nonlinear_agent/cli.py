@@ -56,6 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--fake-plan")
     run.add_argument("--fake-action")
     run.add_argument("--max-actions", type=int, default=12)
+    run.add_argument(
+        "--planner-context",
+        choices=["on", "off"],
+        default="on",
+        help="Inject top-k project knowledge and valid typed memory into action planning.",
+    )
     run.add_argument("--llm-kind", choices=["compat", "sdk"], default="compat",
         help="LLM client: compat (hand-written HTTP, default) or sdk (official OpenAI SDK).")
 
@@ -182,6 +188,21 @@ async def _run_planner(args: argparse.Namespace) -> int:
         tool_registry = domain.build_tool_registry(
             workspace, default_timeout_seconds=args.timeout_seconds
         )
+        memory_backend = None
+        context_builder = None
+        if args.planner_context == "on":
+            from nonlinear_agent.knowledge.ingest import KnowledgeIngestor
+            from nonlinear_agent.knowledge.retriever import KnowledgeRetriever
+            from nonlinear_agent.memory.langgraph_store import LangGraphMemoryBackend
+            from nonlinear_agent.memory.planner_context import PlannerContextBuilder
+
+            roots = [path for path in (workspace / "docs", workspace / "configs") if path.is_dir()]
+            chunks = KnowledgeIngestor(roots=roots).ingest()
+            memory_backend = LangGraphMemoryBackend()
+            context_builder = PlannerContextBuilder(
+                retriever=KnowledgeRetriever(chunks=chunks),
+                memory_backend=memory_backend,
+            )
         loop = ActionPlannerLoop(
             planner=AgentActionPlanner(llm, tool_registry),
             tool_registry=tool_registry,
@@ -196,9 +217,18 @@ async def _run_planner(args: argparse.Namespace) -> int:
                 "parameter_count_max": args.parameter_count_max,
                 "metric": "nmse_db",
                 "nmse_threshold_db": args.nmse_threshold_db,
+                "domain": "nonlinear-modeling",
+                "dataset_hash": "cli-default",
+                "model_family": "mixed",
             },
+            memory_backend=memory_backend,
+            planner_context_builder=context_builder,
         )
-        result = await loop.run(goal=args.goal, max_actions=args.max_actions)
+        try:
+            result = await loop.run(goal=args.goal, max_actions=args.max_actions)
+        finally:
+            if memory_backend is not None:
+                memory_backend.close()
         print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
         return 0
 

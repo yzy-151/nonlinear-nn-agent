@@ -38,8 +38,9 @@ Strategy Comparison 页签（四策略对照，含 95% CI 与 paired delta）：
 - **DomainPlugin 可迁移**：非线性建模与合成回归两个领域插件共用同一套 Harness，证明系统可迁移
 - **四种搜索策略统一对照**：`random_search`、`optuna_tpe`、`llm_direct`（LLM 直接决策，无反思）、`llm_program_reflection`（程序基于实验结果做确定性反思/路由）在同一协议、同一数据划分下公平比较，输出 bootstrap 95% CI 与 paired delta
 - **历史先验注入**：把历史最优候选（-42 dB 级）作为知识注入 Reflection 策略，让 LLM 在已知最优邻域继续搜索
-- **结构化 Memory Backend（3.6）**：typed memory（semantic/episodic/procedural）带完整 provenance（run/action/config/dataset hash、evidence refs、model、prompt hash、confidence），namespace = domain + dataset hash + model family 隔离，`supersedes`/invalidate 保留审计链；action-loop 可开关写入，Web Memory 页只读检查
-- **Knowledge Base（3.6）**：白名单目录 ingestion（chunk 带 source/content hash/version/citation）+ **混合检索**（BM25 + 本地 bge 向量召回 + cross-encoder rerank + query expansion），30 条用户视角中文查询 recall@3 = **0.93**（纯 BM25 基线 0.53），跨 dataset leakage = 0；真实评测可复现：`python scripts/eval_knowledge_retrieval.py`
+- **结构化 Memory Backend（3.6）**：typed memory（semantic/episodic/procedural）带完整 provenance（run/action/config/dataset hash、evidence refs、model、prompt hash、confidence），namespace = domain + dataset hash + model family 隔离，`supersedes`/invalidate 保留审计链；CLI action-loop 默认把 top-k 有效 memory 与知识 citation 注入下一次 planner，可用 `--planner-context off` 做消融；Web Memory 页只读检查
+- **Knowledge Base（3.6）**：白名单目录 ingestion（chunk 带 source/content hash/version/citation）+ **混合检索**（BM25 + 本地多语言向量召回 + cross-encoder rerank + query expansion）。当前 30 条项目内中文查询 recall@3 = **1.00**、citation precision@1 = **0.80**（未达到计划中的 0.95）；真实评测可复现：`python scripts/eval_knowledge_retrieval.py`
+- **受控执行与证据报告（3.8-3.9）**：CodingAgent 使用独立 worktree、文件白名单和 test gate；ExecutionAgent 只调用 ToolRegistry；`write_task_report` 只接受真实实验 PSD，缺图时结构化失败，不生成示意数据冒充证据
 - **SSE 实时观测**：事件 ID、15 秒心跳、`/cancel`、Last-Event-ID 断线重放
 - **SQLite 控制面**：请求去重、任务 lease、原子 claim、单调事件序列（WAL + busy timeout），并发压测通过
 - **层级 Trace**：`trace_id/span_id/parent_span_id/attempt/model/config_hash/token/cost` 全链路

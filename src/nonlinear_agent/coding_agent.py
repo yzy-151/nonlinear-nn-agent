@@ -63,6 +63,8 @@ class CodingAgent:
         self, worktree: Path | str, patch: dict[str, str]
     ) -> CodingResult:
         root = Path(worktree).resolve()
+        if self._worktree is None or root != self._worktree.resolve():
+            raise ValueError("Patches may only target this agent's owned worktree.")
         applied: list[str] = []
         unauthorized = 0
         env_accessed = False
@@ -70,16 +72,23 @@ class CodingAgent:
             path.relative_to(self._repo).as_posix() for path in self._allowed
         }
         for rel, content in patch.items():
+            rel_path = Path(rel)
             target = (root / rel).resolve()
-            if ".env.local" in target.parts or rel == ".env.local":
+            if any(part.lower() == ".env.local" for part in rel_path.parts):
                 env_accessed = True
                 continue
-            if self._allowed and rel not in allowed_rel:
+            try:
+                target.relative_to(root)
+            except ValueError:
+                unauthorized += 1
+                continue
+            normalized_rel = target.relative_to(root).as_posix()
+            if rel_path.is_absolute() or (self._allowed and normalized_rel not in allowed_rel):
                 unauthorized += 1
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
-            applied.append(rel)
+            applied.append(normalized_rel)
         return CodingResult(
             applied_files=tuple(applied),
             unauthorized_writes=unauthorized,

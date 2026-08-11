@@ -40,6 +40,7 @@ class ActionPlannerLoop:
         constraints: dict[str, Any] | None = None,
         memory_backend: MemoryBackend | None = None,
         memory_kind: MemoryKind = MemoryKind.EPISODIC,
+        planner_context_builder: Any | None = None,
     ):
         self.planner = planner
         self.tool_registry = tool_registry
@@ -48,6 +49,7 @@ class ActionPlannerLoop:
         self.constraints = constraints or {}
         self.memory_backend = memory_backend
         self.memory_kind = memory_kind
+        self.planner_context_builder = planner_context_builder
 
     async def run(self, goal: str, max_actions: int = 12) -> ActionLoopResult:
         history: list[dict[str, Any]] = []
@@ -62,7 +64,7 @@ class ActionPlannerLoop:
             action = self.planner.plan(
                 goal=goal,
                 history=history,
-                constraints=self.constraints,
+                constraints=self._planning_constraints(goal),
             )
 
             if action.is_stop:
@@ -171,6 +173,46 @@ class ActionPlannerLoop:
             metrics,
             artifacts,
         )
+
+    def _planning_constraints(self, goal: str) -> dict[str, Any]:
+        """Add only top-k, provenance-rich context to the planner request."""
+        constraints = dict(self.constraints)
+        if self.planner_context_builder is None:
+            return constraints
+        namespace = (
+            str(constraints.get("domain", "nonlinear-modeling")),
+            str(constraints.get("dataset_hash", "unknown")),
+            str(constraints.get("model_family", "unknown")),
+        )
+        context = self.planner_context_builder.build(
+            query=goal, namespace=namespace, top_k=3
+        )
+        knowledge = []
+        for scored in context.knowledge:
+            chunk = getattr(scored, "chunk", scored)
+            knowledge.append(
+                {
+                    "citation": str(getattr(chunk, "citation", "")),
+                    "text": str(getattr(chunk, "text", ""))[:800],
+                    "score": getattr(scored, "score", None),
+                }
+            )
+        memory = [
+            {
+                "memory_id": item.memory_id,
+                "kind": item.kind.value,
+                "fact": item.fact,
+                "evidence_refs": list(item.evidence_refs),
+                "run_id": item.run_id,
+                "confidence": item.confidence,
+            }
+            for item in context.memory
+        ]
+        constraints["retrieved_context"] = {
+            "knowledge": knowledge,
+            "memory": memory,
+        }
+        return constraints
 
     def _write_memory(
         self,

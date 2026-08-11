@@ -211,6 +211,52 @@ class ActionPlannerLoopTest(unittest.TestCase):
         self.assertIn("echo succeeded", item.fact)
         backend.close()
 
+    def test_retrieved_memory_is_injected_into_the_next_planner_prompt(self):
+        from nonlinear_agent.memory.planner_context import PlannerContextBuilder
+        from nonlinear_agent.memory.ports import MemoryItem
+
+        registry = ToolRegistry()
+        llm = FakeLLMClient(responses=[_action("stop", stop=True)])
+        planner = AgentActionPlanner(llm, registry)
+        backend = LangGraphMemoryBackend()
+        backend.write(
+            MemoryItem(
+                memory_id="prior-001",
+                kind=MemoryKind.SEMANTIC,
+                namespace=("nonlinear-modeling", "hash-ds-1", "tiny_mlp"),
+                fact="prior run says memory_depth=24 was stable",
+                run_id="prior-run",
+                dataset_hash="hash-ds-1",
+                created_at=1.0,
+            )
+        )
+
+        class EmptyRetriever:
+            def retrieve(self, query, top_k=3):
+                return []
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            loop = ActionPlannerLoop(
+                planner=planner,
+                tool_registry=registry,
+                runtime_factory=self._runtime_factory(root, registry),
+                session_id="memory-read-demo",
+                constraints={
+                    "domain": "nonlinear-modeling",
+                    "dataset_hash": "hash-ds-1",
+                    "model_family": "tiny_mlp",
+                },
+                memory_backend=backend,
+                planner_context_builder=PlannerContextBuilder(
+                    retriever=EmptyRetriever(), memory_backend=backend
+                ),
+            )
+            asyncio.run(loop.run("use prior evidence", max_actions=1))
+
+        self.assertIn("prior run says memory_depth=24 was stable", llm.last_prompt)
+        backend.close()
+
 
 if __name__ == "__main__":
     unittest.main()

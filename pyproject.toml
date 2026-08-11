@@ -16,7 +16,14 @@ dependencies = [
   "torch",
   "fastapi",
   "uvicorn",
+  "langgraph>=0.2,<2",
+  "reportlab>=4,<5",
 ]
+
+[project.optional-dependencies]
+retrieval = ["transformers>=4,<6"]
+postgres = ["psycopg[binary]>=3,<4"]
+pdf-test = ["pymupdf>=1.23,<2"]
 
 [project.scripts]
 nonlinear-agent = "nonlinear_agent.cli:main"

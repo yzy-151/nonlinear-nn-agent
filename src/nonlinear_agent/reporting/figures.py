@@ -14,14 +14,38 @@ plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]
 plt.rcParams["axes.unicode_minus"] = False
 
 
+def architecture_stage_labels(
+    model_type: str, config: dict[str, Any] | None = None
+) -> list[str]:
+    """Return factual stage labels for the selected model family."""
+    config = config or {}
+    memory = int(config.get("memory_depth") or 8)
+    model = model_type.lower()
+    if model in {"complex_lstsq", "linear"}:
+        orders = int(config.get("mp_order_count") or 1)
+        return [
+            "输入信号\n$x, d$",
+            f"记忆多项式特征\n{memory} 抽头 · {orders} 阶数",
+            "复数最小二乘\n闭式求解系数",
+            "模型输出\n$\\hat{y}$",
+        ]
+    hidden = int(config.get("hidden_units") or 64)
+    activation = str(config.get("activation") or "silu")
+    feature = "样条/LUT 特征" if "spline" in model else "实虚部特征"
+    return [
+        "输入信号\n$x, d$",
+        f"{feature}\n{memory} 记忆抽头",
+        f"隐藏层\n{hidden} 单元 · {activation}",
+        "模型输出\n$\\hat{y}$",
+    ]
+
+
 def draw_architecture_diagram(
     model_type: str, output_path: Path, config: dict[str, Any] | None = None
 ) -> Path:
     """Draw a block diagram of the model architecture with Chinese labels."""
     config = config or {}
-    hidden = int(config.get("hidden_units", 64))
-    memory = int(config.get("memory_depth", 8))
-    activation = str(config.get("activation", "silu"))
+    labels = architecture_stage_labels(model_type, config)
 
     fig, ax = plt.subplots(figsize=(9, 3.6))
     ax.axis("off")
@@ -29,10 +53,10 @@ def draw_architecture_diagram(
     ax.set_ylim(0, 4)
 
     boxes = [
-        (0.4, 1.4, 1.8, 1.2, "输入信号\n$x, d$", "#dbeafe"),
-        (2.7, 1.4, 1.9, 1.2, f"特征提取\nreal/imag + {memory} 记忆抽头", "#dcfce7"),
-        (5.1, 1.4, 1.9, 1.2, f"隐藏层\n{hidden} 单元 · {activation}", "#fef3c7"),
-        (7.5, 1.4, 1.9, 1.2, "输出\n$\\hat{y}$", "#fee2e2"),
+        (0.4, 1.4, 1.8, 1.2, labels[0], "#dbeafe"),
+        (2.7, 1.4, 1.9, 1.2, labels[1], "#dcfce7"),
+        (5.1, 1.4, 1.9, 1.2, labels[2], "#fef3c7"),
+        (7.5, 1.4, 1.9, 1.2, labels[3], "#fee2e2"),
     ]
     for x, y, w, h, label, color in boxes:
         rect = plt.Rectangle((x, y), w, h, facecolor=color, edgecolor="#334155", linewidth=1.4)
@@ -125,7 +149,7 @@ def draw_improvement_bars(
     ax.bar(x - width / 2, baselines, width, label="基线", color="#94a3b8")
     ax.bar(x + width / 2, improved, width, label="改进后", color="#16a34a")
     for i, (b, imp) in enumerate(zip(baselines, improved)):
-        gain = imp - b
+        gain = b - imp
         ax.text(
             i + width / 2,
             imp + 0.4,

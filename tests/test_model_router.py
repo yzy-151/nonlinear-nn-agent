@@ -84,6 +84,24 @@ class TestModelRouter(unittest.TestCase):
         router.complete("supervisor", "x")
         self.assertTrue(router.budget_exceeded())
 
+    def test_role_specific_prices_are_used_for_cost(self):
+        roles = {
+            "supervisor": {
+                "provider": "fake",
+                "model": "expensive",
+                "prompt_price_per_million": 2.0,
+                "completion_price_per_million": 8.0,
+            }
+        }
+        router, _ = _router(roles)
+        router.complete("supervisor", "12345678")
+        record = router.usage()[0]
+        expected = (
+            record.prompt_tokens * 2.0 / 1_000_000
+            + record.completion_tokens * 8.0 / 1_000_000
+        )
+        self.assertAlmostEqual(record.cost_usd, expected)
+
     def test_fallback_only_once_on_retryable_error(self):
         from nonlinear_agent.llm import _RetryableRequestError
 

@@ -1,0 +1,30 @@
+{
+  "protocol_version": "1.9.0",
+  "bootstrap_seed": 20260802,
+  "bootstrap_samples": 2000,
+  "confidence_level": 0.95,
+  "per_method": {
+    "random_search": {
+      "method": "random_search",
+      "metric_name": "val_mse",
+      "n_seeds": 1,
+      "n_total_trials": 1,
+      "n_effective_trials": 1,
+      "best_val_mse_mean": 30.027709622503085,
+      "best_val_mse_ci_95_low": 30.027709622503085,
+      "best_val_mse_ci_95_high": 30.027709622503085,
+      "best_val_mse_median": 30.027709622503085,
+      "best_val_mse_std": 0.0,
+      "target_hit_rate_mean": 0.0,
+      "target_hit_rate_ci_95_low": 0.0,
+      "target_hit_rate_ci_95_high": 0.0,
+      "rejected_rate_mean": 0.0,
+      "rejected_rate_ci_95_low": 0.0,
+      "rejected_rate_ci_95_high": 0.0,
+      "runtime_failure_rate_mean": 0.0,
+      "runtime_failure_rate_ci_95_low": 0.0,
+      "runtime_failure_rate_ci_95_high": 0.0
+    }
+  },
+  "paired_comparisons": {}
+}

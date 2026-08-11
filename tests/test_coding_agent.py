@@ -87,6 +87,34 @@ class TestCodingAgent(unittest.TestCase):
         self.assertTrue(result.env_local_accessed)
         self.assertFalse((worktree / ".env.local").read_text(encoding="utf-8").startswith("DEEPSEEK_API_KEY=stolen"))
 
+    def test_patch_cannot_escape_worktree(self):
+        from nonlinear_agent.coding_agent import CodingAgent
+
+        root = self._repo()
+        agent = CodingAgent(repo_root=root)
+        worktree = agent.create_worktree()
+        self.addCleanup(agent.cleanup_worktree)
+        escaped = worktree.parent / "escaped.py"
+        escaped.unlink(missing_ok=True)
+        self.addCleanup(escaped.unlink, missing_ok=True)
+
+        result = agent.apply_patch(worktree, {"../escaped.py": "secret = True\n"})
+
+        self.assertEqual(result.unauthorized_writes, 1)
+        self.assertFalse(escaped.exists())
+        self.assertEqual(result.applied_files, ())
+
+    def test_patch_rejects_a_root_other_than_the_owned_worktree(self):
+        from nonlinear_agent.coding_agent import CodingAgent
+
+        root = self._repo()
+        agent = CodingAgent(repo_root=root)
+        agent.create_worktree()
+        self.addCleanup(agent.cleanup_worktree)
+
+        with self.assertRaisesRegex(ValueError, "owned worktree"):
+            agent.apply_patch(root, {"module.py": "def answer():\n    return 99\n"})
+
     def test_test_gate_rejects_failing_patch(self):
         from nonlinear_agent.coding_agent import CodingAgent
 

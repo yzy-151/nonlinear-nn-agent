@@ -279,7 +279,7 @@ def render_task_pdf(
                 ["实验总数", str(len(spec.executions))],
                 ["达标率", f"{hit_rate * 100:.0f}%"],
                 ["最优 NMSE", _fmt(best.nmse_db) if best else "—"],
-                ["相对基线提升", _fmt(best.nmse_db - best.baseline_nmse_db, 2) if best and best.nmse_db is not None and best.baseline_nmse_db is not None else "—"],
+                ["相对基线提升", _fmt(best.baseline_nmse_db - best.nmse_db, 2) if best and best.nmse_db is not None and best.baseline_nmse_db is not None else "—"],
                 ["总成本", f"${_fmt(spec.cost_usd, 4)}"],
             ],
             style=TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.grey)]),

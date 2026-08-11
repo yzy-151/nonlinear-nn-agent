@@ -8,6 +8,7 @@ agent-supplied analysis, fidelity check, HTML -> PDF (headless Edge).
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,6 @@ from nonlinear_agent.reporting.fidelity import TaskFidelityChecker
 from nonlinear_agent.reporting.figures import (
     draw_architecture_diagram,
     draw_improvement_bars,
-    draw_psd_figure,
 )
 from nonlinear_agent.reporting.html_renderer import render_task_html
 from nonlinear_agent.reporting.pdf_renderer import RenderError, render_task_pdf
@@ -45,6 +45,7 @@ def write_task_report_tool(
 
     best = spec.best()
     best_config: dict[str, Any] = {}
+    best_source: dict[str, Any] = {}
     if best is not None:
         best_source = next(
             (
@@ -57,16 +58,31 @@ def write_task_report_tool(
         best_config = {
             "hidden_units": best_source.get("hidden_units"),
             "memory_depth": best_source.get("memory_depth"),
+            "mp_order_count": best_source.get("mp_order_count"),
+            "activation": best_source.get("activation"),
         }
+    psd_value = best_source.get("psd_path")
+    if not psd_value:
+        raise RenderError(["best execution is missing a real PSD artifact"])
+    source_psd = Path(str(psd_value))
+    if not source_psd.is_absolute():
+        source_psd = root / source_psd
+    source_psd = source_psd.resolve()
+    try:
+        source_psd.relative_to(root.resolve())
+    except ValueError as exc:
+        raise RenderError(["real PSD artifact must be inside the workspace"]) from exc
+    if not source_psd.is_file():
+        raise RenderError([f"real PSD artifact does not exist: {source_psd}"])
+
     arch = draw_architecture_diagram(
         best.model_type if best else "unknown",
         fig_dir / "architecture.png",
         config=best_config,
     )
-    psd = draw_psd_figure(
-        [{"run_id": r.run_id} for r in spec.executions],
-        fig_dir / "psd.png",
-    )
+    psd = fig_dir / f"psd{source_psd.suffix.lower()}"
+    if source_psd != psd.resolve():
+        shutil.copy2(source_psd, psd)
     improvement = draw_improvement_bars(
         [
             (r.run_id, r.baseline_nmse_db or 0.0, r.nmse_db or 0.0)
@@ -81,7 +97,7 @@ def write_task_report_tool(
             "architecture": str(arch),
             "psd": str(psd),
             "improvement": str(improvement),
-            "psd_note": "误差谱显著低于输入谱 → 非线性对消有效（示意谱，真实谱以实验产出的 psd.png 为准）",
+            "psd_note": f"真实实验 PSD，来源：{best.run_id if best else 'unknown'} / {source_psd.name}",
         },
         analysis=analysis,
     )

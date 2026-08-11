@@ -11,8 +11,8 @@ from nonlinear_agent.execution_agent import ExecutionAgent
 from nonlinear_agent.tools import ToolRegistry
 
 
-def _task_source() -> dict:
-    return {
+def _task_source(root: Path | None = None) -> dict:
+    source = {
         "task_id": "tool-task-001",
         "goal": "在 4000 参数预算内找到 NMSE <= -35 dB 的非线性模型",
         "constraints": {"parameter_count_max": 4000, "nmse_threshold_db": -35.0},
@@ -77,6 +77,23 @@ def _task_source() -> dict:
         "reproduce_command": "python agent.py run --provider deepseek",
         "limits": "训练预算 1 小时；仅非线性建模域",
     }
+    if root is not None:
+        psd = root / "real-psd.png"
+        _png(psd)
+        source["executions"][1]["psd_path"] = str(psd)
+    return source
+
+
+def _png(path: Path) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(4, 2))
+    ax.plot([0, 1], [-80, -100])
+    fig.savefig(path, dpi=72)
+    plt.close(fig)
 
 
 def _analysis() -> dict[str, str]:
@@ -115,7 +132,7 @@ class TestWriteTaskReportTool(unittest.TestCase):
                 agent.execute(
                     "write_task_report",
                     {
-                        "task_source": _task_source(),
+                        "task_source": _task_source(root),
                         "output_dir": "reports/tool-test",
                         "analysis": _analysis(),
                     },
@@ -139,7 +156,7 @@ class TestWriteTaskReportTool(unittest.TestCase):
                 agent.execute(
                     "write_task_report",
                     {
-                        "task_source": _task_source(),
+                        "task_source": _task_source(root),
                         "output_dir": "reports/tool-test",
                         "analysis": _analysis(),
                     },
@@ -175,7 +192,7 @@ class TestWriteTaskReportTool(unittest.TestCase):
                 agent.execute(
                     "write_task_report",
                     {
-                        "task_source": _task_source(),
+                        "task_source": _task_source(root),
                         "output_dir": "reports/tool-test",
                         "analysis": _analysis(),
                     },
@@ -191,13 +208,31 @@ class TestWriteTaskReportTool(unittest.TestCase):
             self.assertIn("任务报告", text)
             self.assertIn("-36.03", text)
 
+    def test_missing_real_psd_is_rejected_instead_of_fabricated(self):
+        from nonlinear_agent.experiment_tools import build_experiment_tool_registry
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            agent = ExecutionAgent(build_experiment_tool_registry(root))
+            result = asyncio.run(
+                agent.execute(
+                    "write_task_report",
+                    {
+                        "task_source": _task_source(),
+                        "output_dir": "reports/tool-test",
+                    },
+                )
+            )
+            self.assertEqual(result.status, "failed")
+            self.assertIn("real PSD", result.error)
+
     def test_empty_executions_yields_failed_tool_call(self):
         from nonlinear_agent.experiment_tools import build_experiment_tool_registry
 
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             agent = ExecutionAgent(build_experiment_tool_registry(root))
-            source = _task_source()
+            source = _task_source(root)
             source["executions"] = []
             result = asyncio.run(
                 agent.execute(
@@ -207,6 +242,18 @@ class TestWriteTaskReportTool(unittest.TestCase):
             )
             self.assertEqual(result.status, "failed")
             self.assertIn("executions is empty", result.error)
+
+    def test_lstsq_architecture_does_not_claim_a_hidden_activation_layer(self):
+        from nonlinear_agent.reporting.figures import architecture_stage_labels
+
+        labels = architecture_stage_labels(
+            "complex_lstsq",
+            {"memory_depth": 24, "mp_order_count": 12, "activation": "silu"},
+        )
+        joined = " ".join(labels)
+        self.assertIn("最小二乘", joined)
+        self.assertNotIn("silu", joined)
+        self.assertNotIn("隐藏层", joined)
 
 
 if __name__ == "__main__":

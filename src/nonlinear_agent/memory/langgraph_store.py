@@ -10,6 +10,7 @@ Namespaces are fixed as ``(domain, dataset_hash, model_family)`` under the
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 from typing import Any
 
@@ -193,7 +194,7 @@ class PostgresMemoryBackend:
                 item.memory_id,
                 item.kind.value,
                 ",".join(item.namespace),
-                _to_dict(item),
+                json.dumps(_to_dict(item)),
                 item.dataset_hash,
                 item.run_id,
                 item.created_at,

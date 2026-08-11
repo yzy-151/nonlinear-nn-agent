@@ -882,3 +882,254 @@ confidence, valid_from, supersedes, invalidated_at
 5. 不得删除或覆盖用户未提交文件；临时文件放 `C:\Users\yzy\Desktop\codex\nonlinear-nn-agent\`。
 6. 每个 Agent 的输入、输出、模型、工具权限、预算和 provenance 必须可从 Web/trace 回放。
 7. 所有 PDF 数字从结构化结果读取；Writing Agent 只能组织叙事，不能创造实验事实。
+
+### 15.7 Codex 复验结论（2026-08-11，覆盖本节更早的“完成”口径）
+
+#### 总体判定
+
+`v3.6-v3.9` 已形成一组质量不错、可单测的组件原型，但**尚未形成四角色 Multi-Agent 主链路**。当前可准确描述为：single-agent action-loop + 可注入 RAG/memory + 独立 Supervisor/PlanGate/CodingAgent/ExecutionAgent/reporting 组件。`supervisor_graph.py` 仍是单个 supervisor 节点；Idea/Coding/Execution/Writing 没有在同一 StateGraph 中完成真实 handoff、失败回路与终态汇总，因此不得对外宣称“multi-agent runtime 已完成”。
+
+#### 本轮已修复
+
+1. **CodingAgent 路径逃逸**：补丁目标现在必须是该 Agent 自己创建的 worktree，拒绝 `../`、绝对路径和主仓库根写入；新增反例测试。
+2. **报告证据真实性**：`write_task_report` 不再生成合成 PSD；必须读取最优真实 execution 的 `psd_path`，且产物必须位于 workspace 内、真实存在。缺失时返回结构化失败。NMSE“相对基线提升”统一改为 `baseline_nmse_db - current_nmse_db`，使越低越好的指标显示为正提升。
+3. **Memory 真正回到决策**：`ActionPlannerLoop` 新增 `planner_context_builder`，每次规划注入 top-3 knowledge citation 和 top-3 未失效 memory；CLI action 模式默认启用，可用 `--planner-context off` 做对照。
+4. **多模型成本**：ModelRouter 支持按 role 配置输入/输出每百万 token 单价，不再把所有 provider/model 按同一 DeepSeek 价格计算。
+5. **安装完整性**：补充 LangGraph、reportlab 运行依赖及 retrieval/Postgres/PDF 测试可选依赖；修正 Postgres JSONB 写入的序列化参数。
+
+#### 复验结果与未通过项
+
+| 能力 | 复验结论 | 证据/缺口 |
+| --- | --- | --- |
+| 全量离线回归 | 通过 | DeepSeek 提交基线 390/390；本轮修复后 396/396（87.7 秒） |
+| KB recall@3 | 通过 | 保存结果 1.00，30 条项目内查询 |
+| citation precision@1 | 未通过 | 0.80 < 0.95；`v3.6` 只能标记部分达标 |
+| Memory 写入与 planner 消费 | 通过（本地 action-loop） | 有 provenance、stale 过滤、top-k 注入测试；默认 InMemoryStore 仍不是跨进程长期记忆 |
+| Supervisor/PlanGate | 组件通过 | LangGraph 仅单节点，不是 multi-agent orchestration |
+| CodingAgent 隔离 | 修复后通过 | worktree/path traversal/主仓库根写入反例已覆盖；所谓 9/10 fixture 是 test-gate 样例，不是 LLM coding pass rate |
+| ExecutionAgent | 组件通过 | tool-only、故障分类、并发/resume 有测试；尚未由 Supervisor 主图调度 |
+| Writing Agent | 工具通过 | 报告生成和 fidelity 可用；没有独立 LLM writing role 的调用与 handoff，不能称完整 Writing Agent |
+| v4.0 消融 | 未开始 | 缺 single vs multi、memory off/on、role-model、writer off/on 的 6 tasks x 3 seeds 结果 |
+
+#### 后续唯一主线
+
+1. 把 `supervisor_graph.py` 扩为 `idea_plan -> plan_gate -> coding(optional) -> execution -> reflection/failure_handoff -> writing -> terminal`，每个节点只接收结构化最小上下文。
+2. 把 ModelRouter 的真实 role client 配置接入上述节点，trace 记录 role/model/token/cost；Execution 节点保持无 LLM。
+3. Web 增加同一 run 的角色时间线、handoff payload、memory/knowledge citation、预算与报告下载，不再只展示互相独立的组件结果。
+4. 完成 v4.0 固定协议消融；没有量化收益就如实保留 single-agent baseline，不得只挑成功样例。
+
+### 15.8 方案 A：开放式 Coding Agent 与证据驱动 Writing Agent（已批准）
+
+#### 目标与非目标
+
+目标：Coding Agent 能依据需求自主设计并实现**未预置模型族**；Writing Agent 能读取模型契约、源码结构和实验事实，为任意新架构生成专业、可信、可展示的中文报告。
+
+非目标：不允许 LLM 绕过 worktree、ToolRegistry、测试门或证据校验；不让 LLM 自由填写指标；不把“执行任意 shell”当作自主性；首版只覆盖 nonlinear-modeling domain。
+
+#### 体系结构
+
+```text
+Goal + KB/Memory + RepoMap
+          |
+          v
+IdeaPlanAgent -> CodeChangePlan -> CodingAgent(LLM)
+                                      |
+                              isolated worktree
+                                      |
+                    patch -> static gate -> tests -> repair(max 2)
+                                      |
+                                      v
+ModelPlugin Registry -> ExecutionAgent -> EvidenceBundle
+                                            |
+                                            v
+                                  WritingAgent(LLM)
+                                            |
+                       NarrativeSpec + ArchitectureGraphSpec
+                                            |
+                           FidelityGate -> HTML/PDF Renderer
+```
+
+#### Coding Agent 契约
+
+1. 输入 `CodingTaskSpec`：goal、approved plan、repo map、相关源码片段、知识 citation、历史失败事实、允许目录、测试命令、参数/时间预算。
+2. LLM 输出 `CodeChangePlan`：设计理由、待新增/修改文件、接口影响、测试计划、风险，以及 unified diff；不得输出完整仓库或直接执行命令。
+3. 新模型实现统一 `ModelPlugin`/`ModelDescriptor`：唯一名称、配置 schema、参数估算、build/train/predict 或 domain adapter、architecture graph metadata、支持的 evidence 字段。
+4. Registry 通过显式受控注册或入口发现新插件；现有 `complex_lstsq/tiny_mlp/spline_mlp/...` 只是插件实例，不再构成模型能力白名单。
+5. Gate 顺序固定：路径边界 -> patch 解析 -> Python AST/import -> plugin contract -> 配置 schema -> 参数预算 -> 目标测试 -> domain smoke training。
+6. 失败只回传事实：错误类型、失败命令、关键 stderr、失败测试、相关文件；LLM 最多修复两轮，仍失败则返回可审计终态，不污染 main。
+7. Coding Agent 不读取 `.env.local`，不直接获得 API key，不运行未注册 shell，不修改 handoff/README 来伪造完成证据。
+
+#### Writing Agent 契约
+
+1. 输入只接受 `ReportEvidenceBundle`：goal/constraints、IdeaPlan、CodeChange、ModelDescriptor、源码/AST 摘要、execution trace、真实 metrics、真实 PSD/artifacts、成本、失败案例、citation。
+2. LLM 输出结构化 `ReportNarrativeSpec` 和 `ArchitectureGraphSpec`，包括章节目标、事实引用、架构节点/边/张量或信号含义、图表选择、归因陈述与限制；renderer 不再按模型名写 `if/elif`。
+3. 架构图由通用 graph renderer 绘制，节点来自 descriptor + 源码分析；未知模型也能画。若 descriptor 与 AST 冲突，报告失败并要求 Coding Agent 修复 metadata，禁止猜测。
+4. 所有数值、表格、PSD 和实验结论绑定 evidence path/hash；LLM 只能引用，不能创建或修改数值。归因必须标记为“实验证据”“代码事实”或“Agent 推断”。
+5. 报告采用专业双层输出：HTML 为完整可交互证据报告；PDF 为 4-8 页精选版。统一中文字体注册、表格字体、页眉页脚、分页规则、色彩、图注、引用和 provenance。
+6. 禁止黑方块、空白尾页、被截表格、示意 PSD 冒充真实 PSD、固定模型原理图、无证据的“为什么有效”。
+
+#### 数据与安全边界
+
+- LLM 只看任务所需的 top-k repo/context，不看完整 history 和 secret。
+- `EvidenceRef` 至少包含 type、path/event_id、content_hash、producer、created_at；报告中的每项指标能反查 source。
+- worktree 之外写入数必须为 0；工具调用和模型调用均写 trace；ExecutionAgent 继续保持 tool-only。
+- Coding 与 Writing 可配置不同 provider/model/temperature/预算，ModelRouter 记录实际 role/model/token/cost。
+
+#### 分阶段实现
+
+1. **v4.0.0-a：开放模型契约**：ModelDescriptor、ModelPlugin、Registry、现有模型适配、descriptor/AST 一致性检查。
+2. **v4.0.0-b：LLM Coding 闭环**：CodingTaskSpec、CodeChangePlan、diff parser、static/test/smoke gate、两轮事实修复、trace。
+3. **v4.0.0-c：动态 Writing**：EvidenceBundle、NarrativeSpec、ArchitectureGraphSpec、通用架构图、专业 HTML/PDF、字体与分页修复。
+4. **v4.0.0-d：Supervisor E2E**：Idea -> Code -> Execute -> Write 状态图、Web 角色时间线、失败回路和预算终态。
+5. **v4.0.0：评测收口**：固定协议消融、真实 DeepSeek E2E、README/learning/简历证据更新。
+
+#### 验收标准
+
+- 5 个未在仓库预置名称的模型需求中，至少 4 个在最多两轮 repair 后通过 plugin contract、目标测试和 smoke training；不得靠修改测试放行。
+- 新模型写入 main 数 = 0、worktree 外写入 = 0、secret access = 0、未注册 shell = 0。
+- 3 个陌生架构生成结构明显不同的原理图；节点/边与 descriptor 和 AST 一致率 = 1.0，不存在模型名固定分支。
+- 3 份报告 numeric mismatch = 0、artifact hash mismatch = 0、无真实 PSD 时结构化失败；全部通过 PDF 文本、分页和图片检查。
+- PDF 无中文黑块、空白尾页、内容裁切和重叠；桌面 Web 能查看完整 evidence、角色来源和下载 HTML/PDF。
+- 至少 1 次真实 DeepSeek `idea -> code -> execute -> write` E2E 成功，完整 trace 可 replay；失败注入能在唯一终态结束。
+- full offline suite 全通过；新增 acceptance fixtures 明确区分 scripted、fake LLM、真实 LLM 和真实训练。
+
+#### 面试口径
+
+完成前：称“开放式 Coding/Writing Agent 的契约与组件实现中”。完成并通过 E2E 后：可称“基于结构化 handoff、隔离代码生成、tool-only 执行与 evidence-grounded reporting 的多 Agent 实验运行时”。任何测试桩结果不得包装成真实 LLM coding pass rate。
+
+### 15.9 v4.0.0-a 实施计划：开放模型契约与可执行 CandidateRegistry
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` or `executing-plans` task-by-task. 本项目按用户要求只维护本 handoff，不新增 plan 文档。
+
+**Goal:** 让 CodingAgent 未来生成的未知模型插件，在隔离 worktree 中经过契约校验后，可由 ExecutionAgent 通过注册工具启动固定 runner、完成训练并返回统一证据。
+
+**Architecture:** 插件用 JSON manifest 指向 worktree 内 Python entrypoint；CandidateRegistry 只负责边界检查、动态加载和契约验证。ExecutionAgent 只调用 `run_candidate_model`，该工具以固定 `python -m nonlinear_agent.model_plugins.runner` 子进程运行插件，并对结果 JSON、指标和 artifact 路径做二次校验。
+
+**Tech Stack:** Python dataclasses/Protocol、importlib、subprocess、JSON、现有 ToolRegistry/ExecutionAgent/unittest。
+
+#### Task 1：定义开放模型与证据契约
+
+**Files:**
+- Create: `src/nonlinear_agent/model_plugins/__init__.py`
+- Create: `src/nonlinear_agent/model_plugins/contracts.py`
+- Test: `tests/test_model_plugin_contracts.py`
+
+- [ ] 写失败测试：`ModelDescriptor` 接受未知模型名、配置 schema、训练模式、架构节点/边；拒绝空名称、非法训练模式、重复 node id 和悬空 edge。
+- [ ] 运行：`python -m unittest tests.test_model_plugin_contracts`，预期因模块不存在而失败。
+- [ ] 实现以下稳定接口：
+
+```python
+@dataclass(frozen=True)
+class ArchitectureNode:
+    node_id: str
+    label: str
+    operation: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+@dataclass(frozen=True)
+class ArchitectureEdge:
+    source: str
+    target: str
+    label: str = ""
+
+@dataclass(frozen=True)
+class ModelDescriptor:
+    name: str
+    version: str
+    training_mode: str
+    config_schema: dict[str, Any]
+    nodes: tuple[ArchitectureNode, ...]
+    edges: tuple[ArchitectureEdge, ...]
+
+@dataclass(frozen=True)
+class TrainingRequest:
+    run_id: str
+    workspace: str
+    config: dict[str, Any]
+    output_dir: str
+    seed: int = 42
+
+@dataclass(frozen=True)
+class TrainingResult:
+    status: str
+    metrics: dict[str, float]
+    artifacts: tuple[str, ...]
+    descriptor_hash: str
+
+class ModelPlugin(Protocol):
+    descriptor: ModelDescriptor
+    def estimate_parameters(self, config: dict[str, Any]) -> int: ...
+    def train(self, request: TrainingRequest) -> TrainingResult: ...
+```
+
+- [ ] `validate_descriptor()` 实施上述结构规则，`descriptor_hash()` 使用 canonical JSON + SHA-256。
+- [ ] 重跑测试，预期全部通过。
+
+#### Task 2：实现安全 CandidateRegistry
+
+**Files:**
+- Create: `src/nonlinear_agent/model_plugins/registry.py`
+- Test: `tests/test_candidate_registry.py`
+
+- [ ] 写失败测试：从临时 workspace 的 `models/candidates/unseen_model.py` 加载未知插件；拒绝绝对 entrypoint、`../`、workspace 外 symlink、manifest/descriptor 名称不一致、缺失方法和参数估算超预算。
+- [ ] 运行测试确认失败。
+- [ ] manifest 固定 schema：
+
+```json
+{
+  "schema_version": 1,
+  "name": "unseen_residual_net",
+  "entrypoint": "models/candidates/unseen_residual_net.py:UnseenResidualPlugin"
+}
+```
+
+- [ ] 实现 `CandidateRegistry(workspace, allowed_root="models/candidates")` 的 `load_manifest()`、`load_plugin()`、`validate_candidate(config, parameter_count_max)`；所有 resolve 后路径必须仍位于 workspace/allowed_root。
+- [ ] 动态模块名包含文件 content hash，避免不同 worktree 模块缓存串扰；加载后验证 descriptor、Protocol 方法和 manifest name。
+- [ ] 重跑测试，预期路径逃逸和坏契约全部被拒。
+
+#### Task 3：实现固定子进程 runner 与结果证据校验
+
+**Files:**
+- Create: `src/nonlinear_agent/model_plugins/runner.py`
+- Create: `src/nonlinear_agent/model_plugins/execution.py`
+- Test: `tests/test_candidate_execution.py`
+
+- [ ] 写失败测试：候选插件执行后产生 `metrics.json` 和真实 PNG；runner 返回 status/metrics/artifacts/descriptor hash；拒绝 NaN、descriptor hash 不符、workspace 外 artifact、缺失 artifact 和非零终态。
+- [ ] 运行测试确认失败。
+- [ ] runner CLI 只接受 `--workspace --manifest --request --result`，加载 request JSON、调用 registry 和 `plugin.train()`，原子写 result JSON；异常写结构化 error 后返回非零。
+- [ ] `run_candidate_model_tool()` 使用固定命令，不接受调用方 command：
+
+```python
+[
+    sys.executable, "-m", "nonlinear_agent.model_plugins.runner",
+    "--workspace", str(root), "--manifest", manifest_rel,
+    "--request", request_rel, "--result", result_rel,
+]
+```
+
+- [ ] 父进程重新计算 descriptor hash，检查 metrics 全部有限、artifact 存在且在 workspace 内，并返回 ExecutionAgent 兼容的 `metrics/artifacts/context_summary`。
+- [ ] 重跑测试，预期通过。
+
+#### Task 4：接入 ToolRegistry 与 ExecutionAgent E2E
+
+**Files:**
+- Modify: `src/nonlinear_agent/experiment_tools.py`
+- Modify: `src/nonlinear_agent/domains/nonlinear_modeling.py`
+- Test: `tests/test_candidate_execution_agent.py`
+- Modify: `scripts/run_tests.py`
+
+- [ ] 写失败测试：注册表含 `validate_candidate_model` 与 `run_candidate_model`；ExecutionAgent 能执行一个仓库从未预置名称的插件，返回有限 NMSE、参数量和 PSD；`audit_shell_calls()==0`。
+- [ ] 运行测试确认失败。
+- [ ] 注册两个 ToolSpec，schema 禁止 `command` 和额外字段；Domain planner tools 暴露候选模型验证/执行工具，但未知模型只有 manifest 通过后才能执行。
+- [ ] 将新测试加入 fast profile；运行聚焦、fast、full。
+
+#### Task 5：记录阶段证据
+
+**Files:**
+- Modify: `README.md`
+- Modify: `docs/handoff/llm-continuation-plan.md`
+- Modify: `docs/learning/experiment-agent-harness-v1.6.2.md`
+
+- [ ] 记录“开放模型执行”而不是“LLM 已自主写模型”；列出契约、边界、固定 runner、测试数量和剩余 v4.0.0-b 工作。
+- [ ] `git diff --check`；确认没有修改用户原有 dashboard、删除文件和未跟踪实验目录。
+- [ ] 验收后建立 `version/v4.0.0-a`，按功能拆分提交；未完成真实 LLM coding 前不得写 Coding pass rate。

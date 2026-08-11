@@ -2,18 +2,18 @@
 
 ## Overview
 
-- benchmark_runs: `19`
-- planner_loop_runs: `99`
+- benchmark_runs: `20`
+- planner_loop_runs: `104`
 
 ## Aggregate Metrics
 
 | metric | value |
 |---|---:|
-| case_count | `871` |
-| target_hit_rate | `0.33639494833524686` |
-| rejected_rate | `0.1928817451205511` |
-| runtime_failure_rate | `0.4707233065442021` |
-| average_experiments_used | `8.797979797979798` |
+| case_count | `886` |
+| target_hit_rate | `0.3239277652370203` |
+| rejected_rate | `0.20993227990970656` |
+| runtime_failure_rate | `0.46613995485327314` |
+| average_experiments_used | `8.51923076923077` |
 | best_nmse_db | `-42.42519559502256` |
 
 ## Best Candidate
@@ -23,24 +23,24 @@
 | id | `exp_002` |
 | nmse_db | `-42.42519559502256` |
 | parameter_count | `19490` |
-| source | `runs/benchmark-target-hit/result.json` |
+| source | `benchmarks/deepseek-v26/results.json` |
 
 ## Run Status Distribution
 
 | status | count |
 |---|---:|
-| failed | 410 |
-| reflection | 97 |
-| rejected | 168 |
-| succeeded | 293 |
+| failed | 413 |
+| reflection | 114 |
+| rejected | 186 |
+| succeeded | 287 |
 
 ## Error Type Distribution
 
 | error_type | count |
 |---|---:|
-| metric_threshold_error | 338 |
+| metric_threshold_error | 337 |
 | timeout_error | 2 |
-| tool_error | 69 |
+| tool_error | 71 |
 
 ## Benchmark Runs
 
@@ -65,22 +65,28 @@
 | `benchmarks/web-20260724-221743/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
 | `benchmarks/web-20260725-161002/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
 | `benchmarks/web-20260725-191422/results.json` | 3 | 0.6666666666666666 | -37.42494350080102 |
+| `benchmarks/web-20260806-121012/results.json` | 10 | 0.7 | -36.5 |
 
 ## Planner Loop Runs
 
 | source | status | rounds | history_count |
 |---|---|---:|---:|
-| `runs/20260806-105749-planner-loop/result.json` | `max_rounds_reached` | 2 | 10 |
-| `runs/benchmark-parameter-budget-edge/result.json` | `max_experiments_reached` | 1 | 3 |
-| `runs/benchmark-multi-round-self-correction/result.json` | `max_experiments_reached` | 1 | 5 |
-| `runs/benchmark-long-history-compression/result.json` | `max_experiments_reached` | 3 | 11 |
-| `runs/benchmark-unknown-tool/result.json` | `max_experiments_reached` | 1 | 1 |
-| `runs/benchmark-json-tolerance/result.json` | `max_experiments_reached` | 1 | 2 |
+| `runs/20260808-100335-planner-loop/result.json` | `max_experiments_reached` | 1 | 3 |
+| `runs/20260807-162046-planner-loop/result.json` | `max_experiments_reached` | 1 | 3 |
+| `runs/20260807-162024-planner-loop/result.json` | `stopped` | 2 | 2 |
+| `runs/20260806-173916-planner-loop/result.json` | `max_rounds_reached` | 2 | 10 |
+| `runs/20260806-172845-planner-loop/result.json` | `max_rounds_reached` | 2 | 10 |
+| `runs/benchmark-multi-round-self-correction/result.json` | `max_rounds_reached` | 4 | 8 |
+| `runs/benchmark-long-history-compression/result.json` | `stopped` | 3 | 8 |
+| `runs/benchmark-unknown-tool/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/benchmark-parameter-budget-edge/result.json` | `stopped` | 2 | 2 |
+| `runs/benchmark-json-tolerance/result.json` | `stopped` | 2 | 2 |
 | `runs/benchmark-budget-stop/result.json` | `max_experiments_reached` | 1 | 1 |
-| `runs/benchmark-reflection-recovery/result.json` | `max_experiments_reached` | 1 | 2 |
-| `runs/benchmark-runtime-failure/result.json` | `max_experiments_reached` | 1 | 1 |
-| `runs/benchmark-invalid-plan/result.json` | `max_experiments_reached` | 1 | 1 |
-| `runs/benchmark-target-hit/result.json` | `max_experiments_reached` | 1 | 2 |
+| `runs/benchmark-reflection-recovery/result.json` | `max_rounds_reached` | 2 | 4 |
+| `runs/benchmark-runtime-failure/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/benchmark-invalid-plan/result.json` | `max_rounds_reached` | 1 | 2 |
+| `runs/benchmark-target-hit/result.json` | `stopped` | 2 | 2 |
+| `runs/20260806-105749-planner-loop/result.json` | `max_rounds_reached` | 2 | 10 |
 | `runs/20260804-121607-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
 | `runs/20260804-121558-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |
 | `runs/20260804-121549-planner-loop/result.json` | `max_rounds_reached` | 1 | 2 |

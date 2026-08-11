@@ -5,6 +5,10 @@ optuna>=4,<5
 pyyaml
 scipy
 torch
+langgraph>=0.2,<2
+reportlab>=4,<5
+transformers>=4,<6
+pymupdf>=1.23,<2
 
 fastapi
 uvicorn
