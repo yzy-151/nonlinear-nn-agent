@@ -65,6 +65,80 @@ class NovelPlugin:
 
 
 class CandidateExecutionTest(unittest.TestCase):
+    def test_training_request_exposes_one_fixed_dataset_contract(self):
+        from nonlinear_agent.model_plugins.contracts import TrainingRequest
+
+        request = TrainingRequest.from_dict(
+            {
+                "run_id": "candidate-001",
+                "workspace": str(self.root),
+                "config": {},
+                "output_dir": "reports/candidate-001",
+                "data_file": "examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat",
+                "train_ratio": 0.8,
+                "seed": 7,
+            }
+        )
+
+        self.assertEqual(request.data_file, "examples/nonlinear_fit/data/Simulation_MPDPD_Data.mat")
+        self.assertEqual(request.train_ratio, 0.8)
+        self.assertEqual(request.seed, 7)
+
+    def test_training_result_normalizes_common_success_status(self):
+        from nonlinear_agent.model_plugins.contracts import TrainingResult
+
+        for status in ("success", "succeeded", "ok", "completed"):
+            result = TrainingResult.from_dict(
+                {
+                    "status": status,
+                    "metrics": {"nmse_db": -30.0, "parameter_count": 10},
+                    "artifacts": [],
+                    "descriptor_hash": "hash",
+                }
+            )
+            self.assertEqual(result.status, "completed")
+
+    def test_training_result_accepts_named_artifact_mapping_values(self):
+        from nonlinear_agent.model_plugins.contracts import TrainingResult
+
+        result = TrainingResult.from_dict(
+            {
+                "status": "success",
+                "metrics": {"nmse_db": -30.0, "parameter_count": 10},
+                "artifacts": {
+                    "metrics.json": "reports/run/metrics.json",
+                    "psd.png": "reports/run/psd.png",
+                },
+                "descriptor_hash": "hash",
+            }
+        )
+
+        self.assertEqual(
+            result.artifacts,
+            ("reports/run/metrics.json", "reports/run/psd.png"),
+        )
+
+    def test_training_result_ignores_non_numeric_metric_metadata(self):
+        from nonlinear_agent.model_plugins.contracts import TrainingResult
+
+        result = TrainingResult.from_dict(
+            {
+                "status": "completed",
+                "metrics": {
+                    "status": "completed",
+                    "nmse_db": -30.0,
+                    "parameter_count": 10,
+                },
+                "artifacts": [],
+                "descriptor_hash": "hash",
+            }
+        )
+
+        self.assertEqual(
+            result.metrics,
+            {"nmse_db": -30.0, "parameter_count": 10.0},
+        )
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

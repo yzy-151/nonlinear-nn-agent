@@ -69,6 +69,77 @@ class CodingWorkflowTest(unittest.TestCase):
         self.assertEqual(len(plan.files), 2)
         self.assertTrue(plan.manifest_path.endswith("manifest.json"))
 
+    def test_plan_parser_normalizes_bounded_manifest_metadata(self):
+        from nonlinear_agent.coding_agent import CodeChangePlan
+
+        payload = json.loads(_response(PLUGIN_SOURCE))
+        manifest_path = payload["manifest_path"]
+        manifest = json.loads(payload["files"][manifest_path])
+        manifest["name"] = "NovelDynamicModel"
+        manifest["entrypoint"] = "plugin.py:NovelPlugin"
+        payload["files"][manifest_path] = json.dumps(manifest)
+
+        plan = CodeChangePlan.from_json(json.dumps(payload), self._task())
+        normalized = json.loads(
+            next(item.content for item in plan.files if item.path == manifest_path)
+        )
+
+        self.assertEqual(normalized["name"], "novel_dynamic_model")
+        self.assertEqual(
+            normalized["entrypoint"],
+            "models/candidates/novel_dynamic_model/plugin.py:NovelPlugin",
+        )
+
+    def test_plan_parser_infers_unique_plugin_entrypoint_from_returned_ast(self):
+        from nonlinear_agent.coding_agent import CodeChangePlan
+
+        payload = json.loads(_response(PLUGIN_SOURCE))
+        manifest_path = payload["manifest_path"]
+        manifest = json.loads(payload["files"][manifest_path])
+        manifest["entrypoint"] = "NovelPlugin"
+        payload["files"][manifest_path] = json.dumps(manifest)
+
+        plan = CodeChangePlan.from_json(json.dumps(payload), self._task())
+        normalized = json.loads(
+            next(item.content for item in plan.files if item.path == manifest_path)
+        )
+
+        self.assertEqual(
+            normalized["entrypoint"],
+            "models/candidates/novel_dynamic_model/plugin.py:NovelPlugin",
+        )
+
+    def test_plan_parser_canonicalizes_a_stale_candidate_directory(self):
+        from nonlinear_agent.coding_agent import CodeChangePlan
+
+        payload = json.loads(_response(PLUGIN_SOURCE))
+        old_base = "models/candidates/previous_candidate"
+        payload["manifest_path"] = f"{old_base}/manifest.json"
+        payload["files"] = {
+            f"{old_base}/plugin.py": PLUGIN_SOURCE,
+            f"{old_base}/manifest.json": json.dumps(
+                {
+                    "schema_version": "1",
+                    "name": "previous_candidate",
+                    "entrypoint": "plugin.py:NovelPlugin",
+                }
+            ),
+        }
+
+        plan = CodeChangePlan.from_json(json.dumps(payload), self._task())
+
+        self.assertEqual(
+            {item.path for item in plan.files},
+            {
+                "models/candidates/novel_dynamic_model/plugin.py",
+                "models/candidates/novel_dynamic_model/manifest.json",
+            },
+        )
+        manifest = json.loads(
+            next(item.content for item in plan.files if item.path.endswith("manifest.json"))
+        )
+        self.assertEqual(manifest["schema_version"], 1)
+
     def test_plan_parser_rejects_markdown_and_path_escape(self):
         from nonlinear_agent.coding_agent import CodeChangePlan
 
@@ -90,6 +161,30 @@ class CodingWorkflowTest(unittest.TestCase):
         )
         self.assertTrue(any("subprocess" in error for error in errors))
         self.assertTrue(any("top-level" in error for error in errors))
+
+    def test_static_gate_allows_noninteractive_matplotlib_backend_selection(self):
+        from nonlinear_agent.coding_agent import inspect_candidate_source
+
+        errors = inspect_candidate_source(
+            'import matplotlib\nmatplotlib.use("Agg")\nclass Plugin:\n    pass\n'
+        )
+
+        self.assertEqual(errors, [])
+
+    def test_coding_prompt_states_the_self_contained_plugin_contract(self):
+        from nonlinear_agent.coding_agent import _build_coding_prompt
+
+        prompt = _build_coding_prompt(self._task(), 0, ())
+
+        self.assertIn('manifest "schema_version" must be the JSON number 1', prompt)
+        self.assertIn("Do not import nonlinear_agent.contracts", prompt)
+        self.assertIn('matplotlib.use("Agg")', prompt)
+        self.assertIn("inside train", prompt)
+        self.assertIn("request.data_file", prompt)
+        self.assertIn("request.train_ratio", prompt)
+        self.assertIn('MAT keys "x" and "d"', prompt)
+        self.assertIn("never cast a complex array directly to float", prompt)
+        self.assertIn('status must be "completed"', prompt)
 
     def test_llm_repairs_invalid_code_then_runner_executes_complete_plugin(self):
         from nonlinear_agent.coding_agent import CodingAgent

@@ -35,6 +35,22 @@ def _valid_plan() -> dict:
     }
 
 
+def _batch_plan(count: int = 3) -> dict:
+    plan = _valid_plan()
+    plan["candidate_experiments"] = [
+        {
+            **plan["candidate_experiments"][0],
+            "experiment_id": f"round-1-exp-{index + 1}",
+            "model_type": f"unseen_model_{index + 1}",
+            "exploration_role": "explore" if index < 2 else "exploit",
+            "based_on_fact_refs": [],
+            "expected_information_gain": 0.7 - index * 0.1,
+        }
+        for index in range(count)
+    ]
+    return plan
+
+
 class TestPlanGate(unittest.TestCase):
     def test_valid_plan_passes(self):
         from nonlinear_agent.plan_gate import PlanGate
@@ -91,6 +107,51 @@ class TestPlanGate(unittest.TestCase):
         plan["candidate_experiments"][0]["params_estimate"] = 50000
         errors = PlanGate().validate(plan, parameter_count_max=20000)
         self.assertTrue(any("budget" in e.lower() or "params" in e.lower() for e in errors))
+
+    def test_batch_contract_requires_exactly_three_unique_experiments(self):
+        from nonlinear_agent.plan_gate import PlanGate
+
+        gate = PlanGate()
+        self.assertEqual(
+            gate.validate_batch(_batch_plan(), expected_experiments=3), []
+        )
+
+        too_short = gate.validate_batch(_batch_plan(2), expected_experiments=3)
+        self.assertTrue(any("exactly 3" in error for error in too_short))
+
+        duplicate = _batch_plan()
+        duplicate["candidate_experiments"][1]["experiment_id"] = (
+            duplicate["candidate_experiments"][0]["experiment_id"]
+        )
+        errors = gate.validate_batch(duplicate, expected_experiments=3)
+        self.assertTrue(any("experiment_id must be unique" in error for error in errors))
+
+    def test_later_round_candidates_must_reference_prior_facts(self):
+        from nonlinear_agent.plan_gate import PlanGate
+
+        plan = _batch_plan()
+        available = {"fact:round-1:best", "fact:round-1:failure"}
+        for candidate in plan["candidate_experiments"]:
+            candidate["based_on_fact_refs"] = ["fact:round-1:best"]
+
+        self.assertEqual(
+            PlanGate().validate_batch(
+                plan,
+                expected_experiments=3,
+                round_index=2,
+                available_fact_refs=available,
+            ),
+            [],
+        )
+
+        plan["candidate_experiments"][1]["based_on_fact_refs"] = ["fact:unknown"]
+        errors = PlanGate().validate_batch(
+            plan,
+            expected_experiments=3,
+            round_index=2,
+            available_fact_refs=available,
+        )
+        self.assertTrue(any("unknown fact ref" in error for error in errors))
 
 
 class TestPlanningTasksSchemaValidity(unittest.TestCase):

@@ -158,16 +158,65 @@ class CodeChangePlan:
             manifest = json.loads(file_map[manifest_path.as_posix()])
         except json.JSONDecodeError as exc:
             raise ValueError(f"candidate manifest is invalid JSON: {exc}") from exc
-        if not isinstance(manifest, dict) or manifest.get("name") != task.candidate_name:
-            raise ValueError("candidate manifest name does not match request")
+        if not isinstance(manifest, dict):
+            raise ValueError("candidate manifest must be an object")
+        manifest["schema_version"] = 1
+        manifest["name"] = task.candidate_name
         entrypoint = str(manifest.get("entrypoint", ""))
-        if ":" not in entrypoint:
-            raise ValueError("candidate manifest entrypoint is invalid")
-        source_path, class_name = entrypoint.rsplit(":", 1)
-        if source_path not in file_map or not source_path.endswith(".py"):
+        if ":" in entrypoint:
+            source_path, class_name = entrypoint.rsplit(":", 1)
+        else:
+            class_hint = entrypoint if entrypoint.isidentifier() else ""
+            inferred: list[tuple[str, str]] = []
+            for path, content in file_map.items():
+                if not path.endswith(".py"):
+                    continue
+                try:
+                    tree = ast.parse(content)
+                except SyntaxError:
+                    continue
+                for node in tree.body:
+                    if not isinstance(node, ast.ClassDef):
+                        continue
+                    methods = {
+                        item.name
+                        for item in node.body
+                        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    }
+                    if node.name == class_hint or {"train", "estimate_parameters"}.issubset(methods):
+                        inferred.append((path, node.name))
+            inferred = list(dict.fromkeys(inferred))
+            if len(inferred) != 1:
+                raise ValueError("candidate manifest entrypoint is invalid")
+            source_path, class_name = inferred[0]
+        if source_path not in file_map:
+            source_matches = [
+                path
+                for path in file_map
+                if path.endswith(".py")
+                and PurePosixPath(path).name == PurePosixPath(source_path).name
+            ]
+            if len(source_matches) == 1:
+                source_path = source_matches[0]
+            else:
+                raise ValueError("candidate entrypoint source must be returned in files")
+        if not source_path.endswith(".py"):
             raise ValueError("candidate entrypoint source must be returned in files")
         if not class_name.isidentifier():
             raise ValueError("candidate entrypoint class name is invalid")
+        manifest["entrypoint"] = f"{source_path}:{class_name}"
+        normalized_manifest = json.dumps(
+            manifest, ensure_ascii=False, sort_keys=True
+        )
+        files = [
+            CodeFile(
+                item.path,
+                normalized_manifest
+                if item.path == manifest_path.as_posix()
+                else item.content,
+            )
+            for item in files
+        ]
         if not any(item.path.endswith(".py") for item in files):
             raise ValueError("candidate response must include Python source")
         return cls(
@@ -208,6 +257,9 @@ def _candidate_relative_path(value: Any, base: PurePosixPath) -> PurePosixPath:
     path = PurePosixPath(value)
     if path.is_absolute() or ".." in path.parts or path == PurePosixPath("."):
         raise ValueError("candidate path must remain in its candidate directory")
+    candidate_root = ("models", "candidates")
+    if path.parts[:2] == candidate_root and len(path.parts) >= 4:
+        path = base.joinpath(*path.parts[3:])
     try:
         path.relative_to(base)
     except ValueError as exc:
@@ -229,7 +281,7 @@ def inspect_candidate_source(source: str) -> list[str]:
         if isinstance(statement, ast.Expr) and not (
             isinstance(statement.value, ast.Constant)
             and isinstance(statement.value.value, str)
-        ):
+        ) and not _is_safe_backend_selection(statement.value):
             errors.append(
                 f"top-level executable statement is not allowed at line {statement.lineno}"
             )
@@ -263,6 +315,20 @@ def inspect_candidate_source(source: str) -> list[str]:
     return list(dict.fromkeys(errors))
 
 
+def _is_safe_backend_selection(value: ast.expr) -> bool:
+    return (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Attribute)
+        and isinstance(value.func.value, ast.Name)
+        and value.func.value.id == "matplotlib"
+        and value.func.attr == "use"
+        and len(value.args) == 1
+        and isinstance(value.args[0], ast.Constant)
+        and value.args[0].value == "Agg"
+        and not value.keywords
+    )
+
+
 class CodingAgent:
     """Applies patches in an isolated worktree under a file whitelist."""
 
@@ -273,6 +339,7 @@ class CodingAgent:
         llm_client: Any | None = None,
         model_router: Any | None = None,
         model_role: str = "coding",
+        temp_root: Path | str | None = None,
     ):
         self._repo = Path(repo_root).resolve()
         self._allowed = {
@@ -281,12 +348,18 @@ class CodingAgent:
         self._llm = llm_client
         self._model_router = model_router
         self._model_role = model_role
+        self._temp_root = Path(temp_root).resolve() if temp_root is not None else None
         self._worktree: Path | None = None
         self._branch: str | None = None
 
     def create_worktree(self) -> Path:
         """Create a temporary worktree on its own branch (main untouched)."""
-        tmp = tempfile.mkdtemp(prefix="coding-wt-")
+        if self._temp_root is not None:
+            self._temp_root.mkdir(parents=True, exist_ok=True)
+        tmp = tempfile.mkdtemp(
+            prefix="coding-wt-",
+            dir=str(self._temp_root) if self._temp_root is not None else None,
+        )
         branch = f"coding-{uuid.uuid4().hex[:8]}"
         subprocess.run(
             ["git", "worktree", "add", "-b", branch, tmp],
@@ -553,15 +626,48 @@ Python entrypoint class must implement ModelPlugin with:
 - descriptor: ModelDescriptor with generic architecture nodes and edges
 - estimate_parameters(config) -> non-negative int
 - train(TrainingRequest) -> TrainingResult
+Import ArchitectureNode, ArchitectureEdge, ModelDescriptor, TrainingResult,
+and descriptor_hash from nonlinear_agent.model_plugins.contracts. The class
+attribute descriptor must be an actual ModelDescriptor instance whose nodes
+and edges are tuples of ArchitectureNode and ArchitectureEdge instances; never
+use a plain dict as descriptor. Return an actual TrainingResult instance.
+Use the exact public constructor fields:
+- ArchitectureNode(node_id, label, operation, details={{}}), never id=
+- ArchitectureEdge(source, target, label="")
+- ModelDescriptor(name, version, training_mode, config_schema, nodes, edges)
+- TrainingResult(status, metrics, artifacts, descriptor_hash)
+TrainingRequest exposes exactly request.run_id, request.workspace,
+request.config, request.output_dir, request.data_file, request.train_ratio, and
+request.seed. Load the shared MAT file from Path(request.workspace) /
+request.data_file with scipy.io.loadmat; it contains MAT keys "x" and "d".
+Scale d to x power as the existing nonlinear experiment does, and use the
+fixed request.train_ratio split. x and d are complex one-dimensional signals:
+never cast a complex array directly to float or discard its imaginary part.
+Represent real/imaginary components explicitly, use causal memory features
+when the hypothesis requires them, reconstruct a complex prediction, and
+compute held-out NMSE as 10*log10(mean(abs(prediction-target)**2) /
+mean(abs(target)**2)). Do not expect train_data, test_data, inputs, targets, or
+another hidden request field. training_mode must be exactly one of
+"gradient", "closed_form", or "custom". Keep the complete plugin.py concise
+(prefer under 7000 characters) so the JSON response is not truncated.
 The train method must execute the candidate's own fitting procedure and write
 both metrics.json and a valid psd.png below request.workspace/request.output_dir.
 It must return finite nmse_db and parameter_count metrics, artifact paths
 relative to request.workspace, and descriptor_hash(descriptor).
+TrainingResult status must be "completed". artifacts must be a tuple/list of
+the workspace-relative metrics.json and psd.png paths, not a name-to-path map.
 
-All files must stay below models/candidates/{task.candidate_name}/. Python may
-use standard numerical/plotting libraries and nonlinear_agent contracts, but
-must not use os, subprocess, socket, network clients, dynamic imports, eval, or
-exec. Top-level code may only define/import objects and literal constants.
+All files must stay below models/candidates/{task.candidate_name}/. The plugin
+must be self-contained except for the public contract import from
+nonlinear_agent.model_plugins.contracts. Do not import nonlinear_agent.contracts
+or any other guessed internal module. Python may use standard numerical and
+plotting libraries, but must not use os, subprocess, socket, network clients,
+dynamic imports, eval, or exec. Top-level code may contain only imports, class
+or function definitions, literal constants, and optionally exactly
+matplotlib.use("Agg") for a noninteractive backend. Do not modify rcParams,
+construct arrays, or perform plotting at module scope; put all other runtime
+setup and computation inside train.
+The candidate manifest "schema_version" must be the JSON number 1, not the string "1".
 
 Required JSON schema:
 {{

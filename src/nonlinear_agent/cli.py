@@ -65,6 +65,36 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--llm-kind", choices=["compat", "sdk"], default="compat",
         help="LLM client: compat (hand-written HTTP, default) or sdk (official OpenAI SDK).")
 
+    multi_agent = subparsers.add_parser(
+        "multi-agent",
+        help="Run the role-isolated batch Supervisor with final evaluation.",
+    )
+    multi_agent.add_argument("--workspace", default=str(PROJECT_ROOT))
+    multi_agent.add_argument("--provider", choices=["deepseek"], default="deepseek")
+    multi_agent.add_argument(
+        "--goal",
+        default=(
+            "Design and evaluate compact nonlinear models under 4000 parameters. "
+            "Use NMSE as the selection metric and produce verified PSD evidence."
+        ),
+    )
+    multi_agent.add_argument("--run-id")
+    multi_agent.add_argument("--rounds", type=int, default=3)
+    multi_agent.add_argument("--experiments-per-round", type=int, default=3)
+    multi_agent.add_argument(
+        "--final-evaluation",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    multi_agent.add_argument("--model", default="deepseek-v4-flash")
+    multi_agent.add_argument("--idea-plan-model")
+    multi_agent.add_argument("--coding-model")
+    multi_agent.add_argument("--writing-model")
+    multi_agent.add_argument("--nmse-threshold-db", type=float, default=-35.0)
+    multi_agent.add_argument("--llm-timeout-seconds", type=float, default=180.0)
+    multi_agent.add_argument("--token-budget", type=int, default=200_000)
+    multi_agent.add_argument("--cost-budget-usd", type=float, default=2.0)
+
     benchmark = subparsers.add_parser("benchmark", help="Run the built-in Agent benchmark cases.")
     benchmark.add_argument("--workspace", default=str(PROJECT_ROOT))
     benchmark.add_argument("--output-dir", default="benchmarks/fake-v15")
@@ -131,6 +161,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "run":
         return asyncio.run(_run_planner(args))
+    if args.command == "multi-agent":
+        return _run_multi_agent(args)
     if args.command == "benchmark":
         return _run_benchmark(args)
     if args.command == "agent-benchmark":
@@ -146,6 +178,54 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "serve":
         return _serve(args)
     raise ValueError(f"Unsupported command: {args.command}")
+
+
+def _run_multi_agent(args: argparse.Namespace) -> int:
+    from datetime import datetime
+
+    from nonlinear_agent.server import _build_default_multi_agent_graph
+    from nonlinear_agent.supervisor_graph import run_multi_agent_graph
+
+    workspace = Path(args.workspace).resolve()
+    run_id = args.run_id or datetime.now().strftime("deepseek-3x3-%Y%m%d-%H%M%S")
+    payload = {
+        "provider": args.provider,
+        "model": args.model,
+        "idea_plan_model": args.idea_plan_model or args.model,
+        "coding_model": args.coding_model or args.model,
+        "writing_model": args.writing_model or args.model,
+        "nmse_threshold_db": args.nmse_threshold_db,
+        "llm_timeout_seconds": args.llm_timeout_seconds,
+        "token_budget": args.token_budget,
+        "cost_budget_usd": args.cost_budget_usd,
+        "rounds": args.rounds,
+        "experiments_per_round": args.experiments_per_round,
+        "final_evaluation": args.final_evaluation,
+    }
+    graph = _build_default_multi_agent_graph(workspace, payload)
+    result = run_multi_agent_graph(
+        graph,
+        goal=args.goal,
+        run_id=run_id,
+    )
+    run_dir = workspace / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    result_path = run_dir / "supervisor-result.json"
+    result_path.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+    summary = {
+        "run_id": run_id,
+        "status": result.get("status"),
+        "rounds": len(result.get("round_records", [])),
+        "exploration_count": len(result.get("exploration_outcomes", [])),
+        "final_evaluation_count": 1 if result.get("final_evaluation") else 0,
+        "result_path": result_path.relative_to(workspace).as_posix(),
+        "terminal": result.get("terminal", {}),
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0 if result.get("status") == "completed" else 1
 
 
 async def _run_planner(args: argparse.Namespace) -> int:
