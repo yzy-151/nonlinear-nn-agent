@@ -1,13 +1,10 @@
-"""Analysis-style Chinese HTML report renderer (v3.9.x).
-
-The tool fills data-driven sections (metrics, tables, figures, fidelity) and
-the agent supplies narrative analysis (improvement, why-effective,
-experience) which is rendered as-is into the report.
-"""
+"""Print-ready evidence-backed HTML report renderer."""
 
 from __future__ import annotations
 
 import html as _html
+import json
+from pathlib import Path
 from typing import Any
 
 from nonlinear_agent.reporting.task_report_spec import TaskReportSpec
@@ -21,139 +18,223 @@ def _fmt(value: float | None, digits: int = 4) -> str:
     return f"{value:.{digits}f}" if value is not None else "—"
 
 
+def _image(path: str | None, alt: str) -> str:
+    if not path:
+        return '<div class="missing">No verified figure was supplied.</div>'
+    uri = Path(path).resolve().as_uri()
+    return f'<img src="{_esc(uri)}" alt="{_esc(alt)}">'
+
+
+def _narrative_block(narrative: Any, name: str, fallback: str = "") -> str:
+    section = narrative.sections.get(name) if narrative is not None else None
+    text = section.text if section is not None else fallback
+    refs = section.evidence_refs if section is not None else ()
+    ref_html = " ".join(f'<span class="ref">{_esc(ref)}</span>' for ref in refs)
+    return (
+        f'<div class="narrative"><p>{_esc(text) or "—"}</p>'
+        f'<div class="refs"><b>Evidence</b> {ref_html or "—"}</div></div>'
+    )
+
+
 def render_task_html(
     spec: TaskReportSpec,
     figures: dict[str, str],
     analysis: dict[str, str] | None = None,
+    architecture: Any | None = None,
+    narrative: Any | None = None,
 ) -> str:
-    """Render a complete analysis-style HTML report (Chinese)."""
+    """Render one professional HTML source shared by browser and PDF."""
     analysis = analysis or {}
-    best = spec.best()
     executions = list(spec.executions)
-    hit_count = sum(1 for r in executions if r.target_hit)
+    best = spec.best()
+    hit_count = sum(1 for run in executions if run.target_hit)
     hit_rate = hit_count / len(executions) if executions else 0.0
-    nmse_values = [r.nmse_db for r in executions if r.nmse_db is not None]
-    avg_nmse = sum(nmse_values) / len(nmse_values) if nmse_values else None
+    nmse_values = [run.nmse_db for run in executions if run.nmse_db is not None]
+    average_nmse = sum(nmse_values) / len(nmse_values) if nmse_values else None
     gain = (
         best.baseline_nmse_db - best.nmse_db
-        if best and best.nmse_db is not None and best.baseline_nmse_db is not None
+        if best and best.baseline_nmse_db is not None and best.nmse_db is not None
         else None
     )
+    constraint_text = " / ".join(
+        f"{_esc(key)}: <b>{_esc(value)}</b>" for key, value in spec.constraints.items()
+    ) or "No explicit constraints"
 
-    cards = [
-        ("最优 NMSE", f"{_fmt(best.nmse_db) if best else '—'} dB"),
-        ("相对基线提升", f"{_fmt(gain, 2)} dB" if gain is not None else "—"),
-        ("达标率", f"{hit_rate * 100:.0f}%"),
-        ("参数量(最优)", str(best.parameter_count) if best else "—"),
-        ("实验数", str(len(executions))),
-        ("总成本", f"${_fmt(spec.cost_usd, 4)}"),
-    ]
-
-    rows = []
+    execution_rows = []
     for run in executions:
-        mark = "最优" if best and run.run_id == best.run_id else ""
-        hit = "达标" if run.target_hit else "未达标"
-        rows.append(
-            f"<tr class=\"{'best' if mark else ''}\">"
-            f"<td>{_esc(run.run_id)}</td><td>{_esc(run.model_type)}</td>"
-            f"<td class=\"num\">{_fmt(run.nmse_db)}</td>"
-            f"<td class=\"num\">{run.parameter_count or '—'}</td>"
-            f"<td>{hit}</td><td>{mark}</td></tr>"
+        is_best = best is not None and run.run_id == best.run_id
+        execution_rows.append(
+            f'<tr class="{"best" if is_best else ""}">'
+            f'<td><b>{_esc(run.run_id)}</b></td><td>{_esc(run.model_type)}</td>'
+            f'<td class="num">{_fmt(run.baseline_nmse_db)}</td>'
+            f'<td class="num">{_fmt(run.nmse_db)}</td>'
+            f'<td class="num">{run.parameter_count if run.parameter_count is not None else "—"}</td>'
+            f'<td>{"PASS" if run.target_hit else "MISS"}</td>'
+            f'<td>{"BEST" if is_best else ""}</td></tr>'
         )
 
+    architecture_rows = []
+    if architecture is not None:
+        for node in architecture.nodes:
+            details = json.dumps(node.details, ensure_ascii=False, sort_keys=True)
+            architecture_rows.append(
+                f"<tr><td><b>{_esc(node.label)}</b><br><small>{_esc(node.node_id)}</small></td>"
+                f"<td>{_esc(node.operation)}</td><td><code>{_esc(details)}</code></td></tr>"
+            )
+    descriptor_line = (
+        f"{architecture.name} / v{architecture.version} / {architecture.training_mode} / "
+        f"{len(architecture.nodes)} nodes / {len(architecture.edges)} edges"
+        if architecture is not None
+        else "ModelDescriptor unavailable"
+    )
+
     ablation_rows = "".join(
-        f"<tr><td>{_esc(a.get('名称', a.get('name', '')))}</td>"
-        f"<td class=\"num\">{_fmt(a.get('best_nmse_db'))}</td></tr>"
-        for a in spec.ablations
+        f"<tr><td>{_esc(item.get('名称', item.get('name', '')))}</td>"
+        f"<td class=\"num\">{_fmt(item.get('best_nmse_db'))}</td></tr>"
+        for item in spec.ablations
     )
     failure_rows = "".join(
-        f"<tr><td>{_esc(f.get('id', ''))}</td>"
-        f"<td>{_esc(f.get('状态', f.get('status', '')))}</td>"
-        f"<td>{_esc(f.get('错误', f.get('error', '')))}</td></tr>"
-        for f in spec.failure_cases
+        f"<tr><td>{_esc(item.get('id', ''))}</td>"
+        f"<td>{_esc(item.get('状态', item.get('status', '')))}</td>"
+        f"<td>{_esc(item.get('错误', item.get('error', '')))}</td></tr>"
+        for item in spec.failure_cases
+    )
+    trace_rows = "".join(
+        f"<li><code>{_esc(ref)}</code></li>" for ref in spec.trace_refs
+    ) or "<li>—</li>"
+    code_rows = "".join(
+        f"<tr><td><code>{_esc(item.get('file', ''))}</code></td>"
+        f"<td>{_esc(item.get('change', ''))}</td></tr>"
+        for item in spec.code_changes
     )
 
-    arch_img = figures.get("architecture")
-    psd_img = figures.get("psd")
-    improv_img = figures.get("improvement")
-    psd_note = figures.get("psd_note", "")
-
-    html_doc = f"""<!DOCTYPE html>
+    return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
+<title>Experiment Evidence Report - {_esc(spec.task_id)}</title>
 <style>
-  :root {{ --blue:#1d4ed8; --green:#16a34a; --red:#dc2626; --slate:#334155; --bg:#f8fafc; }}
-  body {{ font-family:"Microsoft YaHei","SimHei",sans-serif; margin:0; background:var(--bg); color:var(--slate); }}
-  .wrap {{ max-width:960px; margin:0 auto; padding:24px 28px 48px; background:#fff; }}
-  h1 {{ font-size:24px; color:#0f172a; border-bottom:3px solid var(--blue); padding-bottom:10px; }}
-  h2 {{ font-size:18px; color:#0f172a; margin-top:28px; border-left:5px solid var(--blue); padding-left:10px; }}
-  .meta {{ color:#64748b; font-size:13px; margin:6px 0 16px; }}
-  .cards {{ display:flex; flex-wrap:wrap; gap:12px; margin:18px 0; }}
-  .card {{ flex:1 1 140px; background:#f1f5f9; border-radius:10px; padding:12px 14px; text-align:center; }}
-  .card .v {{ font-size:20px; font-weight:700; color:var(--blue); }}
-  .card .k {{ font-size:12px; color:#64748b; }}
-  table {{ width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; }}
-  th,td {{ border:1px solid #cbd5e1; padding:7px 9px; text-align:left; }}
-  th {{ background:#e2e8f0; }}
-  tr.best {{ background:#f0fdf4; font-weight:600; }}
-  .num {{ text-align:right; font-variant-numeric:tabular-nums; }}
-  img {{ max-width:100%; border:1px solid #e2e8f0; border-radius:8px; margin:10px 0; }}
-  .note {{ font-size:12px; color:#64748b; font-style:italic; }}
-  .analysis {{ background:#f8fafc; border-left:4px solid var(--green); padding:12px 16px; border-radius:0 8px 8px 0; margin:10px 0; }}
-  code {{ background:#f1f5f9; padding:1px 5px; border-radius:4px; }}
-  .fidelity {{ display:inline-block; margin-top:20px; padding:8px 14px; background:#f0fdf4; color:var(--green);
-              border:1px solid #86efac; border-radius:8px; font-size:13px; }}
-</style></head><body><div class="wrap">
-  <h1>实验任务报告 — {_esc(spec.task_id)}</h1>
-  <div class="meta">目标：{_esc(spec.goal)}</div>
-  <div class="cards">
-    {''.join(f'<div class="card"><div class="v">{_esc(v)}</div><div class="k">{_esc(k)}</div></div>' for k, v in cards)}
+  @page {{ size:A4; margin:12mm 13mm 14mm; }}
+  * {{ box-sizing:border-box; }}
+  body {{ margin:0; color:#252a2f; background:#e8ecef; font-family:"Microsoft YaHei UI","Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif; letter-spacing:0; line-height:1.55; }}
+  .report {{ width:min(1040px,100%); margin:0 auto; padding:34px 42px 56px; background:#fff; }}
+  header {{ border-top:6px solid #168579; border-bottom:1px solid #bdc6cc; padding:20px 0 18px; }}
+  .eyebrow {{ color:#168579; font:700 11px/1.2 Arial,sans-serif; text-transform:uppercase; }}
+  h1 {{ margin:7px 0 4px; font-size:27px; line-height:1.22; color:#20252a; }}
+  .goal {{ margin:0; font-size:14px; color:#505960; }}
+  .constraints {{ margin-top:13px; padding-top:10px; border-top:1px solid #e1e5e8; color:#5b646b; font-size:12px; }}
+  section {{ margin-top:28px; break-inside:auto; }}
+  h2 {{ margin:0 0 12px; padding-bottom:7px; border-bottom:2px solid #20252a; font-size:17px; line-height:1.3; }}
+  h3 {{ margin:16px 0 8px; font-size:13px; color:#3d464d; }}
+  .narrative {{ border-left:4px solid #e26d4f; padding:8px 0 8px 14px; margin:10px 0 14px; }}
+  .narrative p {{ margin:0; font-size:13px; }}
+  .refs {{ margin-top:7px; color:#6b747b; font-size:10px; }}
+  .ref {{ display:inline-block; border:1px solid #b9c4c8; padding:1px 5px; margin:2px 2px 0 0; border-radius:3px; font-family:Consolas,monospace; }}
+  .metrics {{ display:grid; grid-template-columns:repeat(6,1fr); border:1px solid #aeb8bd; margin:20px 0 4px; }}
+  .metric {{ min-width:0; padding:10px 8px; border-right:1px solid #d3d9dc; text-align:center; }}
+  .metric:last-child {{ border-right:0; }}
+  .metric b {{ display:block; color:#168579; font:700 18px/1.2 Arial,sans-serif; overflow-wrap:anywhere; }}
+  .metric span {{ display:block; margin-top:4px; color:#687178; font-size:10px; }}
+  .figure {{ margin:12px 0 16px; break-inside:avoid; }}
+  .figure img {{ display:block; width:100%; max-height:460px; object-fit:contain; border:1px solid #ccd3d7; }}
+  .caption {{ margin:5px 0 0; color:#667078; font-size:10px; }}
+  .figure-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }}
+  table {{ width:100%; border-collapse:collapse; margin:9px 0 14px; font-size:11px; break-inside:auto; }}
+  thead {{ display:table-header-group; }}
+  th {{ padding:7px 8px; color:#fff; background:#353d43; text-align:left; font-weight:600; }}
+  td {{ padding:7px 8px; border-bottom:1px solid #d8dde0; vertical-align:top; overflow-wrap:anywhere; }}
+  tr:nth-child(even) td {{ background:#f4f6f7; }}
+  tr.best td {{ background:#e6f4ef; border-bottom-color:#9bcbbd; }}
+  .num {{ text-align:right; font-family:Consolas,"Courier New",monospace; font-variant-numeric:tabular-nums; }}
+  code {{ font-family:Consolas,"Courier New",monospace; font-size:10px; white-space:pre-wrap; overflow-wrap:anywhere; }}
+  small {{ color:#768087; }}
+  .two-col {{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }}
+  .provenance {{ border-top:1px solid #bdc6cc; padding-top:12px; font-size:11px; }}
+  .provenance ul {{ margin:5px 0; padding-left:18px; }}
+  .verified {{ display:inline-block; margin-top:16px; padding:4px 7px; border:1px solid #168579; color:#126d64; font:700 10px/1.2 Arial,sans-serif; }}
+  .missing {{ padding:25px; border:1px dashed #9fa9af; color:#727c82; text-align:center; }}
+  @media print {{
+    body {{ background:#fff; }} .report {{ width:auto; margin:0; padding:0; }}
+    .metrics {{ grid-template-columns:repeat(3,1fr); }}
+    .metric:nth-child(3n) {{ border-right:0; }}
+    h2,h3 {{ break-after:avoid; }}
+    .figure, .narrative {{ break-inside:avoid; }}
+    a {{ color:inherit; text-decoration:none; }}
+  }}
+  @media screen and (max-width:760px) {{
+    .report {{ padding:22px 18px 40px; }} .metrics {{ grid-template-columns:repeat(2,1fr); }}
+    .metric:nth-child(2n) {{ border-right:0; }} .figure-grid,.two-col {{ grid-template-columns:1fr; }}
+  }}
+</style></head><body><main class="report">
+  <header>
+    <div class="eyebrow">Evidence-backed experiment report</div>
+    <h1>实验任务报告 / {_esc(spec.task_id)}</h1>
+    <p class="goal">{_esc(spec.goal)}</p>
+    <div class="constraints">{constraint_text}</div>
+  </header>
+
+  <div class="metrics">
+    <div class="metric"><b>{_fmt(best.nmse_db) if best else '—'}</b><span>BEST NMSE / dB</span></div>
+    <div class="metric"><b>{_fmt(gain, 2)}</b><span>GAIN / dB</span></div>
+    <div class="metric"><b>{hit_rate * 100:.0f}%</b><span>TARGET HIT RATE</span></div>
+    <div class="metric"><b>{best.parameter_count if best else '—'}</b><span>BEST PARAMETERS</span></div>
+    <div class="metric"><b>{len(executions)}</b><span>EXECUTIONS</span></div>
+    <div class="metric"><b>${_fmt(spec.cost_usd, 4)}</b><span>TOTAL LLM COST</span></div>
   </div>
 
-  <h2>网络原理框图</h2>
-  {f'<img src="file:///{arch_img.replace(chr(92), "/")}" alt="架构图">' if arch_img else '<p class="note">无架构图</p>'}
+  <section>
+    <h2>01 / 执行摘要</h2>
+    {_narrative_block(narrative, 'executive_summary')}
+  </section>
 
-  <h2>改进过程与效果</h2>
-  {f'<img src="file:///{improv_img.replace(chr(92), "/")}" alt="改进对比">' if improv_img else ''}
-  <div class="analysis">{_esc(analysis.get('improvement', '')) or '（Agent 未提供改进分析）'}</div>
+  <section>
+    <h2>02 / 实际模型架构</h2>
+    <div class="caption">ModelDescriptor: {_esc(descriptor_line)}</div>
+    <div class="figure">{_image(figures.get('architecture'), 'ModelDescriptor architecture graph')}</div>
+    {_narrative_block(narrative, 'architecture_analysis', analysis.get('why_effective', ''))}
+    <h3>节点清单</h3>
+    <table><thead><tr><th>节点</th><th>操作</th><th>结构参数</th></tr></thead><tbody>
+      {''.join(architecture_rows) or '<tr><td colspan="3">Descriptor unavailable</td></tr>'}
+    </tbody></table>
+  </section>
 
-  <h2>为什么有效</h2>
-  {f'<img src="file:///{psd_img.replace(chr(92), "/")}" alt="PSD">' if psd_img else ''}
-  <p class="note">{_esc(psd_note)}</p>
-  <div class="analysis">{_esc(analysis.get('why_effective', '')) or '（Agent 未提供归因分析）'}</div>
+  <section>
+    <h2>03 / 性能证据</h2>
+    {_narrative_block(narrative, 'performance_analysis', analysis.get('improvement', ''))}
+    <div class="figure-grid">
+      <div class="figure">{_image(figures.get('psd'), 'Measured PSD')}<p class="caption">{_esc(figures.get('psd_note', 'Measured experiment PSD'))}</p></div>
+      <div class="figure">{_image(figures.get('improvement'), 'Baseline versus current NMSE')}<p class="caption">Baseline and current NMSE are read from execution evidence.</p></div>
+    </div>
+    <table><thead><tr><th>Run</th><th>Model</th><th>Baseline</th><th>NMSE</th><th>Params</th><th>Target</th><th>Rank</th></tr></thead>
+      <tbody>{''.join(execution_rows)}</tbody></table>
+    <p class="caption">Average NMSE: {_fmt(average_nmse)} dB / Best gain: {_fmt(gain, 2)} dB / Hit: {hit_count} of {len(executions)}</p>
+  </section>
 
-  <h2>实验结果</h2>
-  <table>
-    <tr><th>实验</th><th>模型</th><th>NMSE (dB)</th><th>参数量</th><th>达标</th><th>标注</th></tr>
-    {''.join(rows) or '<tr><td colspan="6">无执行结果</td></tr>'}
-  </table>
+  <section>
+    <h2>04 / 失败、反思与经验</h2>
+    <div class="two-col">
+      <div><h3>Failure analysis</h3>{_narrative_block(narrative, 'failure_analysis')}</div>
+      <div><h3>Lessons</h3>{_narrative_block(narrative, 'lessons', analysis.get('experience', ''))}</div>
+    </div>
+    <table><thead><tr><th>ID</th><th>Status</th><th>Observed fact</th></tr></thead><tbody>
+      {failure_rows or '<tr><td colspan="3">No recorded failure.</td></tr>'}
+    </tbody></table>
+    <h3>Ablation</h3>
+    <table><thead><tr><th>Method</th><th>Best NMSE / dB</th></tr></thead><tbody>
+      {ablation_rows or '<tr><td colspan="2">No ablation evidence.</td></tr>'}
+    </tbody></table>
+  </section>
 
-  <h2>数据化总结</h2>
-  <table>
-    <tr><th>指标</th><th>数值</th></tr>
-    <tr><td>实验总数</td><td>{len(executions)}</td></tr>
-    <tr><td>达标实验数</td><td>{hit_count}（{hit_rate * 100:.0f}%）</td></tr>
-    <tr><td>最优 NMSE</td><td>{_fmt(best.nmse_db) if best else '—'} dB</td></tr>
-    <tr><td>平均 NMSE</td><td>{_fmt(avg_nmse) if avg_nmse is not None else '—'} dB</td></tr>
-    <tr><td>相对基线提升</td><td>{_fmt(gain, 2) if gain is not None else '—'} dB</td></tr>
-    <tr><td>最优参数量</td><td>{best.parameter_count if best else '—'}</td></tr>
-    <tr><td>总成本</td><td>${_fmt(spec.cost_usd, 4)}</td></tr>
-  </table>
+  <section>
+    <h2>05 / 代码、Trace 与复现</h2>
+    <table><thead><tr><th>File</th><th>Change</th></tr></thead><tbody>
+      {code_rows or '<tr><td colspan="2">No code change evidence.</td></tr>'}
+    </tbody></table>
+    <div class="provenance"><b>Trace references</b><ul>{trace_rows}</ul>
+      <b>Reproduce</b><pre><code>{_esc(spec.reproduce_command)}</code></pre></div>
+  </section>
 
-  <h2>经验总结</h2>
-  <div class="analysis">{_esc(analysis.get('experience', '')) or '（Agent 未提供经验总结）'}</div>
-
-  <h2>消融</h2>
-  <table><tr><th>策略</th><th>best NMSE (dB)</th></tr>{ablation_rows or '<tr><td colspan="2">无</td></tr>'}</table>
-
-  <h2>失败案例</h2>
-  <table><tr><th>ID</th><th>状态</th><th>错误</th></tr>{failure_rows or '<tr><td colspan="3">无</td></tr>'}</table>
-
-  <h2>限制</h2>
-  <p>{_esc(spec.limits) or '—'}</p>
-
-  <h2>复现</h2>
-  <p><code>{_esc(spec.reproduce_command)}</code></p>
-
-  <span class="fidelity">✓ 数字经 Fidelity 校验，与源数据一致</span>
-</div></body></html>"""
-    return html_doc
+  <section>
+    <h2>06 / 适用边界</h2>
+    {_narrative_block(narrative, 'limitations', spec.limits)}
+    <span class="verified">FIDELITY VERIFIED / SOURCE-BOUND NUMBERS</span>
+  </section>
+</main></body></html>"""

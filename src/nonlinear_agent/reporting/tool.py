@@ -14,13 +14,20 @@ from typing import Any
 
 from nonlinear_agent.reporting.fidelity import TaskFidelityChecker
 from nonlinear_agent.reporting.figures import (
-    draw_architecture_diagram,
+    draw_architecture_graph,
     draw_improvement_bars,
 )
+from nonlinear_agent.reporting.html_pdf import html_to_pdf
 from nonlinear_agent.reporting.html_renderer import render_task_html
-from nonlinear_agent.reporting.pdf_renderer import RenderError, render_task_pdf
+from nonlinear_agent.reporting.pdf_renderer import RenderError
 from nonlinear_agent.reporting.task_report_spec import TaskReportBuilder
 from nonlinear_agent.tools import ToolSpec
+from nonlinear_agent.writing_agent import (
+    EvidenceBundle,
+    NarrativeFidelityChecker,
+    NarrativeSpec,
+    build_deterministic_narrative,
+)
 
 
 def write_task_report_tool(
@@ -28,10 +35,15 @@ def write_task_report_tool(
     task_source: dict[str, Any],
     output_dir: str | None = None,
     analysis: dict[str, str] | None = None,
+    narrative: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generate an analysis-style Chinese HTML + PDF task report."""
-    root = Path(workspace)
-    out = root / (output_dir or "reports/task-report")
+    root = Path(workspace).resolve()
+    out = (root / (output_dir or "reports/task-report")).resolve()
+    try:
+        out.relative_to(root)
+    except ValueError as exc:
+        raise RenderError(["report output_dir must remain inside workspace"]) from exc
     out.mkdir(parents=True, exist_ok=True)
     fig_dir = out / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -42,9 +54,26 @@ def write_task_report_tool(
     fidelity_errors = TaskFidelityChecker().check(spec, task_source)
     if fidelity_errors:
         raise RenderError(fidelity_errors)
+    try:
+        evidence = EvidenceBundle.from_task_source(task_source)
+    except (TypeError, ValueError) as exc:
+        raise RenderError([f"invalid report evidence: {exc}"]) from exc
+    if narrative is not None:
+        try:
+            narrative_spec = NarrativeSpec.from_dict(narrative)
+        except (TypeError, ValueError) as exc:
+            raise RenderError([f"invalid narrative: {exc}"]) from exc
+        narrative_errors = NarrativeFidelityChecker().check(
+            narrative_spec, evidence
+        )
+        if narrative_errors:
+            raise RenderError(narrative_errors)
+    else:
+        narrative_spec = build_deterministic_narrative(
+            evidence, task_source, legacy_analysis=analysis
+        )
 
     best = spec.best()
-    best_config: dict[str, Any] = {}
     best_source: dict[str, Any] = {}
     if best is not None:
         best_source = next(
@@ -55,12 +84,6 @@ def write_task_report_tool(
             ),
             {},
         )
-        best_config = {
-            "hidden_units": best_source.get("hidden_units"),
-            "memory_depth": best_source.get("memory_depth"),
-            "mp_order_count": best_source.get("mp_order_count"),
-            "activation": best_source.get("activation"),
-        }
     psd_value = best_source.get("psd_path")
     if not psd_value:
         raise RenderError(["best execution is missing a real PSD artifact"])
@@ -75,11 +98,7 @@ def write_task_report_tool(
     if not source_psd.is_file():
         raise RenderError([f"real PSD artifact does not exist: {source_psd}"])
 
-    arch = draw_architecture_diagram(
-        best.model_type if best else "unknown",
-        fig_dir / "architecture.png",
-        config=best_config,
-    )
+    arch = draw_architecture_graph(evidence.architecture, fig_dir / "architecture.png")
     psd = fig_dir / f"psd{source_psd.suffix.lower()}"
     if source_psd != psd.resolve():
         shutil.copy2(source_psd, psd)
@@ -100,20 +119,13 @@ def write_task_report_tool(
             "psd_note": f"真实实验 PSD，来源：{best.run_id if best else 'unknown'} / {source_psd.name}",
         },
         analysis=analysis,
+        architecture=evidence.architecture,
+        narrative=narrative_spec,
     )
     html_path = out / f"task-report-{spec.task_id}.html"
     html_path.write_text(html_doc, encoding="utf-8")
-    pdf_path = render_task_pdf(
-        spec,
-        out,
-        source=task_source,
-        figures={
-            "architecture": str(arch),
-            "psd": str(psd),
-            "improvement": str(improvement),
-        },
-        analysis=analysis,
-    )
+    pdf_path = out / f"task-report-{spec.task_id}.pdf"
+    html_to_pdf(html_path.resolve(), pdf_path.resolve())
 
     def rel(path: Path) -> str:
         return str(Path(path).relative_to(root)).replace("\\", "/")
@@ -151,6 +163,10 @@ def write_task_report_spec() -> ToolSpec:
                 "analysis": {
                     "type": "object",
                     "description": "可选：improvement/why_effective/experience 分析文本",
+                },
+                "narrative": {
+                    "type": "object",
+                    "description": "WritingAgent 生成并带 evidence_refs 的 NarrativeSpec；提供时执行引用和数字 fidelity 校验",
                 },
             },
             "required": ["task_source"],

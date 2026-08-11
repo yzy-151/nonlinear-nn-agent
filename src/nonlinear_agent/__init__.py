@@ -54,6 +54,9 @@ _EXPORTS = {
     "ToolResult": ("nonlinear_agent.tools", "ToolResult"),
     "TraceEvent": ("nonlinear_agent.trace", "TraceEvent"),
     "TraceLogger": ("nonlinear_agent.trace", "TraceLogger"),
+    "EvidenceBundle": ("nonlinear_agent.writing_agent", "EvidenceBundle"),
+    "NarrativeSpec": ("nonlinear_agent.writing_agent", "NarrativeSpec"),
+    "WritingAgent": ("nonlinear_agent.writing_agent", "WritingAgent"),
 }
 
 __all__ = sorted(_EXPORTS)

@@ -42,7 +42,7 @@ def _task_source(root: Path | None = None) -> dict:
             },
             {
                 "run_id": "exp016",
-                "model_type": "complex_lstsq",
+                "model_type": "adaptive_wavelet_lut",
                 "nmse_db": -37.49,
                 "parameter_count": 3980,
                 "baseline_nmse_db": -21.83,
@@ -51,6 +51,23 @@ def _task_source(root: Path | None = None) -> dict:
                 "cost_usd": 0.042,
                 "hidden_units": 64,
                 "memory_depth": 220,
+                "model_descriptor": {
+                    "name": "adaptive_wavelet_lut",
+                    "version": "1.0.0",
+                    "training_mode": "custom",
+                    "config_schema": {"type": "object", "properties": {}},
+                    "nodes": [
+                        {"node_id": "input", "label": "Complex Input", "operation": "input", "details": {"shape": "2 x M"}},
+                        {"node_id": "memory", "label": "Memory Bank", "operation": "delay_embedding", "details": {"depth": 16}},
+                        {"node_id": "lut", "label": "Adaptive Wavelet LUT", "operation": "wavelet_lookup", "details": {"knots": 16}},
+                        {"node_id": "output", "label": "Linear Readout", "operation": "linear", "details": {"channels": 2}},
+                    ],
+                    "edges": [
+                        {"source": "input", "target": "memory", "label": "I/Q"},
+                        {"source": "memory", "target": "lut", "label": "features"},
+                        {"source": "lut", "target": "output", "label": "basis"},
+                    ],
+                },
             },
             {
                 "run_id": "exp_020",
@@ -165,22 +182,21 @@ class TestWriteTaskReportTool(unittest.TestCase):
             html_path = root / result.output["html_path"]
             content = html_path.read_text(encoding="utf-8")
             for section in (
-                "网络原理框图",
-                "改进过程与效果",
-                "为什么有效",
-                "实验结果",
-                "数据化总结",
-                "经验总结",
-                "消融",
-                "失败案例",
-                "复现",
+                "执行摘要",
+                "实际模型架构",
+                "性能证据",
+                "失败、反思与经验",
+                "代码、Trace 与复现",
+                "适用边界",
             ):
                 self.assertIn(section, content)
-            self.assertIn("memory depth 增加", content)  # agent analysis rendered
+            self.assertIn("模型描述符给出的实际处理节点", content)
             self.assertIn("architecture.png", content)
             self.assertIn("psd.png", content)
             self.assertIn("improvement.png", content)
             self.assertIn("-37.49", content)
+            self.assertIn("adaptive_wavelet_lut", content)
+            self.assertIn("Adaptive Wavelet LUT", content)
 
     def test_pdf_is_generated_with_chinese(self):
         from nonlinear_agent.experiment_tools import build_experiment_tool_registry
@@ -242,6 +258,45 @@ class TestWriteTaskReportTool(unittest.TestCase):
             )
             self.assertEqual(result.status, "failed")
             self.assertIn("executions is empty", result.error)
+
+    def test_tool_accepts_cited_narrative_and_rejects_hallucinated_number(self):
+        from nonlinear_agent.experiment_tools import build_experiment_tool_registry
+        from nonlinear_agent.writing_agent import NarrativeSpec
+        from tests.test_writing_agent import _narrative_response
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            agent = ExecutionAgent(build_experiment_tool_registry(root))
+            valid = NarrativeSpec.from_json(_narrative_response()).to_dict()
+            result = asyncio.run(
+                agent.execute(
+                    "write_task_report",
+                    {
+                        "task_source": _task_source(root),
+                        "output_dir": "reports/cited",
+                        "narrative": valid,
+                    },
+                )
+            )
+            self.assertEqual(result.status, "completed", result.error)
+            html = (root / result.output["html_path"]).read_text(encoding="utf-8")
+            self.assertIn("architecture:adaptive_wavelet_lut", html)
+
+            invalid = NarrativeSpec.from_json(
+                _narrative_response(nmse=-99.0)
+            ).to_dict()
+            rejected = asyncio.run(
+                agent.execute(
+                    "write_task_report",
+                    {
+                        "task_source": _task_source(root),
+                        "output_dir": "reports/rejected",
+                        "narrative": invalid,
+                    },
+                )
+            )
+            self.assertEqual(rejected.status, "failed")
+            self.assertIn("unsupported number", rejected.error)
 
     def test_lstsq_architecture_does_not_claim_a_hidden_activation_layer(self):
         from nonlinear_agent.reporting.figures import architecture_stage_labels

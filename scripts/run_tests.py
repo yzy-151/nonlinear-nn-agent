@@ -31,6 +31,8 @@ FAST_MODULES = (
     "tests.test_failure_handoff",
     "tests.test_planner_context",
     "tests.test_reporting",
+    "tests.test_reporting_tool",
+    "tests.test_writing_agent",
     "tests.test_model_plugin_contracts",
     "tests.test_candidate_registry",
     "tests.test_candidate_execution",
