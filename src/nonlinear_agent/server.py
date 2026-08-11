@@ -71,7 +71,7 @@ from nonlinear_agent.runtime import ExperimentHarnessRuntime, HarnessRequest
 from nonlinear_agent.session import SessionStore
 from nonlinear_agent.tools import ToolCall
 from nonlinear_agent.trace import TraceEvent, TraceLogger
-from nonlinear_agent.web_ui import render_home_page
+from nonlinear_agent.web_ui import WEB_ASSETS, read_web_asset, render_home_page
 
 
 # ============================================================
@@ -531,6 +531,21 @@ async def stream_multi_agent_events(
                     for event in delta.get("timeline", []):
                         if event.get("role") == "terminal":
                             continue
+                        event = dict(event)
+                        if event.get("role") == "execution" and delta.get(
+                            "exploration_outcomes"
+                        ):
+                            event["experiments"] = [
+                                _public_experiment_summary(item)
+                                for item in delta["exploration_outcomes"]
+                                if isinstance(item, dict)
+                            ]
+                        if event.get("role") == "final_evaluation" and delta.get(
+                            "final_evaluation"
+                        ):
+                            event["final_evaluation"] = _public_experiment_summary(
+                                delta["final_evaluation"]
+                            )
                         asyncio.run_coroutine_threadsafe(
                             queue.put(("role", event)), loop
                         ).result()
@@ -583,6 +598,33 @@ async def stream_multi_agent_events(
                 event_id=_next_event_id(session_id),
             )
     await producer
+
+
+def _public_experiment_summary(item: dict[str, Any]) -> dict[str, Any]:
+    """Expose result evidence to the UI without candidate code or worker state."""
+    import math
+
+    candidate = dict(item.get("candidate") or {})
+    metrics = {
+        str(name): value
+        for name, value in dict(item.get("metrics") or {}).items()
+        if isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    }
+    return {
+        "experiment_id": str(
+            item.get("experiment_id") or item.get("source_experiment_id") or "unknown"
+        ),
+        "evaluation_kind": str(item.get("evaluation_kind") or "search"),
+        "model_type": str(
+            item.get("candidate_name") or candidate.get("model_type") or "unknown"
+        ),
+        "status": str(item.get("status") or "unknown"),
+        "metrics": metrics,
+        "artifacts": [str(path) for path in item.get("artifacts", [])],
+        "failure_count": len(item.get("failure_facts", [])),
+    }
 
 
 def _build_default_multi_agent_graph(
@@ -773,8 +815,22 @@ def create_app(
     # ── GET / — 浏览器首页 ──────────────────────────────
     @app.get("/", response_class=HTMLResponse)
     async def home():
-        """返回三 Tab 操作面板 HTML（由 web_ui.py 渲染）。"""
+        """返回 Agent Operations Console 首页。"""
         return render_home_page()
+
+    @app.get("/ui/{asset_name}")
+    async def web_asset(asset_name: str):
+        """Serve the dependency-free UI bundle from an explicit allowlist."""
+        from fastapi import HTTPException
+        from fastapi.responses import Response
+
+        if asset_name not in WEB_ASSETS:
+            raise HTTPException(status_code=404, detail="UI asset not found.")
+        return Response(
+            content=read_web_asset(asset_name),
+            media_type=WEB_ASSETS[asset_name],
+            headers={"Cache-Control": "no-cache"},
+        )
 
     # ── GET /diagnostics/{name} — 静态诊断文件 ──────────
     @app.get("/diagnostics/{name}")
@@ -783,9 +839,15 @@ def create_app(
 
         加了 Cache-Control: no-cache 头防止浏览器缓存旧版本 dashboard。
         """
-        path = root / "docs" / "diagnostics" / name
-        if not path.exists():
-            from fastapi import HTTPException
+        from fastapi import HTTPException
+
+        diagnostics_root = (root / "docs" / "diagnostics").resolve()
+        path = (diagnostics_root / name).resolve()
+        if (
+            not path.exists()
+            or not path.is_file()
+            or diagnostics_root not in path.parents
+        ):
             raise HTTPException(status_code=404, detail="Diagnostics file not found.")
         from fastapi.responses import Response
         content = path.read_bytes()
@@ -1147,17 +1209,15 @@ def create_app(
 
     @app.post("/cancel/{session_id}")
     async def cancel_run(session_id: str):
-        """Cancel a running session — set cancel flag + kill train.py subprocess."""
+        """Request cooperative cancellation for one owned session.
+
+        Training subprocesses are not globally scanned or killed: doing so can
+        terminate unrelated runs. Immediate process termination requires an
+        explicit session-to-process ownership registry in the control plane.
+        """
         evt = _cancel_events.get(session_id)
         if evt is not None:
             evt.set()
-        # Kill train.py subprocess so cancel works even during long training
-        import subprocess as sp
-        try:
-            sp.run('wmic process where "commandline like \'%train.py%\' and not commandline like \'%wmic%\'" call terminate',
-                   shell=True, capture_output=True, timeout=10)
-        except Exception:
-            pass
         return {"status": "cancelling", "session_id": session_id}
 
     return app

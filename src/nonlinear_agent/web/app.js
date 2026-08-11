@@ -1,0 +1,275 @@
+import { classifyEvent, formatConsole, normalizeEvent } from "/ui/event_view_model.js";
+
+const $ = (id) => document.getElementById(id);
+const state = { events: [], selected: null, currentRunId: null, controller: null, experiments: [], finalEvaluation: null, terminalStatus: null };
+const titles = { multiagent: "Multi-Agent 运行", agent: "Agent Planner", workflow: "Fixed Workflow", experiments: "实验策略对照", benchmark: "Benchmark 评估", memory: "Memory Inspector", reports: "报告与产物", diagnostics: "运行诊断" };
+
+function esc(value) { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])); }
+function number(id) { return Number($(id).value); }
+function setStatus(status, label) { $("statusDot").className = `status-light ${status}`; $("statusLabel").textContent = label; }
+function artifactUrl(path) { return "/artifacts/" + String(path).replaceAll("\\", "/").split("/").map(encodeURIComponent).join("/"); }
+
+function setView(view) {
+  if (!titles[view]) view = "multiagent";
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    const active = item.dataset.view === view;
+    item.classList.toggle("active", active);
+    if (active) item.setAttribute("aria-current", "page"); else item.removeAttribute("aria-current");
+  });
+  document.querySelectorAll(".control-view").forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === view));
+  $("viewTitle").textContent = titles[view] || view;
+  $("sidebar").classList.remove("open");
+  if (view === "memory") loadMemory();
+  history.replaceState(null, "", `?view=${view}`);
+}
+
+document.querySelectorAll(".nav-item").forEach((item) => item.addEventListener("click", () => setView(item.dataset.view)));
+$("menuBtn").addEventListener("click", () => $("sidebar").classList.toggle("open"));
+$("closeInspectorBtn").addEventListener("click", () => $("inspector").classList.remove("open"));
+$("newRunBtn").addEventListener("click", clearEvents);
+
+document.querySelectorAll("[data-event-view]").forEach((button) => button.addEventListener("click", () => {
+  document.querySelectorAll("[data-event-view]").forEach((item) => item.classList.toggle("active", item === button));
+  $("timeline").classList.toggle("hidden", button.dataset.eventView !== "timeline");
+  $("evBox").classList.toggle("hidden", button.dataset.eventView !== "console");
+  $("rawBox").classList.toggle("hidden", button.dataset.eventView !== "raw");
+}));
+
+function clearEvents() {
+  state.events = [];
+  state.selected = null;
+  state.experiments = [];
+  state.finalEvaluation = null;
+  state.terminalStatus = null;
+  $("timeline").innerHTML = '<li class="timeline-empty">等待运行事件</li>';
+  $("evBox").textContent = "Ready. Select a mode and start a run.";
+  $("rawBox").textContent = "[]";
+  $("evCount").textContent = "0";
+  $("inspectorContent").classList.add("hidden");
+  $("inspectorEmpty").classList.remove("hidden");
+  $("resultPreview").classList.add("hidden");
+  $("multiExperimentTable").classList.add("hidden");
+  $("resultLinks").innerHTML = "";
+}
+$("clearBtn").addEventListener("click", clearEvents);
+
+function renderTimelineEvent(event) {
+  if (state.events.length === 1) $("timeline").innerHTML = "";
+  const item = document.createElement("li");
+  item.className = `timeline-event ${event.tone}`;
+  item.dataset.eventId = event.id;
+  item.innerHTML = `<time class="event-time">${esc(event.timeLabel)}</time><span class="event-dot"></span><span class="event-copy"><b>${esc(event.type)}</b><small>${esc(event.title)}</small></span><span class="event-role">${esc(event.role)}</span>`;
+  item.addEventListener("click", () => inspectEvent(event, item));
+  $("timeline").appendChild(item);
+  $("timeline").scrollTop = $("timeline").scrollHeight;
+}
+
+function inspectEvent(event, item) {
+  document.querySelectorAll(".timeline-event").forEach((node) => node.classList.remove("selected"));
+  item?.classList.add("selected");
+  state.selected = event.id;
+  $("inspectorEmpty").classList.add("hidden");
+  $("inspectorContent").classList.remove("hidden");
+  $("inspector").classList.add("open");
+  $("inspectKind").textContent = event.tone;
+  $("inspectTitle").textContent = event.type;
+  $("inspectMeta").textContent = `${event.timeLabel} / ${event.role}`;
+  $("inspectFacts").innerHTML = Object.entries(event.facts).map(([key, value]) => `<dt>${esc(key)}</dt><dd>${esc(typeof value === "object" ? JSON.stringify(value) : value)}</dd>`).join("") || "<dt>summary</dt><dd>No normalized facts</dd>";
+  $("inspectInputs").textContent = event.inputs.join("\n") || "none";
+  $("inspectOutputs").textContent = event.outputs.join("\n") || "none";
+  $("inspectRaw").textContent = JSON.stringify(event.raw, null, 2);
+}
+
+function updatePreview(raw) {
+  const payload = raw.payload || {};
+  const metrics = payload.output?.metrics || payload.metrics || {};
+  const refArtifacts = (payload.output_refs || []).filter((item) => String(item).startsWith("artifact:")).map((item) => String(item).slice(9));
+  const artifacts = payload.output?.artifacts || payload.artifacts || payload.final_evaluation?.artifacts || refArtifacts;
+  const psd = artifacts.find((item) => String(item).replaceAll("\\", "/").toLowerCase().endsWith("psd.png"));
+  if (!psd) return;
+  const url = `${artifactUrl(psd)}?t=${Date.now()}`;
+  $("psdPreview").src = url;
+  $("psdLink").href = url;
+  $("psdLink").classList.remove("hidden");
+  $("psdFigure").classList.remove("hidden");
+  $("chipNmse").textContent = metrics.nmse_db != null ? `${Number(metrics.nmse_db).toFixed(2)} dB` : "-";
+  $("chipBase").textContent = metrics.baseline_nmse_db != null ? `${Number(metrics.baseline_nmse_db).toFixed(2)} dB` : "-";
+  $("chipGain").textContent = metrics.nmse_improvement_db != null ? `${Number(metrics.nmse_improvement_db).toFixed(2)} dB` : "-";
+  $("chipParams").textContent = metrics.parameter_count ?? "-";
+  $("previewMeta").textContent = `source=${raw.tool || raw.event_type || "run"} | artifact=${psd}`;
+  $("resultPreview").classList.remove("hidden");
+}
+
+function bestExperiment() {
+  const all = [...state.experiments, ...(state.finalEvaluation ? [state.finalEvaluation] : [])];
+  return all.filter((item) => item.status === "completed" && Number.isFinite(Number(item.metrics?.nmse_db))).sort((a, b) => Number(a.metrics.nmse_db) - Number(b.metrics.nmse_db))[0];
+}
+
+function renderMultiAgentResults(raw) {
+  const payload = raw.payload || {};
+  if (Array.isArray(payload.experiments)) state.experiments.push(...payload.experiments);
+  if (payload.final_evaluation) state.finalEvaluation = payload.final_evaluation;
+  if (!state.experiments.length && !state.finalEvaluation && raw.event_type !== "multi_agent_terminal") return;
+  const rows = [...state.experiments, ...(state.finalEvaluation ? [state.finalEvaluation] : [])];
+  if (rows.length) {
+    $("multiExperimentTable").innerHTML = `<table class="r-table"><tr><th>Experiment</th><th>Kind</th><th>Model</th><th>Status</th><th>NMSE</th><th>Params</th></tr>${rows.map((item) => `<tr><td>${esc(item.experiment_id)}</td><td>${esc(item.evaluation_kind)}</td><td>${esc(item.model_type)}</td><td>${esc(item.status)}</td><td>${item.metrics?.nmse_db == null ? "-" : `${Number(item.metrics.nmse_db).toFixed(3)} dB`}</td><td>${esc(item.metrics?.parameter_count ?? "-")}</td></tr>`).join("")}</table>`;
+    $("multiExperimentTable").classList.remove("hidden");
+  }
+  const best = bestExperiment();
+  if (best) {
+    $("chipNmse").textContent = `${Number(best.metrics.nmse_db).toFixed(2)} dB`;
+    $("chipParams").textContent = best.metrics.parameter_count ?? "-";
+    $("resultTitle").textContent = state.finalEvaluation ? "终评与实验轨迹" : "实验轨迹";
+  }
+  const paths = Object.entries(payload).filter(([key, value]) => key.endsWith("_path") && typeof value === "string");
+  if (paths.length) $("resultLinks").innerHTML = paths.map(([key, path]) => `<a href="${artifactUrl(path)}" target="_blank">${esc(key)}: ${esc(path)}</a>`).join("");
+  $("resultPreview").classList.remove("hidden");
+}
+
+function appendEvent(raw) {
+  const event = normalizeEvent(raw, state.events.length);
+  state.events.push(event);
+  const payload = raw.payload || {};
+  if (event.type === "multi_agent_terminal") state.terminalStatus = payload.status || raw.status || "error";
+  else if (["complete", "loop_complete", "benchmark_complete", "agent_task_benchmark_complete", "compare_complete"].includes(event.type)) state.terminalStatus = "completed";
+  else if (event.type === "cancelled") state.terminalStatus = "cancelled";
+  else if (event.type === "error") state.terminalStatus = "error";
+  renderTimelineEvent(event);
+  const line = formatConsole(raw);
+  const span = document.createElement("span");
+  span.className = `ev-${classifyEvent(raw)}`;
+  span.textContent = `${line}\n`;
+  if (state.events.length === 1) $("evBox").textContent = "";
+  $("evBox").appendChild(span);
+  $("evBox").scrollTop = $("evBox").scrollHeight;
+  $("rawBox").textContent = JSON.stringify(state.events.map((item) => item.raw), null, 2);
+  $("evCount").textContent = state.events.length;
+  renderMultiAgentResults(raw);
+  updatePreview(raw);
+}
+
+function setRunning(runId, running) {
+  state.currentRunId = running ? runId : null;
+  $("currentRunId").textContent = running ? runId : "-";
+  $("stopBtn").disabled = !running;
+  $("streamStatus").textContent = running ? "SSE connected" : "SSE disconnected";
+  setStatus(running ? "running" : "done", running ? "运行中" : "已完成");
+}
+
+function setRunControlsDisabled(disabled) {
+  ["maBtn", "agBtn", "wfBtn", "bmBtn", "agentTaskBtn", "cmpBtn"].forEach((id) => { $(id).disabled = disabled; });
+}
+
+function applyTerminalStatus() {
+  const terminal = state.terminalStatus;
+  if (["completed", "succeeded", "stopped"].includes(terminal)) setStatus("done", "已完成");
+  else if (terminal === "cancelled") setStatus("idle", "已取消");
+  else if (["error", "failed", "budget_exceeded", "invalid_plan"].includes(terminal)) setStatus("error", terminal === "budget_exceeded" ? "预算耗尽" : "失败");
+  else setStatus("idle", "流已结束");
+}
+
+async function streamRun(url, body, button, runId) {
+  if (state.controller) return;
+  clearEvents();
+  setRunControlsDisabled(true);
+  const original = button.innerHTML;
+  button.textContent = "运行中...";
+  const controller = new AbortController();
+  state.controller = controller;
+  setRunning(runId, true);
+  try {
+    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const consume = (final = false) => {
+      buffer = buffer.replaceAll("\r\n", "\n");
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() || "";
+      if (final && buffer.trim()) { blocks.push(buffer); buffer = ""; }
+      blocks.forEach((block) => {
+        const data = block.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n");
+        if (!data) return;
+        try { appendEvent(JSON.parse(data)); } catch { appendEvent({ event_type: "error", error: `Invalid SSE payload: ${data}` }); }
+      });
+    };
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) { buffer += decoder.decode(); consume(true); break; }
+      buffer += decoder.decode(value, { stream: true });
+      consume();
+    }
+    state.currentRunId = null;
+    applyTerminalStatus();
+  } catch (error) {
+    if (error.name !== "AbortError") { appendEvent({ event_type: "error", error: String(error) }); setStatus("error", "失败"); }
+    else setStatus("idle", "已停止");
+  } finally {
+    setRunControlsDisabled(false);
+    button.innerHTML = original;
+    $("stopBtn").disabled = true;
+    $("streamStatus").textContent = "SSE disconnected";
+    if (state.controller === controller) state.controller = null;
+    state.currentRunId = null;
+  }
+}
+
+$("stopBtn").addEventListener("click", async () => {
+  if (!state.currentRunId) return;
+  await fetch(`/cancel/${encodeURIComponent(state.currentRunId)}`, { method: "POST" }).catch(() => {});
+  state.controller?.abort();
+});
+
+$("maBtn").addEventListener("click", () => {
+  const runId = `ui-multi-${Date.now()}`;
+  streamRun(`/multi-agent/${runId}/events`, { provider: "deepseek", goal: $("maGoal").value, idea_plan_model: $("maPlanModel").value, coding_model: $("maCodeModel").value, writing_model: $("maWriteModel").value, max_replans: number("maReplans"), nmse_threshold_db: number("maThreshold"), token_budget: number("maTokens"), cost_budget_usd: number("maCost"), rounds: 3, experiments_per_round: 3, final_evaluation: true }, $("maBtn"), runId);
+});
+$("agBtn").addEventListener("click", () => {
+  const runId = `ui-agent-${Date.now()}`;
+  const enabled = [...document.querySelectorAll(".tune-f:checked")].map((item) => item.value);
+  streamRun(`/agent/${runId}/events`, { provider: $("agProv").value, goal: $("agGoal").value, max_rounds: number("agRnd"), max_experiments: number("agExp"), parameter_count_max: number("agPm"), nmse_threshold_db: number("agThr"), timeout_seconds: number("agTo"), artifact_dir: null, domain: $("agDom").value, enabled_fields: enabled, data_file: $("agData").value }, $("agBtn"), runId);
+});
+$("wfBtn").addEventListener("click", () => { const runId = $("wfSid").value.trim() || "ui-demo-001"; streamRun(`/runs/${encodeURIComponent(runId)}/events`, { goal: $("wfGoal").value, epochs: number("wfEp"), nmse_threshold_db: number("wfThr"), timeout_seconds: number("wfTo") }, $("wfBtn"), runId); });
+$("bmBtn").addEventListener("click", () => streamRun("/benchmark/events", { timeout_seconds: number("bmTo"), nmse_threshold_db: number("bmThr") }, $("bmBtn"), "benchmark"));
+$("agentTaskBtn").addEventListener("click", () => streamRun("/agent-benchmark/events", { attempts: 1 }, $("agentTaskBtn"), "agent-benchmark"));
+$("cmpBtn").addEventListener("click", () => { const count = number("cmpSeeds"); const seeds = Array.from({ length: count }, (_, index) => [7, 17, 29, 43, 61][index] || 7 + index * 10); streamRun("/compare/events", { domain: $("cmpDom").value, workspace: ".", timeout_seconds: number("cmpTo"), parameter_count_max: number("cmpPm"), nmse_threshold_db: number("cmpThr"), seeds, trial_budget: number("cmpBudget"), methods: ["random_search", "optuna_tpe", "llm_direct", "llm_program_reflection"], plan: $("cmpPlan").value }, $("cmpBtn"), "comparison"); });
+
+$("agProv").addEventListener("change", () => { $("noteFake").classList.toggle("hidden", $("agProv").value !== "fake"); $("noteDp").classList.toggle("hidden", $("agProv").value !== "deepseek"); });
+async function loadTuneFields(domain) { try { const data = await fetch(`/domains/${encodeURIComponent(domain)}/fields`).then((response) => response.json()); $("agTune").innerHTML = (data.fields || []).map((field) => `<label title="${esc((field.values || []).join(", "))}"><input type="checkbox" class="tune-f" value="${esc(field.name)}" checked>${esc(field.name)}</label>`).join(""); } catch { $("agTune").innerHTML = '<span class="ev-failure">failed to load fields</span>'; } }
+async function loadMatFiles() { try { const data = await fetch("/data/mat-files").then((response) => response.json()); $("agData").innerHTML = '<option value="">auto</option>' + (data.files || []).map((file) => `<option value="${esc(file)}">${esc(file)}</option>`).join(""); } catch {} }
+$("agDom").addEventListener("change", () => loadTuneFields($("agDom").value));
+
+function renderMemory(data) {
+  const items = data.items || [];
+  if (!items.length) { $("memBox").textContent = "No typed memory items yet."; return; }
+  $("memBox").innerHTML = `<div class="table-wrap"><table class="r-table"><tr><th>ID</th><th>Kind</th><th>Namespace</th><th>Fact</th><th>Evidence</th><th>Run</th><th>Role</th></tr>${items.map((item) => `<tr><td>${esc(item.memory_id)}</td><td>${esc(item.kind)}</td><td>${esc((item.namespace || []).join("/"))}</td><td>${esc(item.fact)}</td><td>${esc((item.evidence_refs || []).join(", "))}</td><td>${esc(item.run_id)}</td><td>${esc(item.created_by_role)}</td></tr>`).join("")}</table></div>`;
+}
+async function loadMemory() { $("memBox").textContent = "loading..."; try { renderMemory(await fetch("/memory").then((response) => response.json())); } catch (error) { $("memBox").textContent = String(error); } }
+$("memRefresh").addEventListener("click", loadMemory);
+
+function metricCell(name, value) { return `<div><small>${esc(name)}</small><b>${esc(value == null ? "-" : value)}</b></div>`; }
+function renderBenchmarkSummary(data) {
+  const summary = data.summary || data; const results = data.results || [];
+  const keys = ["case_count", "target_hit_rate", "planner_success_rate", "rejected_rate", "runtime_failure_rate", "average_experiments_used", "best_nmse_db", "estimated_cost_usd"];
+  $("bmSummaryWrap").innerHTML = keys.map((key) => { let value = summary[key]; if (typeof value === "number" && key.includes("rate")) value = `${(value * 100).toFixed(1)}%`; return metricCell(key, value); }).join("");
+  $("bmTableWrap").innerHTML = results.length ? `<table class="r-table"><tr><th>Case</th><th>Hit</th><th>Best NMSE</th><th>OK</th><th>Failed</th><th>Rejected</th><th>Planner OK</th></tr>${results.map((row) => `<tr><td>${esc(row.case_id)}</td><td>${row.target_hit ? "PASS" : "MISS"}</td><td>${esc(row.best_nmse_db)}</td><td>${esc(row.succeeded_count)}</td><td>${esc(row.failed_count)}</td><td>${esc(row.rejected_count)}</td><td>${row.planner_success_rate == null ? "-" : `${Math.round(row.planner_success_rate * 100)}%`}</td></tr>`).join("")}</table>` : "";
+  $("bmResults").classList.remove("hidden");
+}
+async function loadBenchmarkSummary(showError = true) { try { const data = await fetch("/benchmark/summary").then((response) => response.json()); if (!data.error) renderBenchmarkSummary(data); } catch (error) { if (showError) appendEvent({ event_type: "error", error: String(error) }); } }
+$("bmLoadBtn").addEventListener("click", () => loadBenchmarkSummary(true));
+
+function renderCompareSummary(summary) {
+  const methods = summary.per_method || {}; const metric = Object.values(methods)[0]?.metric_name || "nmse_db";
+  $("cmpTableWrap").innerHTML = `<table class="r-table"><tr><th>Method</th><th>Best mean</th><th>95% CI</th><th>Hit Rate</th><th>Planner OK</th><th>Rejected</th><th>Failed</th></tr>${Object.entries(methods).map(([name, item]) => `<tr><td>${esc(name)}</td><td>${esc(item[`best_${metric}_mean`])}</td><td>[${esc(item[`best_${metric}_ci_95_low`])}, ${esc(item[`best_${metric}_ci_95_high`])}]</td><td>${esc(item.target_hit_rate_mean)}</td><td>${esc(item.planner_success_rate)}</td><td>${esc(item.rejected_rate_mean)}</td><td>${esc(item.runtime_failure_rate_mean)}</td></tr>`).join("")}</table>`;
+  $("cmpPaired").textContent = Object.keys(summary.paired_comparisons || {}).length ? "Paired comparisons available in Raw Events / saved summary." : "";
+  $("cmpResults").classList.remove("hidden");
+}
+async function loadCompareSummary(showError = true) { try { const data = await fetch("/compare/summary").then((response) => response.json()); if (!data.error) renderCompareSummary(data); } catch (error) { if (showError) appendEvent({ event_type: "error", error: String(error) }); } }
+$("cmpLoadBtn").addEventListener("click", () => loadCompareSummary(true));
+
+const initialView = new URLSearchParams(location.search).get("view") || new URLSearchParams(location.search).get("tab") || document.documentElement.dataset.defaultView;
+setView(initialView === "compare" ? "experiments" : initialView);
+loadTuneFields($("agDom").value);
+loadMatFiles();
+fetch("/health").then((response) => { if (!response.ok) throw new Error(); setStatus("idle", "空闲"); }).catch(() => setStatus("error", "离线"));

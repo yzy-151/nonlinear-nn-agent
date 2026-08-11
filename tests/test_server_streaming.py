@@ -1,14 +1,17 @@
 import asyncio
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from nonlinear_agent.server import (
     HarnessRunSpec,
+    _public_experiment_summary,
     build_harness_request,
     encode_sse_event,
     stream_sse_events,
@@ -17,6 +20,30 @@ from nonlinear_agent.trace import TraceEvent
 
 
 class ServerStreamingTest(unittest.TestCase):
+    def test_public_experiment_summary_excludes_candidate_code(self):
+        summary = _public_experiment_summary({
+            "experiment_id": "round-2-exp-3",
+            "candidate_name": "lut_spline",
+            "candidate": {"model_type": "lut_spline", "source_code": "secret code"},
+            "status": "completed",
+            "metrics": {
+                "nmse_db": -23.08,
+                "parameter_count": 24,
+                "source_code": "secret code",
+            },
+            "artifacts": ["reports/demo/psd.png"],
+            "failure_facts": ["secret code"],
+            "evaluation_kind": "search",
+            "code_result": {"source_code": "secret code"},
+        })
+
+        self.assertEqual(summary["model_type"], "lut_spline")
+        self.assertEqual(summary["metrics"]["parameter_count"], 24)
+        self.assertNotIn("candidate", summary)
+        self.assertNotIn("code_result", summary)
+        self.assertNotIn("failure_facts", summary)
+        self.assertNotIn("source_code", str(summary))
+
     def test_load_domain_defaults_to_nonlinear_for_blank_name(self):
         """An empty/None domain_name must fall back to the nonlinear domain,
         otherwise the planner loses the prompt contract and the guard
@@ -96,7 +123,7 @@ class ServerStreamingTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
 
-    def test_create_app_home_route_exposes_demo_ui(self):
+    def test_create_app_home_route_exposes_operations_console(self):
         try:
             from fastapi.testclient import TestClient
         except ImportError:
@@ -108,11 +135,66 @@ class ServerStreamingTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
-        self.assertIn("Nonlinear Agent Harness", response.text)
+        self.assertIn("Nonlinear Agent Operations", response.text)
         self.assertIn("wfBtn", response.text)
         self.assertIn("agBtn", response.text)
-        self.assertIn("/runs/", response.text)
         self.assertIn("agent-runtime-dashboard.html", response.text)
+
+    def test_create_app_serves_allowlisted_ui_assets(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("FastAPI test client is not installed")
+        from nonlinear_agent.server import create_app
+
+        client = TestClient(create_app(PROJECT_ROOT))
+        css = client.get("/ui/styles.css")
+        script = client.get("/ui/app.js")
+        blocked = client.get("/ui/../server.py")
+
+        self.assertEqual(css.status_code, 200)
+        self.assertIn("text/css", css.headers["content-type"])
+        self.assertIn("grid-template-columns: 232px", css.text)
+        self.assertEqual(script.status_code, 200)
+        self.assertIn("/runs/", script.text)
+        self.assertEqual(blocked.status_code, 404)
+
+    def test_diagnostics_route_rejects_windows_path_escape(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("FastAPI test client is not installed")
+        from nonlinear_agent.server import create_app
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            diagnostics = root / "docs" / "diagnostics"
+            diagnostics.mkdir(parents=True)
+            (diagnostics / "ok.md").write_text("ok", encoding="utf-8")
+            (root / "docs" / "secret.txt").write_text("secret", encoding="utf-8")
+            client = TestClient(create_app(root))
+
+            ok = client.get("/diagnostics/ok.md")
+            escaped = client.get("/diagnostics/%5C..%5Csecret.txt")
+
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(escaped.status_code, 404)
+        self.assertNotIn("secret", escaped.text)
+
+    def test_cancel_only_signals_owned_session(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("FastAPI test client is not installed")
+        from nonlinear_agent.server import create_app
+
+        client = TestClient(create_app(PROJECT_ROOT))
+        with patch("subprocess.run") as process_run:
+            response = client.post("/cancel/no-running-session")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "cancelling")
+        process_run.assert_not_called()
 
     def test_create_app_serves_safe_artifact_images(self):
         try:

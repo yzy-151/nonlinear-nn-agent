@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN" data-default-view="multiagent">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Nonlinear Agent Operations</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+  <svg class="icon-sprite" aria-hidden="true">
+    <symbol id="i-agents" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"/><circle cx="17" cy="7" r="2"/><path d="M3 20c0-4 2-7 5-7s5 3 5 7M14 13c3 0 5 2 5 6M12 8h3"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></symbol>
+    <symbol id="i-flow" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/><path d="M9 6h5a4 4 0 0 1 4 4v5M6 9v6a3 3 0 0 0 3 3h6"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-6 10a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3L14 9V3M7 16h10"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 2 4 3 8 3s8-1 8-3V5M4 11v6c0 2 4 3 8 3s8-1 8-3v-6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6zM14 2v5h5M9 12h6M9 16h6"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
+    <symbol id="i-clear" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 13v7H4V6h7"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+  <header class="topbar">
+    <button class="icon-button mobile-only" id="menuBtn" title="打开导航"><svg><use href="#i-menu"/></svg></button>
+    <div class="brand"><span class="brand-mark">NA</span><div><strong>Nonlinear Agent</strong><small>OPERATIONS CONSOLE</small></div></div>
+    <div class="runtime-strip"><span class="runtime-item"><span class="status-light idle" id="statusDot"></span><b id="statusLabel">空闲</b></span><span class="runtime-item"><small>服务</small><b>local</b></span><span class="runtime-item"><small>版本</small><b>v4.1.0</b></span><span class="runtime-item run-id"><small>RUN</small><b id="currentRunId">-</b></span></div>
+    <div class="top-actions"><button class="button danger compact" id="stopBtn" disabled><svg><use href="#i-stop"/></svg>停止</button><button class="button ghost compact" id="newRunBtn">新建运行</button></div>
+  </header>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-label">运行模式</div><nav><button class="nav-item active" data-view="multiagent" aria-current="page"><svg><use href="#i-agents"/></svg><span>Multi-Agent</span><kbd>01</kbd></button><button class="nav-item" data-view="agent"><svg><use href="#i-bolt"/></svg><span>Agent Planner</span><kbd>02</kbd></button><button class="nav-item" data-view="workflow"><svg><use href="#i-flow"/></svg><span>Fixed Workflow</span><kbd>03</kbd></button></nav>
+      <div class="side-label">分析</div><nav><button class="nav-item" data-view="experiments"><svg><use href="#i-flask"/></svg><span>实验对照</span></button><button class="nav-item" data-view="benchmark"><svg><use href="#i-chart"/></svg><span>Benchmark</span></button><button class="nav-item" data-view="memory"><svg><use href="#i-memory"/></svg><span>Memory</span></button><button class="nav-item" data-view="reports"><svg><use href="#i-file"/></svg><span>Reports</span></button><button class="nav-item" data-view="diagnostics"><svg><use href="#i-pulse"/></svg><span>Diagnostics</span></button></nav>
+      <div class="sidebar-footer"><span class="status-light ok"></span>API ready</div>
+    </aside>
+    <main class="workspace">
+      <section class="config-column">
+        <div class="column-head"><div><span class="eyebrow">CONTROL</span><h1 id="viewTitle">Multi-Agent 运行</h1></div></div>
+        <section class="control-view active" id="panel-multiagent" data-panel="multiagent">
+          <div class="role-chain"><span>Idea / Plan</span><i></i><span>Coding</span><i></i><span>Execution</span><i></i><span>Writing</span></div>
+          <label for="maGoal">实验目标</label><textarea id="maGoal">Design an unseen compact nonlinear model under 4000 parameters, train it, and produce an evidence-grounded report.</textarea>
+          <div class="form-grid two"><div><label for="maPlanModel">Idea / Plan 模型</label><input id="maPlanModel" value="deepseek-v4-flash"></div><div><label for="maCodeModel">Coding 模型</label><input id="maCodeModel" value="deepseek-v4-flash"></div></div>
+          <label for="maWriteModel">Writing 模型</label><input id="maWriteModel" value="deepseek-v4-flash">
+          <div class="form-grid two"><div><label for="maReplans">最大重规划</label><input id="maReplans" type="number" min="0" max="3" value="1"></div><div><label for="maThreshold">目标 NMSE (dB)</label><input id="maThreshold" type="number" step="0.1" value="-35"></div><div><label for="maTokens">Token 预算</label><input id="maTokens" type="number" value="100000"></div><div><label for="maCost">成本预算 (USD)</label><input id="maCost" type="number" step="0.01" value="1"></div></div>
+          <button class="button primary run-button" id="maBtn"><svg><use href="#i-play"/></svg>启动 Multi-Agent</button>
+        </section>
+        <section class="control-view" id="panel-agent" data-panel="agent">
+          <label for="agProv">Provider</label><select id="agProv"><option value="fake">Fake LLM / offline</option><option value="deepseek">DeepSeek API</option></select><p class="field-note" id="noteFake">确定性计划，不消耗 API。</p><p class="field-note hidden" id="noteDp">从 .env.local 读取 DEEPSEEK_API_KEY。</p>
+          <label for="agDom">Domain</label><select id="agDom"><option value="nonlinear">Nonlinear Modeling</option><option value="synthetic">Synthetic Regression</option><option value="pim-cancellation">PIM Cancellation</option><option value="register-config">Register Config</option></select><label for="agData">实验数据 (.mat)</label><select id="agData"><option value="">auto</option></select><label>可优化方向</label><div class="check-grid" id="agTune"><span class="muted">loading...</span></div>
+          <label for="agGoal">目标</label><textarea id="agGoal">Find a low-NMSE nonlinear model under 4000 parameters.</textarea><div class="form-grid two"><div><label for="agRnd">最大轮次</label><input id="agRnd" type="number" value="2"></div><div><label for="agExp">最大实验数</label><input id="agExp" type="number" value="3"></div><div><label for="agPm">参数预算</label><input id="agPm" type="number" value="4000"></div><div><label for="agThr">目标 NMSE</label><input id="agThr" type="number" value="-35"></div></div><label for="agTo">超时 (秒)</label><input id="agTo" type="number" value="300"><button class="button primary run-button" id="agBtn"><svg><use href="#i-play"/></svg>启动 Agent Loop</button>
+        </section>
+        <section class="control-view" id="panel-workflow" data-panel="workflow"><div class="pipeline"><span>generate_config</span><span>run_training</span><span>verify_artifacts</span><span>write_report</span></div><label for="wfSid">Session ID</label><input id="wfSid" value="ui-demo-001"><label for="wfGoal">目标</label><textarea id="wfGoal">Run nonlinear NN experiment through the Agent Harness streaming runtime.</textarea><div class="form-grid two"><div><label for="wfEp">Epochs</label><input id="wfEp" type="number" value="0"></div><div><label for="wfThr">目标 NMSE</label><input id="wfThr" type="number" value="-35"></div></div><label for="wfTo">超时 (秒)</label><input id="wfTo" type="number" value="120"><button class="button primary run-button" id="wfBtn"><svg><use href="#i-play"/></svg>启动 Workflow</button></section>
+        <section class="control-view" id="panel-experiments" data-panel="experiments"><div class="form-grid two"><div><label for="cmpDom">Domain</label><select id="cmpDom"><option value="nonlinear">Nonlinear</option><option value="synthetic">Synthetic</option></select></div><div><label for="cmpPm">参数上限</label><input id="cmpPm" type="number" value="15000"></div><div><label for="cmpThr">目标 NMSE</label><input id="cmpThr" type="number" value="-39"></div><div><label for="cmpSeeds">Seeds</label><input id="cmpSeeds" type="number" value="3"></div><div><label for="cmpBudget">Trials / Seed</label><input id="cmpBudget" type="number" value="5"></div><div><label for="cmpTo">超时</label><input id="cmpTo" type="number" value="600"></div></div><label for="cmpPlan">LLM 搜索计划</label><textarea id="cmpPlan">Find the best nonlinear model under the given parameter budget and target. Prefer evidence-backed compact candidates.</textarea><div class="button-row"><button class="button primary" id="cmpBtn"><svg><use href="#i-play"/></svg>运行对照</button><button class="button ghost" id="cmpLoadBtn">加载结果</button></div></section>
+        <section class="control-view" id="panel-benchmark" data-panel="benchmark"><label for="bmTo">单 case 超时</label><input id="bmTo" type="number" value="300"><label for="bmThr">目标 NMSE</label><input id="bmThr" type="number" value="-35"><div class="button-row"><button class="button primary" id="bmBtn"><svg><use href="#i-play"/></svg>Harness Benchmark</button><button class="button ghost" id="bmLoadBtn">加载结果</button></div><button class="button ghost full" id="agentTaskBtn">运行 18 个独立 Agent 任务</button></section>
+        <section class="control-view" id="panel-memory" data-panel="memory"><button class="button ghost full" id="memRefresh">刷新 Memory</button><div class="empty-state" id="memBox">尚无已加载条目</div></section>
+        <section class="control-view" id="panel-reports" data-panel="reports"><div class="link-list"><a href="/diagnostics/agent-runtime-dashboard.html" target="_blank">Runtime Dashboard <svg><use href="#i-external"/></svg></a><a href="/diagnostics/agent-runtime-dashboard.md" target="_blank">Dashboard Markdown <svg><use href="#i-external"/></svg></a></div></section>
+        <section class="control-view" id="panel-diagnostics" data-panel="diagnostics"><div class="health-block"><span class="status-light ok"></span><div><b>FastAPI Runtime</b><small>Streaming endpoints available</small></div></div><a class="button ghost full link-button" href="/health" target="_blank">打开 /health</a></section>
+        <section class="knowledge-panel"><div class="section-title"><div><span class="eyebrow">CONTEXT</span><h2>知识上下文</h2></div><span class="badge warning">尚未接入</span></div><div class="source-path"><span>预留路径</span><code>docs/knowledge/nonlinear-modeling/</code></div><label class="switch-row"><span><b>注入 PlanAgent</b><small>当前仅为预留接口，不影响运行决策</small></span><input id="knowledgeContextEnabled" type="checkbox" disabled><i></i></label><label for="knowledgeFiles">知识库文件</label><input id="knowledgeFiles" type="file" accept=".md,.txt,.json,.yaml,.yml,.csv" multiple disabled><button class="button ghost full" id="knowledgePreviewBtn" disabled>预览 Sources</button></section>
+      </section>
+      <section class="activity-column">
+        <div class="activity-head"><div><span class="eyebrow">LIVE RUN</span><h2>执行活动</h2></div><div class="counter"><b id="evCount">0</b><span>events</span></div></div><div class="view-tabs"><button class="active" data-event-view="timeline">Timeline</button><button data-event-view="console">Console</button><button data-event-view="raw">Raw Events</button></div><div class="activity-body"><ol class="timeline" id="timeline"><li class="timeline-empty">等待运行事件</li></ol><pre class="console hidden" id="evBox">Ready. Select a mode and start a run.</pre><pre class="console raw hidden" id="rawBox">[]</pre></div><div class="activity-foot"><button class="icon-text-button" id="clearBtn"><svg><use href="#i-clear"/></svg>清空事件</button><span id="streamStatus">SSE disconnected</span></div>
+        <section class="result-panel hidden" id="resultPreview"><div class="result-head"><div><span class="eyebrow">RUN RESULTS</span><h2 id="resultTitle">性能证据</h2></div><a id="psdLink" class="hidden" href="#" target="_blank">打开原图 <svg><use href="#i-external"/></svg></a></div><div class="metric-strip"><div><small>current_nmse_db</small><b id="chipNmse">-</b></div><div><small>baseline_nmse_db</small><b id="chipBase">-</b></div><div><small>nmse_improvement_db</small><b id="chipGain">-</b></div><div><small>parameter_count</small><b id="chipParams">-</b></div></div><div class="table-wrap hidden" id="multiExperimentTable"></div><figure class="hidden" id="psdFigure"><img id="psdPreview" alt="最优实验 PSD 性能证据"><figcaption id="previewMeta">等待 psd.png</figcaption></figure><div class="result-links" id="resultLinks"></div></section>
+        <section class="data-panel hidden" id="cmpResults"><div class="section-title"><h2>策略对照</h2></div><div class="table-wrap" id="cmpTableWrap"></div><div id="cmpPaired"></div></section><section class="data-panel hidden" id="bmResults"><div class="section-title"><h2>Benchmark 结果</h2></div><div class="metric-strip wrap" id="bmSummaryWrap"></div><div class="table-wrap" id="bmTableWrap"></div></section>
+      </section>
+      <aside class="inspector-column" id="inspector"><div class="inspector-head"><div><span class="eyebrow">INSPECTOR</span><h2>事件详情</h2></div><button class="icon-button inspector-close" id="closeInspectorBtn" title="关闭 Inspector" aria-label="关闭 Inspector"><svg><use href="#i-close"/></svg></button></div><div class="inspector-empty" id="inspectorEmpty"><span>EVENT</span><p>选择 Timeline 中的事件，查看输入、输出、耗时与因果引用。</p></div><div class="inspector-content hidden" id="inspectorContent"><div class="event-identity"><span class="event-kind" id="inspectKind">event</span><b id="inspectTitle">-</b><small id="inspectMeta">-</small></div><dl id="inspectFacts"></dl><div class="refs"><h3>Input refs</h3><div id="inspectInputs">none</div><h3>Output refs</h3><div id="inspectOutputs">none</div></div><details><summary>Raw payload</summary><pre id="inspectRaw"></pre></details></div><section class="metric-glossary"><div class="section-title"><h2>指标口径</h2></div><dl><dt>target_hit_rate</dt><dd>达标任务数 / 总任务数</dd><dt>rejected_rate</dt><dd>Guard 拒绝实验数 / 全部实验记录</dd><dt>runtime_failure_rate</dt><dd>执行失败实验数 / 全部实验记录</dd><dt>average_experiments_used</dt><dd>总实验消耗 / 任务数</dd><dt>best_nmse_db</dt><dd>最优归一化均方误差，越低越好</dd><dt>baseline_nmse_db</dt><dd>固定基线方案的 NMSE</dd><dt>nmse_improvement_db</dt><dd>基线减当前 NMSE，越高越好</dd></dl></section></aside>
+    </main>
+  </div>
+  <script type="module" src="/ui/app.js"></script>
+</body>
+</html>
