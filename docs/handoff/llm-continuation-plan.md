@@ -1520,7 +1520,7 @@ docs/knowledge/nonlinear-modeling/*
 
 #### v4.1.0 实施记录（2026-08-11）
 
-状态：**实现与验收完成，待提交与推送。**
+状态：**实现、验收、提交与推送均已完成。**
 
 - 已将 780 行内联 `web_ui.py` 收缩为白名单资源入口，新增 `web/index.html`、`styles.css`、`event_view_model.js`、`app.js`，并在 `pyproject.toml` 中加入 package data；版本统一为 `4.1.0`。
 - 默认首页为 Multi-Agent；左栏八个入口均已迁移。中栏提供 Timeline / Console / Raw Events，右栏 Inspector 展示 refs、usage、facts 和 raw payload；1280 以下 Inspector 为可关闭抽屉。
@@ -1532,3 +1532,59 @@ docs/knowledge/nonlinear-modeling/*
 - 独立审查后补强：Diagnostics 路径使用 `resolve()` 边界；SSE 兼容 CRLF、无尾分隔符和 decoder flush；前端限制单活动 run 并按真实 terminal 显示 completed/cancelled/budget/error；取消接口移除全局 WMIC 杀进程。当前 Stop 为 session 级协作取消，单训练进程即时终止仍需 control-plane 进程所有权映射。
 
 与原设计的有意差异：本轮未引入 Node 构建、第三方图标/CDN 或真正的知识检索后端；知识与长期记忆接线仍按上节“下一阶段”验收标准实施。页面刷新后的 SSE replay 暂未新增前端重连逻辑，沿用现有服务端能力，后续应单独补 reconnect/Last-Event-ID 浏览器验收。
+
+### 15.13 README 项目总览图（方案 A，设计已批准）
+
+#### 目标与受众
+
+为第一次接触项目的面试官、协作者和作者本人提供一张可在 2-5 分钟内讲清项目的端到端工程流程图。图必须同时回答：用户从哪里进入、Agent 如何决策、代码和训练如何受控执行、失败如何反馈、证据如何产生、系统如何被观测和评测。图不替代模块清单，而是 README 的主叙事框架。
+
+#### 交付格式
+
+- `docs/assets/architecture/nonlinear-agent-system.drawio`：主源文件，可在 Draw.io 中编辑全部节点、泳道、连线和样式。
+- `docs/assets/architecture/nonlinear-agent-system.svg`：README 默认展示，缩放不失真，文本可检索。
+- `docs/assets/architecture/nonlinear-agent-system.png`：约 `3200 x 1800` 的兼容预览，用于不稳定支持 SVG 的文档和演示。
+- README 在“项目简介”之后、“界面预览”之前展示 SVG，并链接 Draw.io 源文件和 PNG。
+
+#### 画布与信息架构
+
+采用横向端到端主流程，画布目标比例 `16:9`，从左到右分成六个有标题的区域：
+
+1. **交付入口**：Web Operations Console、CLI、HTTP/SSE API、MCP Bridge；标出用户 goal、constraints、domain、budget 等输入。
+2. **运行模式**：Multi-Agent、Agent Planner Loop、Fixed Workflow、Benchmark / Search Comparison；共用 Runtime、Tools、Trace，而非四套孤立实现。
+3. **智能编排核心**：突出 `Idea/Plan -> PlanGate -> Coding -> Execution -> Writing -> Terminal`，并显示失败事实、有限 replan、token/cost/round/experiment budget 和取消检查。
+4. **上下文系统**：KnowledgeIngestor、BM25/vector/rerank、PlannerContextBuilder、typed Memory、namespace/provenance。CLI/Action Loop 当前已接通的链路画实线；尚未接入 Multi-Agent Idea/Plan 的链路画灰蓝虚线并标 `PLANNED`。
+5. **受控实验执行**：ToolRegistry、Schema/AST/path/parameter gates、隔离 worktree、CandidateRegistry、固定 subprocess runner、真实 train/evaluate；禁止把 LLM 直接连到 shell 或训练进程。
+6. **证据与可观测性**：TraceEvent/SSE/Inspector、Session/SQLite control plane、metrics.json、NMSE/PSD、HTML/PDF、Dashboard、Benchmark、bootstrap 95% CI 与 paired delta。
+
+画布底部增加一条较粗的主叙事带：
+
+```text
+Goal -> Plan -> Validate -> Code -> Execute -> Evaluate -> Reflect -> Write -> Evidence
+```
+
+#### 关键数据流与反馈回路
+
+- 主成功流使用实线粗箭头；次要共享依赖使用细实线；未来接线使用虚线。
+- Planner 输出结构化 plan；PlanGate 输出 validated plan 或 rejected facts；Coding 输出完整 candidate package；Execution 只接收 ToolCall/validated package；Writing 只读取 EvidenceBundle。
+- 训练结果沿 `metrics + artifacts + failure facts` 回到 Supervisor/Planner，不传隐藏推理或未经裁剪的源码历史。
+- Reflection 被画成“确定性事实提取”，策略选择仍由下一轮 LLM 完成。
+- Benchmark/Search 不旁路生产组件：它们复用真实 Guard、Runtime、ToolRegistry 和 evaluator，只替换 case/strategy/provider。
+- Web Timeline/Console/Raw/Inspector 都来自同一 TraceEvent/SSE，不画成四份数据源。
+
+#### 视觉与真实性规则
+
+- 紫色：LLM 角色；蓝色：确定性 Harness/基础设施；绿色：验证通过的实验与证据；琥珀色：Guard、预算和安全边界；红色：失败/拒绝/replan；灰蓝虚线：计划能力。
+- 节点圆角不超过 6px，不使用渐变、阴影堆叠或装饰图形；标题中文为主，类名、协议和数据结构保留英文。
+- 每个节点最多三行：组件名、核心职责、关键实现文件或数据契约；详细文件清单放图右下角 legend，不把所有源码文件塞进主流程。
+- 当前真实 DeepSeek 3x3 结果必须标出 `8/9 search completed`、`best/final -23.0778 dB`、`24 params`、`target -41 dB not hit`，避免把闭环成功误写成算法指标达标。
+- Knowledge/Memory 必须区分“CLI/Action Loop 已接通”和“Multi-Agent 注入待完成”；不得用实线暗示 Web 中禁用的知识开关已经生效。
+
+#### 验收标准
+
+1. Draw.io 源文件能重新打开并编辑，所有主要节点均为独立图形而非一张不可编辑位图。
+2. SVG 在 GitHub README 正常显示；PNG 宽度至少 2800px，文字在 100% 缩放下清晰。
+3. 图中至少覆盖四种入口/模式、六个 Multi-Agent 节点、四类安全闸门、真实训练/evaluator、三类持久化与四类观测/报告输出。
+4. 从 Goal 沿箭头可以无歧义到达 Evidence；从任何失败节点可以找到 rejected/failure facts 和有限 replan/terminal 路径。
+5. 当前链路与 planned 链路的图例、线型和标签一致；随机抽查五条连线与源码/README 相符。
+6. README 只保留一张主总览图，旧 UI 截图可继续作为后续细节，不与总览图争夺首屏叙事。
