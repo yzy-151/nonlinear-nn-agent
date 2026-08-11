@@ -1299,3 +1299,131 @@ class ModelPlugin(Protocol):
 - [ ] 记录“开放模型执行”而不是“LLM 已自主写模型”；列出契约、边界、固定 runner、测试数量和剩余 v4.0.0-b 工作。
 - [ ] `git diff --check`；确认没有修改用户原有 dashboard、删除文件和未跟踪实验目录。
 - [ ] 验收后建立 `version/v4.0.0-a`，按功能拆分提交；未完成真实 LLM coding 前不得写 Coding pass rate。
+
+### 15.12 v4.1.0：Web Operations Console 重构（设计已批准）
+
+#### 决策记录
+
+- 2026-08-11 用户批准采用 `Hybrid Operations` 方向：以实时 Agent 运行工作台为核心，同时吸收 LangSmith/Phoenix 的 trace inspector 和 W&B 的实验比较能力。
+- 默认首页为 `Multi-Agent`，不设置营销页、模式选择页或空泛总览。
+- 旧功能保留为左侧次级入口：Agent Planner、Fixed Workflow、Experiments、Benchmark、Memory、Reports、Diagnostics。
+- 界面中文为主，保留 `Trace`、`Evidence`、`Token`、`Tool Call`、`Inspector` 等工程术语。
+- 本轮只重构表现层与前端事件视图模型，不重写已稳定的 Agent runtime、SSE 契约和实验工具。
+
+#### 参考原则
+
+- LangSmith 的 thread/trace/run 分层与详情侧栏：先浏览执行上下文，再下钻输入、输出、耗时、token、错误和 metadata。参考：`https://docs.langchain.com/langsmith/view-traces`。
+- Arize Phoenix 的 trace/span、evaluation 与 experiment 组合：把 LLM、Tool、Retriever 和 Agent 视为可检查 span。参考：`https://arize.com/docs/phoenix/tracing`。
+- Grafana Explore 的实时排障思路：同一数据可在摘要、日志与详情之间切换，不要求用户阅读全部原始事件。参考：`https://grafana.com/docs/grafana/latest/visualizations/explore/`。
+- 不复制任何产品外观；只借鉴成熟的信息层级、主从视图、状态表达和排障路径。
+
+#### 信息架构
+
+```text
+App shell
+├── Sidebar
+│   ├── Multi-Agent (default)
+│   ├── Agent Planner
+│   ├── Fixed Workflow
+│   ├── Experiments
+│   ├── Benchmark
+│   ├── Memory
+│   ├── Reports
+│   └── Diagnostics
+├── Top bar
+│   ├── project / version
+│   ├── service + run status
+│   ├── current run id
+│   └── stop / new run / global actions
+└── Workspace
+    ├── Run configuration (collapsible)
+    ├── Live activity / results (primary)
+    └── Inspector (selected event/span/evidence)
+```
+
+Multi-Agent 运行前，中栏展示流程预览和空状态；运行中展示角色节点、轮次、候选和终评；运行结束自动展示最佳模型、九实验表、PSD、架构与报告入口。用户仍可切换回 Timeline 查看因果链。
+
+#### 页面与组件
+
+1. `AppShell`：固定侧栏、顶部状态栏和响应式 workspace，不允许页面切换导致整体布局跳动。
+2. `RunConfigPanel`：Goal、模型、目标、轮次与实验数为基础配置；token、cost、timeout、replan 等放入高级折叠区。
+3. `LiveTrace`：按 Round 和角色组织，不把 SSE 当无结构字符串堆叠；支持 `Timeline / Console / Raw Events` 三视图。
+4. `TraceRow`：稳定展示 role、status、摘要、latency、model、token/cost；点击后驱动 Inspector。
+5. `Inspector`：展示结构化 input/output refs、tool call、failure facts、model usage、evidence 和 raw JSON；raw JSON 默认折叠。
+6. `ExperimentResults`：九次探索与一次终评表、NMSE 比较、参数量、目标命中状态、最佳架构、最终 PSD 和报告下载。
+7. `StatusSystem`：统一 `Idle / Planning / Coding / Executing / Writing / Completed / Failed / Cancelled` 的图标、色彩和文案。
+8. `LegacyViews`：Agent Planner、Fixed Workflow、Benchmark、Memory、Reports、Diagnostics 迁入新 shell，功能与 API 不缩水。
+
+#### 视觉规范
+
+- 背景使用近黑和冷灰层级；青绿色仅用于主操作与成功，琥珀色用于运行中/警告，珊瑚红用于失败，避免单一蓝紫或大面积渐变。
+- 正文采用 `Inter, "Microsoft YaHei", sans-serif`；run ID、数值、token、日志采用等宽字体；letter-spacing 固定为 0。
+- 工作台保持高信息密度，小标题与紧凑表格优先；不使用营销式大标题、嵌套卡片和装饰性圆球。
+- 卡片圆角不超过 6px；图标按钮使用统一图标库或内嵌 sprite，并提供 tooltip/`aria-label`。
+- 桌面为三栏；中等宽度折叠配置栏；移动端为单栏，Inspector 作为抽屉，任何控件和文字不得溢出或重叠。
+
+#### 前端边界
+
+当前 `web_ui.py` 同时承载 HTML、CSS、页面结构和约 300 行事件脚本。v4.1.0 应拆为：
+
+```text
+src/nonlinear_agent/web/
+├── index.html
+├── styles.css
+├── app.js
+├── event_view_model.js
+└── icons.svg (仅 sprite，不作装饰插画)
+```
+
+`web_ui.py` 只保留资源读取/模板入口；FastAPI 新增受控静态资源路由。不得引入 Node 构建步骤，避免为单机 Python 演示增加部署负担。前端使用原生 ES modules 或单文件模块边界；所有数据仍来自现有 API/SSE。
+
+#### 事件数据流
+
+```text
+SSE TraceEvent
+  -> normalizeEvent(raw)
+  -> RunViewState
+       roles / rounds / experiments / metrics / usage / artifacts / errors
+  -> Timeline + Console + Inspector + Results
+```
+
+- 原始事件必须保留，可在 Raw Events 查看；规范化层不得改写真实指标或错误。
+- 未知事件显示为 `Unknown event` 并保留原始 payload，不能导致整页脚本崩溃。
+- SSE 断线、API 4xx/5xx、取消、预算耗尽、终评失败分别提供明确状态和可恢复动作。
+- 页面刷新后至少能通过现有 replay/Last-Event-ID 能力恢复事件；不能伪造运行进度。
+
+#### 测试与验收
+
+1. Python 页面测试验证 `/`、静态资源、关键导航和无内联 secret。
+2. `event_view_model` fixture 覆盖全部已有事件类型、未知事件、缺字段、失败和终态；指标来源与 raw payload 一致。
+3. Agent Planner、Fixed Workflow、Multi-Agent、Benchmark、Memory 的已有 API 和提交字段保持兼容。
+4. Playwright 在 `1440x1000`、`1024x768`、`390x844` 验证：页面非空、无横向溢出、导航可达、表单可操作、Inspector 可开关、日志不遮挡内容。
+5. 使用 scripted SSE fixture 验证 Planning -> Coding -> Execution -> Writing -> Completed 的视觉状态和可选 Inspector；再验证 failed/cancelled/budget exceeded。
+6. 真实服务 smoke：主页 HTTP 200，Multi-Agent 请求可发出，SSE 至少渲染一个角色事件；不得为视觉测试重复消耗真实 DeepSeek API。
+7. `python scripts/run_tests.py fast`、`python scripts/run_tests.py full`、`git diff --check` 全部通过后才能定版。
+
+#### 下一阶段：向 Idea/Plan Agent 注入知识与长期记忆
+
+该项排在 UI 重构之后，原因是 v4.0.0-e 的真实 3x3 运行只达到 `-23.0778 dB`，明显弱于项目历史先验；目前 Multi-Agent prompt 虽要求 `citation`，却没有提供可检索知识，PlanGate 也只检查 citation 非空，不能阻止虚构引用。
+
+下一阶段唯一目标：让 Idea/Plan Agent 基于检索到的领域知识、历史优胜实验和有效 memory 提出候选，而不是只依赖模型参数记忆。
+
+```text
+docs/knowledge/nonlinear-modeling/*
+  -> KnowledgeIngestor
+  -> BM25 + embedding + rerank
+  -> top-k EvidenceChunk(id, citation, hash, text)
+  -> Idea/Plan prompt + Web retrieved-context trace
+  -> PlanGate citation allowlist
+  -> plan / candidates
+```
+
+验收标准：
+
+1. Web 和 CLI Multi-Agent 使用同一 `PlannerContextBuilder`，默认扫描白名单目录，不直接读取任意路径或 secret。
+2. Query 由 goal、当前 round、已验证失败事实和当前最优指标组成；只注入 top-k，不传完整文档或 raw history。
+3. 每条 hypothesis/candidate 的 citation 必须命中本轮允许的 knowledge/memory evidence ID；伪造引用由 PlanGate 拒绝。
+4. Web Inspector 显示检索来源、章节、hash、score、被哪条 hypothesis/candidate 使用。
+5. 历史先验至少包含项目已验证的 `complex_lstsq / complex_mp`、LUT-Spline、参数预算、固定数据契约、失败案例与指标口径。
+6. 设计 `knowledge on/off` 同任务同预算消融，至少 6 个独立任务、3 个 seed；比较 target hit、best NMSE、无效计划率、coding pass rate、token/cost，不得只展示单次成功样例。
+7. 若知识增强仍不能超过历史先验，保留固定先验模型作为 baseline/候选池，不把“自由生成模型”误写成性能提升。
