@@ -73,6 +73,7 @@ class MultiAgentRunState(TypedDict, total=False):
     code_results: list[dict[str, Any]]
     execution_results: list[dict[str, Any]]
     final_evaluation: dict[str, Any]
+    planner_context: dict[str, Any]
 
 
 def build_supervisor_graph(
@@ -186,6 +187,7 @@ def build_multi_agent_graph(
         except Exception as exc:
             return _terminal_update(state, "error", str(exc), "idea_plan")
         usage = _usage_since(model_router, usage_start)
+        planner_context = dict(plan.pop("_planner_context", {}) or {})
         if model_router is not None and model_router.budget_exceeded():
             return {
                 "status": "budget_exceeded",
@@ -204,21 +206,34 @@ def build_multi_agent_graph(
         return {
             "status": "running",
             "plan": plan,
+            "planner_context": planner_context,
             "timeline": [_role_event(
                 state,
                 "idea_plan",
                 "completed",
-                input_refs=_failure_refs(state.get("failure_facts", {})),
+                input_refs=(
+                    _failure_refs(state.get("failure_facts", {}))
+                    + list(planner_context.get("allowed_citation_ids", []))
+                ),
                 output_refs=[f"plan:{plan.get('plan_id', 'unknown')}"],
                 model_usage=usage,
                 failure_facts=dict(state.get("failure_facts", {})),
+                context_evidence=_context_trace_evidence(planner_context),
             )],
         }
 
     def plan_gate_node(state: MultiAgentRunState) -> dict[str, Any]:
         if _is_cancelled(state, cancel_check):
             return _terminal_update(state, "cancelled", "cancelled by user", "plan_gate")
-        errors = gate.validate(state.get("plan", {}))
+        context = dict(state.get("planner_context") or {})
+        errors = gate.validate(
+            state.get("plan", {}),
+            available_citation_ids=(
+                set(context.get("allowed_citation_ids", []))
+                if context.get("enabled")
+                else None
+            ),
+        )
         if errors:
             return _terminal_update(state, "invalid_plan", "; ".join(errors), "plan_gate")
         return {
@@ -497,6 +512,7 @@ def _build_batch_multi_agent_graph(
         except Exception as exc:
             return _terminal_update(state, "error", str(exc), "idea_plan")
         usage = _usage_since(model_router, usage_start)
+        planner_context = dict(plan.pop("_planner_context", {}) or {})
         if model_router is not None and model_router.budget_exceeded():
             return {
                 "status": "budget_exceeded",
@@ -509,13 +525,18 @@ def _build_batch_multi_agent_graph(
         return {
             "status": "running",
             "plan": plan,
+            "planner_context": planner_context,
             "timeline": [_role_event(
                 state,
                 "idea_plan",
                 "completed",
-                input_refs=list(state.get("available_fact_refs", [])),
+                input_refs=(
+                    list(state.get("available_fact_refs", []))
+                    + list(planner_context.get("allowed_citation_ids", []))
+                ),
                 output_refs=[f"plan:{plan.get('plan_id', 'unknown')}"],
                 model_usage=usage,
+                context_evidence=_context_trace_evidence(planner_context),
             )],
         }
 
@@ -527,6 +548,11 @@ def _build_batch_multi_agent_graph(
             expected_experiments=experiments_per_round,
             round_index=state.get("round_index", 1),
             available_fact_refs=set(state.get("available_fact_refs", [])),
+            available_citation_ids=(
+                set(dict(state.get("planner_context") or {}).get("allowed_citation_ids", []))
+                if dict(state.get("planner_context") or {}).get("enabled")
+                else None
+            ),
         )
         if errors:
             return _terminal_update(state, "invalid_plan", "; ".join(errors), "plan_gate")
@@ -892,6 +918,7 @@ def _role_event(
     output_refs: list[str] | None = None,
     model_usage: list[dict[str, Any]] | None = None,
     failure_facts: dict[str, Any] | None = None,
+    context_evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     sequence = len(state.get("timeline", [])) + 1
     return {
@@ -904,7 +931,34 @@ def _role_event(
         "output_refs": list(output_refs or []),
         "model_usage": list(model_usage or []),
         "failure_facts": dict(failure_facts or {}),
+        "context_evidence": list(context_evidence or []),
     }
+
+
+def _context_trace_evidence(
+    planner_context: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Project retrieval provenance without prompt text into public trace."""
+    allowed = {
+        "evidence_id",
+        "kind",
+        "citation",
+        "source_path",
+        "content_hash",
+        "version",
+        "score",
+        "memory_kind",
+        "run_id",
+        "config_hash",
+        "confidence",
+        "evidence_refs",
+        "metrics",
+    }
+    return [
+        {key: value for key, value in item.items() if key in allowed}
+        for item in planner_context.get("evidence", [])
+        if isinstance(item, dict)
+    ]
 
 
 def _terminal_update(

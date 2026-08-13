@@ -12,6 +12,7 @@ REQUIRED_CANDIDATE_FIELDS = (
     "budget",
     "stop_condition",
     "rationale",
+    "citation",
 )
 REQUIRED_BUDGET_FIELDS = ("parameter_count_max", "epochs_max")
 REQUIRED_PLAN_FIELDS = (
@@ -33,6 +34,7 @@ class PlanGate:
         self,
         plan: dict[str, Any],
         parameter_count_max: int | None = None,
+        available_citation_ids: set[str] | None = None,
     ) -> list[str]:
         errors: list[str] = []
         for field in REQUIRED_PLAN_FIELDS:
@@ -54,6 +56,12 @@ class PlanGate:
                     errors.append(
                         f"hypotheses[{index}] missing field: {field}"
                     )
+            citation = str(hypothesis.get("citation", "")).strip()
+            if available_citation_ids is not None:
+                if not citation:
+                    errors.append(f"hypotheses[{index}] empty citation")
+                elif citation not in available_citation_ids:
+                    errors.append(f"hypotheses[{index}] unknown citation: {citation}")
 
         for index, candidate in enumerate(plan.get("candidate_experiments", [])):
             if not isinstance(candidate, dict):
@@ -81,6 +89,14 @@ class PlanGate:
                         f"candidate_experiments[{index}] params_estimate {params} "
                         f"exceeds budget {parameter_count_max}"
                     )
+            citation = str(candidate.get("citation", "")).strip()
+            if available_citation_ids is not None:
+                if not citation:
+                    errors.append(f"candidate_experiments[{index}] empty citation")
+                elif citation not in available_citation_ids:
+                    errors.append(
+                        f"candidate_experiments[{index}] unknown citation: {citation}"
+                    )
         return errors
 
     def validate_batch(
@@ -89,9 +105,13 @@ class PlanGate:
         expected_experiments: int,
         round_index: int = 1,
         available_fact_refs: set[str] | None = None,
+        available_citation_ids: set[str] | None = None,
     ) -> list[str]:
         """Validate the cross-experiment contract for one search round."""
-        errors = self.validate(plan)
+        errors = self.validate(
+            plan,
+            available_citation_ids=available_citation_ids,
+        )
         candidates = plan.get("candidate_experiments", [])
         if not isinstance(candidates, list):
             return errors

@@ -153,6 +153,65 @@ class TestPlanGate(unittest.TestCase):
         )
         self.assertTrue(any("unknown fact ref" in error for error in errors))
 
+    def test_batch_rejects_citations_outside_retrieved_allowlist(self):
+        from nonlinear_agent.plan_gate import PlanGate
+
+        plan = _batch_plan()
+        plan["hypotheses"][0]["citation"] = "knowledge:known-prior"
+        for candidate in plan["candidate_experiments"]:
+            candidate["citation"] = "memory:verified-run"
+
+        self.assertEqual(
+            PlanGate().validate_batch(
+                plan,
+                expected_experiments=3,
+                available_citation_ids={
+                    "knowledge:known-prior",
+                    "memory:verified-run",
+                },
+            ),
+            [],
+        )
+
+        plan["candidate_experiments"][1]["citation"] = "knowledge:invented"
+        errors = PlanGate().validate_batch(
+            plan,
+            expected_experiments=3,
+            available_citation_ids={
+                "knowledge:known-prior",
+                "memory:verified-run",
+            },
+        )
+        self.assertTrue(any("unknown citation" in error for error in errors))
+
+    def test_single_plan_rejects_citations_outside_retrieved_allowlist(self):
+        from nonlinear_agent.plan_gate import PlanGate
+
+        plan = _valid_plan()
+        errors = PlanGate().validate(
+            plan,
+            available_citation_ids={"knowledge:allowed"},
+        )
+
+        self.assertTrue(any("unknown citation" in error for error in errors))
+
+    def test_retrieved_allowlist_rejects_empty_citations(self):
+        from nonlinear_agent.plan_gate import PlanGate
+
+        plan = _valid_plan()
+        plan["hypotheses"][0]["citation"] = ""
+        plan["candidate_experiments"][0]["citation"] = "   "
+
+        errors = PlanGate().validate(
+            plan,
+            available_citation_ids={"knowledge:allowed"},
+        )
+
+        self.assertTrue(any("hypotheses[0] empty citation" in error for error in errors))
+        self.assertTrue(
+            any("candidate_experiments[0] empty citation" in error for error in errors)
+        )
+
 
 class TestPlanningTasksSchemaValidity(unittest.TestCase):
     """v3.7.0 acceptance: 12 planning tasks must all be schema-valid."""

@@ -2,19 +2,20 @@
 
 面向真实机器学习实验的 Agent Harness：让 LLM 设计实验、生成候选代码并根据验证事实迭代，同时由确定性运行时负责安全校验、真实训练、指标复核、过程观测和证据报告。
 
-当前版本：`v4.1.0`。项目重点是 **Agent 工程闭环**，不是宣称 LLM 已经自动找到最强通信算法。
+当前版本：`v4.2.0`。系统同时提供开放式 Multi-Agent 研究链路与稳定的受控模型搜索链路，覆盖从实验构思、代码生成到训练评测和证据交付的完整过程。
 
 ## 项目总览
 
-[编辑领导版 Draw.io](docs/assets/architecture/nonlinear-agent-executive.drawio) · [编辑工程详细版 Draw.io](docs/assets/architecture/nonlinear-agent-system.drawio) · [打开详细版 SVG](docs/assets/architecture/nonlinear-agent-system.svg)
+[编辑系统概览 Draw.io](docs/assets/architecture/nonlinear-agent-executive.drawio) · [编辑工程详细图 Draw.io](docs/assets/architecture/nonlinear-agent-system.drawio) · [打开详细版 SVG](docs/assets/architecture/nonlinear-agent-system.svg)
 
-[![Nonlinear NN Agent 领导简化版](docs/assets/architecture/nonlinear-agent-executive.svg)](docs/assets/architecture/nonlinear-agent-executive.svg)
+[![Nonlinear NN Agent 系统概览](docs/assets/architecture/nonlinear-agent-executive.svg)](docs/assets/architecture/nonlinear-agent-executive.svg)
 
-这套系统解决的不是“怎样多调用几次训练脚本”，而是怎样让 LLM 的实验决策进入一条可控、可恢复、可观测、可复算的工程链路：
+这套系统将 LLM 的实验决策接入可控、可恢复、可观测、可复算的工程链路：
 
 1. **自主实验**：PlanAgent 提出假设，CodingAgent 生成完整候选包，ExecutionAgent 执行真实训练，WritingAgent 汇总证据。
 2. **确定性护栏**：PlanGate、Schema/AST/path gate、ToolRegistry、隔离 worktree、预算和超时共同约束模型行为。
 3. **证据闭环**：Evaluator 复核 NMSE、参数量与 PSD；Reflection 只提取事实，下一轮 LLM 再选择策略；报告只能引用已有 `evidence_id`。
+4. **双轨搜索**：开放式 Multi-Agent 负责探索新模型；受控搜索在成熟模型白名单内优化，模型与参数字段均可锁定。
 
 ## 当前能力
 
@@ -26,8 +27,9 @@
 | Reflection 与重规划 | 已接通 | 程序只提取 metrics/failure facts，不用 `if` 规则替 LLM 决定下一步 |
 | Trace 与控制面 | 已接通 | SSE、层级 trace、SQLite 幂等/lease/replay、取消与唯一终态 |
 | WritingAgent 报告 | 已接通 | HTML/PDF 共用 `EvidenceBundle`；未知引用和不存在的数字会被拒绝 |
-| Knowledge / typed Memory | 部分接通 | CLI/Action Loop 已消费检索上下文；Multi-Agent 注入仍为 `PLANNED` |
-| 自主算法质量 | 尚未达标 | 真实 3×3 run 验证了工程闭环，但没有达到 `-41 dB` 目标 |
+| Knowledge / typed Memory | 已接通 | Multi-Agent 每轮只注入白名单 top-k evidence；PlanGate 拒绝伪造引用；执行结果写回 typed episodic memory |
+| 受控模型搜索 | 已接通 | 可选择允许的固定模型族和可调参数；未开放字段继承 baseline，越权覆盖由 Guard 拒绝 |
+| 开放模型探索 | 已验证 | 真实 3×3 run 完成跨轮代码生成与独立终评，为后续知识增强和模型路由优化提供可复现实验基线 |
 
 ## 真实运行证据
 
@@ -40,7 +42,7 @@
 | Round 3 | LUTSplineV3 | 3/3 | **-23.0778 dB** | **24** |
 | Independent final | LUTSplineV3 | completed | **-23.0778 dB** | **24** |
 
-总计 `8/9` 个搜索候选完成。该运行证明了候选代码生成、失败隔离、跨轮事实反馈、独立终评和报告收口；它**没有**命中 `-41 dB`，也没有超过项目历史先验模型。
+总计 `8/9` 个搜索候选完成。该运行完整验证了候选代码生成、失败隔离、跨轮事实反馈、独立终评和报告收口。最佳候选达到 `-23.0778 dB / 24 params`；`-41 dB` 继续作为后续算法优化目标，成熟历史先验由受控搜索链路保留并可直接复用。
 
 [完整 6 页 PDF 报告](docs/reports/v4.0.0-e-deepseek-3x3-report.pdf) · [九次实验 NMSE](docs/assets/results/v4.0.0-e/nine-experiment-nmse.png) · [最终模型架构](docs/assets/results/v4.0.0-e/architecture.png)
 
@@ -70,9 +72,9 @@ python scripts/run_tests.py fast
 
 Web 首页默认进入 Multi-Agent。中栏的 Timeline、Console、Raw Events 来自同一 SSE 事件流；点击事件后，右侧 Inspector 展示 role、model、token、cost、latency、输入/输出引用和失败事实。
 
-![v4.1.0 Hybrid Operations Console](docs/assets/ui/v4.1.0-operations-console.png)
+![v4.2.0 受控模型搜索控制台](docs/assets/ui/v4.2.0-controlled-search.png)
 
-页面还包含 Agent Planner、Fixed Workflow、Experiments、Benchmark、Memory、Reports 与 Diagnostics。Knowledge 文件入口目前明确标记为尚未接通，不会伪装成已经影响 Multi-Agent PlanAgent。
+页面还包含受控搜索、Agent Planner、Fixed Workflow、Experiments、Benchmark、Memory、Reports 与 Diagnostics。受控搜索可分别选择模型白名单和可调参数；Knowledge 面板可以启停 Multi-Agent 注入、调整 top-k，并预览白名单来源。Idea/Plan 事件会在 Inspector 中显示 evidence ID、citation、hash、score 和 memory provenance。
 
 ## 工程详细图
 
@@ -107,7 +109,7 @@ schema / coding / runtime failure
 
 1. 打开 [diagrams.net](https://app.diagrams.net/) 或 Draw.io Desktop。
 2. 选择 `File → Open from → Device`。
-3. 打开领导版 `docs/assets/architecture/nonlinear-agent-executive.drawio`，或工程版 `docs/assets/architecture/nonlinear-agent-system.drawio`。
+3. 打开系统概览 `docs/assets/architecture/nonlinear-agent-executive.drawio`，或工程详细图 `docs/assets/architecture/nonlinear-agent-system.drawio`。
 4. 修改节点和连线后，通过 `File → Export as → SVG / PNG` 导出展示文件；保留 `.drawio` 作为唯一可编辑源文件。
 
 不要直接修改 PNG。README 默认展示 SVG，因为 SVG 在 GitHub 中可缩放且文字更清晰。
@@ -150,7 +152,7 @@ NMSE 越低越好。PSD 图用于检查预测信号与目标信号在频域是�
 
 ## Benchmark 与验收
 
-项目没有把单一自建分数包装成“官方 Agent benchmark”，而是分三层验证：
+项目采用三层评测体系，分别验证 Agent 行为、搜索质量与运行时可靠性：
 
 | 层级 | 回答的问题 | 主要指标 |
 | --- | --- | --- |
@@ -172,7 +174,8 @@ python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1
 | --- | --- |
 | `python agent.py run --provider fake` | 离线 Agent Planner Loop |
 | `python agent.py run --provider deepseek` | 真实 LLM Planner Loop |
-| `python agent.py multi-agent --provider deepseek --rounds 3 --experiments-per-round 3 --final-evaluation` | Multi-Agent 3×3 搜索与独立终评 |
+| `python agent.py multi-agent --provider deepseek --rounds 3 --experiments-per-round 3 --final-evaluation --planner-context on --knowledge-top-k 3` | Multi-Agent 3×3 搜索、Knowledge/Memory 注入与独立终评 |
+| Web `受控搜索` | 在固定模型族内按字段锁定或开放参数，复用 Agent Loop 与真实 Harness |
 | `python agent.py benchmark` | 传统 Harness 行为回归 |
 | `python agent.py agent-benchmark` | 独立 action-level Agent 任务评测 |
 | `python agent.py compare-search` | 四种搜索策略统一协议对照 |
@@ -199,9 +202,9 @@ tests/                     单元、集成、故障注入与 Web 契约测试
 - [独立 Agent 任务摘要](benchmarks/agent-tasks-v1/summary.md)
 - [搜索策略历史实验 v3](docs/experiments/nonlinear-search-ablation-v3.md)
 
-## 已知限制与下一步
+## 演进方向
 
-- Multi-Agent 的 Knowledge/Memory 注入尚未接通；当前 UI 入口只是明确禁用的接口预留。
-- 自由生成模型的算法效果明显弱于历史先验候选；下一步应把检索证据和可引用先验接入 Idea/Plan，并做 knowledge on/off 消融。
+- 当前 Memory 默认使用进程内 LangGraph Store，服务重启后不会持久保留；生产部署应切换到已有的 Postgres backend。
+- 对开放式模型生成执行同任务、同预算、同 seed 的 knowledge on/off 消融，量化 target hit、best NMSE、invalid plan、coding pass rate、token 和成本。
 - Executor 仍应进一步强化从标准 prediction artifact 重算指标的能力，减少对候选自报字段的信任。
 - 真实 LLM benchmark 成本较高；任何性能结论都应同时报告任务集、预算、seed、失败数、token 和成本。

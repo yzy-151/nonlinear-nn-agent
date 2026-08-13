@@ -63,6 +63,7 @@ export function normalizeEvent(raw, index = 0) {
     tool: raw.tool || payload.tool,
     latency_ms: raw.latency_ms ?? payload.latency_ms,
     model_usage: payload.model_usage,
+    context_evidence: payload.context_evidence,
     experiments: payload.experiments,
     final_evaluation: payload.final_evaluation,
     previous_reflection_facts: payload.previous_reflection_facts || raw.previous_reflection_facts,
@@ -111,6 +112,7 @@ export function formatConsole(raw) {
     lines.push(`  input_refs: ${(payload.input_refs || []).join(", ") || "none"}`);
     lines.push(`  output_refs: ${(payload.output_refs || []).join(", ") || "none"}`);
     (payload.model_usage || []).forEach((usage) => lines.push(`  model_usage: ${usage.role || payload.role} ${usage.provider || "-"}/${usage.model || "-"} tokens=${(usage.prompt_tokens || 0) + (usage.completion_tokens || 0)} latency=${Math.round(usage.latency_ms || 0)}ms`));
+    (payload.context_evidence || []).forEach((item) => lines.push(`  context: ${item.evidence_id} source=${item.citation || item.run_id || "-"} score=${item.score ?? item.confidence ?? "-"}`));
   }
   if (event.type === "multi_agent_terminal") Object.entries(payload).filter(([key]) => key.endsWith("_path")).forEach(([key, value]) => lines.push(`  ${key}: ${value}`));
   lines.push(...metricLines(payload.output?.metrics, "tool_metrics"), ...metricLines(payload.metrics, "session_metrics"));

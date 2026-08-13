@@ -10,6 +10,179 @@ from tests.test_supervisor_e2e import _plan, _three_candidate_plan
 
 
 class TestMultiAgentRuntime(unittest.TestCase):
+    def test_idea_plan_injects_bounded_context_and_protects_allowlist(self):
+        from nonlinear_agent.knowledge.ingest import KnowledgeChunk
+        from nonlinear_agent.knowledge.retriever import ScoredChunk
+        from nonlinear_agent.memory.planner_context import PlannerContext
+        from nonlinear_agent.memory.ports import MemoryItem, MemoryKind
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+        for candidate in plan["candidate_experiments"]:
+            candidate["citation"] = "knowledge:prior-001"
+        plan["hypotheses"][0]["citation"] = "memory:memory-001"
+        plan["_planner_context"] = {"allowed_citation_ids": ["forged"]}
+
+        class ContextBuilder:
+            def __init__(self):
+                self.calls = []
+
+            def build(self, query, namespace, top_k=3):
+                self.calls.append((query, namespace, top_k))
+                chunk = KnowledgeChunk(
+                    chunk_id="prior-001",
+                    source_path="docs/knowledge/nonlinear-modeling/priors.md",
+                    content_hash="abc123",
+                    version="main",
+                    created_at=1.0,
+                    text="LUT spline candidates can exploit a compact physical prior.",
+                    citation="priors.md#LUT spline",
+                )
+                memory = MemoryItem(
+                    memory_id="memory-001",
+                    kind=MemoryKind.EPISODIC,
+                    namespace=("nonlinear-modeling", "dataset-42", "mixed"),
+                    fact="A verified compact candidate reached -37 dB.",
+                    evidence_refs=("artifact:metrics.json",),
+                    metrics={"nmse_db": -37.0},
+                    confidence=0.9,
+                )
+                return PlannerContext(
+                    knowledge=(ScoredChunk(chunk=chunk, score=0.82),),
+                    memory=(memory,),
+                )
+
+        class Router:
+            def __init__(self):
+                self.prompt = ""
+
+            def complete(self, role, prompt):
+                self.prompt = prompt
+                return json.dumps(plan)
+
+        builder = ContextBuilder()
+        router = Router()
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            router,
+            object(),
+            object(),
+            planner_context_builder=builder,
+            planner_context_enabled=True,
+            planner_namespace=("nonlinear-modeling", "dataset-42", "mixed"),
+            planner_context_top_k=2,
+        )
+
+        result = runtime._idea_plan(
+            {
+                "run_id": "context-plan",
+                "goal": "design a compact nonlinear model",
+                "round_index": 1,
+                "rounds_total": 3,
+                "experiments_per_round": 3,
+                "available_fact_refs": [],
+                "round_records": [],
+            }
+        )
+
+        self.assertEqual(builder.calls[0][1], ("nonlinear-modeling", "dataset-42", "mixed"))
+        self.assertEqual(builder.calls[0][2], 2)
+        self.assertIn("knowledge:prior-001", router.prompt)
+        self.assertIn("memory:memory-001", router.prompt)
+        self.assertNotIn("forged", result["_planner_context"]["allowed_citation_ids"])
+        self.assertEqual(
+            set(result["_planner_context"]["allowed_citation_ids"]),
+            {"knowledge:prior-001", "memory:memory-001"},
+        )
+
+    def test_execution_writes_verified_result_to_typed_memory(self):
+        from nonlinear_agent.execution_agent import ExecutionResult
+        from nonlinear_agent.memory.ports import MemoryKind
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        class Backend:
+            def __init__(self):
+                self.items = []
+
+            def write(self, item):
+                self.items.append(item)
+                return item.memory_id
+
+        class Execution:
+            async def execute(self, tool_name, arguments, cancelled=False):
+                return ExecutionResult(
+                    status="completed",
+                    classification="ok",
+                    tool_name=tool_name,
+                    metrics={"nmse_db": -36.5, "parameter_count": 128},
+                    artifacts=("reports/memory-run/execution/metrics.json",),
+                )
+
+        backend = Backend()
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            object(),
+            object(),
+            object(),
+            execution_agent_factory=lambda workspace: Execution(),
+            memory_backend=backend,
+            planner_namespace=("nonlinear-modeling", "dataset-42", "mixed"),
+        )
+        runtime._publish_file = lambda *args: "reports/memory-run/evidence/metrics.json"
+
+        runtime._execution_worker(
+            {
+                "run_id": "memory-run",
+                "goal": "improve NMSE",
+                "round_index": 1,
+                "experiment_id": "candidate-1",
+                "candidate": {
+                    "experiment_id": "candidate-1",
+                    "model_type": "CompactLUT",
+                    "config": {"knots": 16},
+                    "budget": {"parameter_count_max": 4000, "timeout_seconds": 30},
+                },
+                "plan": {"plan_id": "plan-memory"},
+                "code_result": {
+                    "worktree": str(Path.cwd()),
+                    "manifest_path": "models/candidates/compact_lut/manifest.json",
+                },
+            }
+        )
+
+        self.assertEqual(len(backend.items), 1)
+        item = backend.items[0]
+        self.assertEqual(item.kind, MemoryKind.EPISODIC)
+        self.assertEqual(item.namespace, ("nonlinear-modeling", "dataset-42", "mixed"))
+        self.assertEqual(item.metrics["nmse_db"], -36.5)
+        self.assertIn("CompactLUT", item.fact)
+        self.assertEqual(item.created_by_role, "execution")
+
+    def test_empty_retrieval_does_not_create_an_impossible_citation_allowlist(self):
+        from nonlinear_agent.memory.planner_context import PlannerContext
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        class EmptyContextBuilder:
+            def build(self, query, namespace, top_k=3):
+                return PlannerContext()
+
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            object(),
+            object(),
+            object(),
+            planner_context_builder=EmptyContextBuilder(),
+            planner_context_enabled=True,
+        )
+
+        context = runtime._build_planner_context(
+            {"goal": "unmatched query", "round_index": 1, "round_records": []}
+        )
+
+        self.assertTrue(context["requested"])
+        self.assertFalse(context["enabled"])
+        self.assertEqual(context["allowed_citation_ids"], [])
+
     def test_writing_worker_refreshes_cost_after_the_writing_model_call(self):
         from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
         from tests.test_reporting_tool import _task_source

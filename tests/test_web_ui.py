@@ -35,6 +35,7 @@ class WebUITest(unittest.TestCase):
 
         for view in (
             "multiagent",
+            "controlled",
             "agent",
             "workflow",
             "experiments",
@@ -45,15 +46,33 @@ class WebUITest(unittest.TestCase):
         ):
             self.assertIn(f'data-view="{view}"', html)
 
-    def test_knowledge_interface_is_visible_but_truthful_about_backend(self):
+    def test_controlled_search_exposes_model_and_parameter_whitelists(self):
+        html = render_home_page()
+        script = read_web_asset("app.js")
+
+        self.assertIn('id="csModels"', html)
+        self.assertIn('id="csTune"', html)
+        self.assertIn('id="csBtn"', html)
+        self.assertIn("/controlled-search/", script)
+        self.assertIn("allowed_models", script)
+        self.assertIn("enabled_fields", script)
+        self.assertIn("CONTROLLED_DEFAULT_FIELDS", script)
+
+    def test_knowledge_interface_is_connected_and_truthful_about_scope(self):
         html = render_home_page()
 
         self.assertIn("知识上下文", html)
-        self.assertIn("尚未接入", html)
+        self.assertIn("已接入", html)
         self.assertIn("docs/knowledge/nonlinear-modeling/", html)
         self.assertIn('id="knowledgeFiles"', html)
         self.assertIn('id="knowledgeContextEnabled"', html)
         self.assertIn('id="knowledgePreviewBtn"', html)
+        self.assertNotIn('id="knowledgeContextEnabled" type="checkbox" disabled', html)
+
+        script = read_web_asset("app.js")
+        self.assertIn("knowledge_context_enabled", script)
+        self.assertIn("knowledge_top_k", script)
+        self.assertIn("/knowledge/sources", script)
 
     def test_static_assets_keep_existing_endpoints_and_metric_explanations(self):
         script = read_web_asset("app.js")
@@ -62,6 +81,7 @@ class WebUITest(unittest.TestCase):
         for endpoint in (
             "/runs/",
             "/agent/",
+            "/controlled-search/",
             "/multi-agent/",
             "/benchmark/events",
             "/agent-benchmark/events",

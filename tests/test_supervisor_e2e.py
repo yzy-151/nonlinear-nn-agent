@@ -49,6 +49,51 @@ def _three_candidate_plan(round_index: int, fact_refs=()) -> dict:
 
 
 class TestSupervisorE2E(unittest.TestCase):
+    def test_context_trace_exposes_provenance_without_prompt_text(self):
+        from nonlinear_agent.supervisor_graph import (
+            MultiAgentWorkers,
+            build_multi_agent_graph,
+            run_multi_agent_graph,
+        )
+
+        plan = _plan()
+        citation = plan["hypotheses"][0]["citation"]
+        plan["_planner_context"] = {
+            "enabled": True,
+            "allowed_citation_ids": [citation],
+            "evidence": [
+                {
+                    "evidence_id": citation,
+                    "kind": "knowledge",
+                    "citation": "verified-priors.md#Compact model priors",
+                    "source_path": "docs/knowledge/nonlinear-modeling/verified-priors.md",
+                    "content_hash": "abc123",
+                    "score": 0.9,
+                    "text": "PRIVATE PROMPT CHUNK",
+                }
+            ],
+        }
+        graph = build_multi_agent_graph(
+            MultiAgentWorkers(
+                idea_plan=lambda request: plan,
+                coding=lambda request: {"passed": True},
+                execution=lambda request: {
+                    "status": "completed",
+                    "classification": "ok",
+                    "metrics": {"nmse_db": -37.0},
+                    "artifacts": [],
+                },
+                writing=lambda request: {"pdf_path": "reports/context/report.pdf"},
+            )
+        )
+
+        result = run_multi_agent_graph(graph, "use context", "context-trace")
+        idea_event = next(item for item in result["timeline"] if item["role"] == "idea_plan")
+
+        self.assertIn(citation, idea_event["input_refs"])
+        self.assertEqual(idea_event["context_evidence"][0]["content_hash"], "abc123")
+        self.assertNotIn("text", idea_event["context_evidence"][0])
+        self.assertNotIn("_planner_context", result["plan"])
     def test_three_round_batch_search_runs_nine_experiments_and_one_final_evaluation(self):
         from nonlinear_agent.supervisor_graph import (
             MultiAgentWorkers,

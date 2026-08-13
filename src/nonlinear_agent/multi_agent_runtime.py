@@ -6,6 +6,8 @@ import asyncio
 import json
 import re
 import shutil
+import hashlib
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable
@@ -36,6 +38,15 @@ class MultiAgentRuntime:
         execution_agent_factory: ExecutionAgentFactory | None = None,
         report_writer: ReportWriter = write_task_report_tool,
         nmse_threshold_db: float = -35.0,
+        planner_context_builder: Any | None = None,
+        planner_context_enabled: bool = False,
+        planner_namespace: tuple[str, str, str] = (
+            "nonlinear-modeling",
+            "default",
+            "mixed",
+        ),
+        planner_context_top_k: int = 3,
+        memory_backend: Any | None = None,
     ):
         self._root = Path(repo_root).resolve()
         self._router = model_router
@@ -49,6 +60,11 @@ class MultiAgentRuntime:
         )
         self._report_writer = report_writer
         self._threshold = float(nmse_threshold_db)
+        self._context_builder = planner_context_builder
+        self._context_enabled = bool(planner_context_enabled)
+        self._namespace = tuple(planner_namespace)
+        self._context_top_k = max(1, min(int(planner_context_top_k), 10))
+        self._memory_backend = memory_backend
 
     def workers(self) -> MultiAgentWorkers:
         return MultiAgentWorkers(
@@ -59,6 +75,7 @@ class MultiAgentRuntime:
         )
 
     def _idea_plan(self, request: dict[str, Any]) -> dict[str, Any]:
+        context_payload = self._build_planner_context(request)
         candidate_contract = {
             "experiment_id": "unique ID within this round",
             "model_type": "new candidate plugin name",
@@ -115,6 +132,8 @@ class MultiAgentRuntime:
             + json.dumps(contract, ensure_ascii=False, sort_keys=True)
             + "\nRun request:\n"
             + json.dumps(request, ensure_ascii=False, sort_keys=True)
+            + "\nRetrieved context evidence (cite only these IDs):\n"
+            + json.dumps(context_payload["evidence"], ensure_ascii=False, sort_keys=True)
         )
         raw = str(self._router.complete("idea_plan", prompt)).strip()
         try:
@@ -130,7 +149,65 @@ class MultiAgentRuntime:
             plan = _parse_json_object(repaired, "idea_plan response")
         if not isinstance(plan, dict):
             raise ValueError("idea_plan response must be an object")
+        plan["_planner_context"] = context_payload
         return plan
+
+    def _build_planner_context(self, request: dict[str, Any]) -> dict[str, Any]:
+        if not self._context_enabled or self._context_builder is None:
+            return {"enabled": False, "allowed_citation_ids": [], "evidence": []}
+        round_records = list(request.get("round_records") or [])
+        query_parts = [
+            str(request.get("goal", "")),
+            f"round {request.get('round_index', 1)}",
+        ]
+        for record in round_records[-2:]:
+            query_parts.append(json.dumps(record, ensure_ascii=False, sort_keys=True))
+        context = self._context_builder.build(
+            query="\n".join(query_parts),
+            namespace=self._namespace,
+            top_k=self._context_top_k,
+        )
+        evidence: list[dict[str, Any]] = []
+        for scored in context.knowledge:
+            chunk = scored.chunk
+            source = Path(chunk.source_path)
+            try:
+                source_path = source.resolve().relative_to(self._root).as_posix()
+            except ValueError:
+                source_path = source.name
+            evidence.append(
+                {
+                    "evidence_id": f"knowledge:{chunk.chunk_id}",
+                    "kind": "knowledge",
+                    "citation": chunk.citation,
+                    "source_path": source_path,
+                    "content_hash": chunk.content_hash,
+                    "version": chunk.version,
+                    "score": float(scored.score),
+                    "text": chunk.text,
+                }
+            )
+        for item in context.memory:
+            evidence.append(
+                {
+                    "evidence_id": f"memory:{item.memory_id}",
+                    "kind": "memory",
+                    "memory_kind": item.kind.value,
+                    "fact": item.fact,
+                    "evidence_refs": list(item.evidence_refs),
+                    "run_id": item.run_id,
+                    "config_hash": item.config_hash,
+                    "confidence": float(item.confidence),
+                    "metrics": dict(item.metrics),
+                }
+            )
+        return {
+            "enabled": bool(evidence),
+            "requested": True,
+            "namespace": list(self._namespace),
+            "allowed_citation_ids": [item["evidence_id"] for item in evidence],
+            "evidence": evidence,
+        }
 
     def _coding_worker(self, request: dict[str, Any]) -> dict[str, Any]:
         candidate = _requested_candidate(request)
@@ -210,7 +287,58 @@ class MultiAgentRuntime:
                 )
             ]
         )
+        self._write_execution_memory(request, payload)
         return payload
+
+    def _write_execution_memory(
+        self,
+        request: dict[str, Any],
+        result: dict[str, Any],
+    ) -> None:
+        if self._memory_backend is None:
+            return
+        from nonlinear_agent.memory.ports import MemoryItem, MemoryKind
+
+        candidate = _requested_candidate(request)
+        experiment_id = str(request.get("experiment_id") or "candidate")
+        run_id = str(request.get("run_id") or "run")
+        status = str(result.get("status") or "failed")
+        model_type = str(candidate.get("model_type") or "unknown")
+        metrics = {
+            str(key): float(value)
+            for key, value in dict(result.get("metrics") or {}).items()
+            if isinstance(value, (int, float))
+        }
+        failures = [str(item) for item in result.get("failure_facts", [])]
+        fact = f"{model_type} {experiment_id} finished with status={status}"
+        if "nmse_db" in metrics:
+            fact += f" and verified nmse_db={metrics['nmse_db']:.6f}"
+        if failures:
+            fact += "; failure facts: " + "; ".join(failures[:3])
+        config_text = json.dumps(
+            _candidate_config(candidate), ensure_ascii=False, sort_keys=True
+        )
+        config_hash = hashlib.sha256(config_text.encode("utf-8")).hexdigest()
+        memory_id = hashlib.sha256(
+            f"{run_id}:{experiment_id}:{config_hash}:{status}".encode("utf-8")
+        ).hexdigest()[:24]
+        self._memory_backend.write(
+            MemoryItem(
+                memory_id=memory_id,
+                kind=MemoryKind.EPISODIC,
+                namespace=self._namespace,
+                fact=fact,
+                evidence_refs=tuple(str(item) for item in result.get("artifacts", [])),
+                run_id=run_id,
+                action_id=experiment_id,
+                config_hash=config_hash,
+                dataset_hash=self._namespace[1],
+                metrics=metrics,
+                created_by_role="execution",
+                created_at=time.time(),
+                confidence=1.0 if status == "completed" else 0.8,
+            )
+        )
 
     def _writing_worker(self, request: dict[str, Any]) -> dict[str, Any]:
         code = dict(request.get("code_result") or {})

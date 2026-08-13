@@ -138,7 +138,66 @@ class ServerStreamingTest(unittest.TestCase):
         self.assertIn("Nonlinear Agent Operations", response.text)
         self.assertIn("wfBtn", response.text)
         self.assertIn("agBtn", response.text)
+        self.assertIn("csBtn", response.text)
         self.assertIn("agent-runtime-dashboard.html", response.text)
+
+    def test_controlled_search_forwards_strict_model_and_field_whitelists(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("FastAPI test client is not installed")
+        from nonlinear_agent.server import create_app
+
+        captured = {}
+
+        async def fake_stream(*args, **kwargs):
+            captured.update(kwargs)
+            yield "event: complete\ndata: {}\n\n"
+
+        with patch("nonlinear_agent.server.stream_agent_events", fake_stream):
+            response = TestClient(create_app(PROJECT_ROOT)).post(
+                "/controlled-search/controlled-001/events",
+                json={
+                    "provider": "fake",
+                    "allowed_models": ["complex_lstsq", "spline_mlp"],
+                    "enabled_fields": ["memory_depth", "mp_order_count"],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            captured["allowed_models"],
+            ["complex_lstsq", "spline_mlp"],
+        )
+        self.assertEqual(
+            captured["enabled_fields"],
+            ["model_type", "memory_depth", "mp_order_count"],
+        )
+
+    def test_controlled_search_rejects_unknown_models_and_fields(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("FastAPI test client is not installed")
+        from nonlinear_agent.server import create_app
+
+        client = TestClient(create_app(PROJECT_ROOT))
+        bad_model = client.post(
+            "/controlled-search/bad-model/events",
+            json={"allowed_models": ["invented_model"]},
+        )
+        bad_field = client.post(
+            "/controlled-search/bad-field/events",
+            json={
+                "allowed_models": ["complex_lstsq"],
+                "enabled_fields": ["shell_command"],
+            },
+        )
+
+        self.assertEqual(bad_model.status_code, 400)
+        self.assertIn("Unknown allowed models", bad_model.json()["detail"])
+        self.assertEqual(bad_field.status_code, 400)
+        self.assertIn("Unknown tunable fields", bad_field.json()["detail"])
 
     def test_create_app_serves_allowlisted_ui_assets(self):
         try:

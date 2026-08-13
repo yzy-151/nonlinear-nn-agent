@@ -94,6 +94,16 @@ def build_parser() -> argparse.ArgumentParser:
     multi_agent.add_argument("--llm-timeout-seconds", type=float, default=180.0)
     multi_agent.add_argument("--token-budget", type=int, default=200_000)
     multi_agent.add_argument("--cost-budget-usd", type=float, default=2.0)
+    multi_agent.add_argument(
+        "--planner-context",
+        choices=["on", "off"],
+        default="on",
+        help="Inject top-k whitelisted knowledge and typed memory into Idea/Plan.",
+    )
+    multi_agent.add_argument("--knowledge-top-k", type=int, default=3)
+    multi_agent.add_argument("--domain", default="nonlinear-modeling")
+    multi_agent.add_argument("--dataset-hash", default="default")
+    multi_agent.add_argument("--model-family", default="mixed")
 
     benchmark = subparsers.add_parser("benchmark", help="Run the built-in Agent benchmark cases.")
     benchmark.add_argument("--workspace", default=str(PROJECT_ROOT))
@@ -201,6 +211,11 @@ def _run_multi_agent(args: argparse.Namespace) -> int:
         "rounds": args.rounds,
         "experiments_per_round": args.experiments_per_round,
         "final_evaluation": args.final_evaluation,
+        "knowledge_context_enabled": args.planner_context == "on",
+        "knowledge_top_k": args.knowledge_top_k,
+        "domain": args.domain,
+        "dataset_hash": args.dataset_hash,
+        "model_family": args.model_family,
     }
     graph = _build_default_multi_agent_graph(workspace, payload)
     result = run_multi_agent_graph(

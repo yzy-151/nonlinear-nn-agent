@@ -10,6 +10,7 @@ without touching the underlying domain.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -17,9 +18,17 @@ from typing import Any
 class FilteredDomain:
     """Delegate wrapper that limits the optimizable field whitelist."""
 
-    def __init__(self, domain: Any, enabled_fields: list[str] | set[str]):
+    def __init__(
+        self,
+        domain: Any,
+        enabled_fields: list[str] | set[str],
+        allowed_values: dict[str, list[object]] | None = None,
+    ):
         self._domain = domain
         self._enabled = set(enabled_fields)
+        self._allowed_values = {
+            key: list(values) for key, values in (allowed_values or {}).items()
+        }
 
     # ── Delegated identity ─────────────────────────────────────
     @property
@@ -28,11 +37,21 @@ class FilteredDomain:
 
     # ── Planner interface (filtered) ───────────────────────────
     def planner_instructions(self) -> str:
-        return self._domain.planner_instructions()
+        controlled_space = json.dumps(
+            self.design_space(), ensure_ascii=False, sort_keys=True
+        )
+        return (
+            self._domain.planner_instructions()
+            + "\nAUTHORITATIVE CONTROLLED SEARCH SPACE: "
+            + controlled_space
+            + "\nOnly emit override fields listed in this space, and only use "
+            "the listed values. Fields omitted from this space are locked to "
+            "the baseline configuration."
+        )
 
     def design_space(self) -> dict[str, list[object]]:
         return {
-            key: value
+            key: self._allowed_values.get(key, value)
             for key, value in self._domain.design_space().items()
             if key in self._enabled
         }
@@ -48,6 +67,12 @@ class FilteredDomain:
         unsupported = sorted(set(overrides) - self._enabled)
         errors = [f"field not enabled for tuning: {f}" for f in unsupported]
         allowed_overrides = {k: v for k, v in overrides.items() if k in self._enabled}
+        for field, allowed in self._allowed_values.items():
+            if field in allowed_overrides and allowed_overrides[field] not in allowed:
+                errors.append(
+                    f"{field} must be one of {allowed!r} for this run."
+                )
+                allowed_overrides.pop(field)
         errors.extend(self._domain.validate_candidate(allowed_overrides, parameter_count_max))
         return errors
 

@@ -1,11 +1,38 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from tests.test_supervisor_e2e import _plan
 
 
 class TestMultiAgentServer(unittest.TestCase):
+    def test_knowledge_sources_endpoint_lists_whitelisted_chunks(self):
+        try:
+            from fastapi.testclient import TestClient
+        except ImportError:
+            self.skipTest("fastapi test dependencies unavailable")
+
+        from nonlinear_agent.server import create_app
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            knowledge = root / "docs" / "knowledge" / "nonlinear-modeling"
+            knowledge.mkdir(parents=True)
+            (knowledge / "prior.md").write_text(
+                "# Compact prior\n\nUse a shallow LUT spline candidate.",
+                encoding="utf-8",
+            )
+            response = TestClient(create_app(root)).get("/knowledge/sources")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["root"], "docs/knowledge/nonlinear-modeling/")
+        self.assertEqual(body["sources"][0]["name"], "prior.md")
+        self.assertGreater(body["sources"][0]["chunk_count"], 0)
+        self.assertTrue(body["sources"][0]["content_hashes"])
+
     def test_role_client_limits_bound_long_coding_responses(self):
         from nonlinear_agent.server import _configure_multi_agent_client
 

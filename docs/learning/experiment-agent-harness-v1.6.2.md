@@ -325,10 +325,28 @@ CodingAgent 继续只在自有 worktree 写候选源码，main 的新模型源�
 
 运行控制采用单活动 run 互斥：任何工作流运行时，其他启动按钮一起禁用，防止覆盖当前 `AbortController/session_id`。Stop 只设置该 session 的协作式取消事件，不再扫描并误杀系统内所有 `train.py`；训练中的即时终止需要后续在 control plane 建立 `session_id -> owned process` 映射。
 
-### 14.4 知识库入口为何是禁用状态
+### 14.4 Knowledge 与 Memory 如何真正进入下一轮决策
 
-UI 已预留 `docs/knowledge/nonlinear-modeling/`、文件选择、`knowledge_context_enabled` 和 Sources 预览，但后端尚未把检索结果接入 Multi-Agent Idea/Plan prompt。此时让开关可用会制造“Agent 已利用知识”的假象，所以界面明确显示“尚未接入”。下一阶段应接通 `KnowledgeIngestor -> Retrieval -> PlannerContextBuilder -> PlanGate citation allowlist -> Inspector provenance`，并做 knowledge on/off 同预算消融。
+v4.2.0 将原先只存在于 UI 的入口接到了 Multi-Agent 主链路：每轮由 goal、round 和最近的验证记录形成检索 query，`PlannerContextBuilder` 分别从白名单知识库和同 namespace 的有效 typed memory 取 top-k。Runtime 只把有限的 evidence 字段放进 Idea/Plan prompt，不传完整文档、raw history、源码或密钥。
 
-### 14.5 当前可用于面试的工程点
+两类上下文必须分清：Knowledge 是项目维护者审核过的领域先验，citation 形如 `knowledge:<chunk_id>`；Memory 是 Execution 产生的可验证经验，citation 形如 `memory:<memory_id>`。PlanGate 使用本轮 evidence ID 作为 allowlist，拒绝引用不存在材料的 hypothesis 或 candidate。这样 citation 既是给人看的出处，也是运行时安全边界。
 
-> 我把单文件演示页重构成无 Node 构建步骤的 Agent Operations Console。FastAPI 通过静态资产白名单交付 UI；浏览器把 SSE 规范化为 Timeline、Console、Raw 和 Inspector 四种视图。Multi-Agent 执行摘要由服务端裁剪后进入结果表，既能展示九次搜索与终评，也不会泄露候选源码。知识库 UI 只声明接口和未接通状态，避免把占位能力包装成已完成 RAG。
+Execution 完成或失败后会写一条 episodic memory，包含状态、候选名、有限数值指标、artifact refs、config hash、模型和角色 provenance。下一轮按 `(domain, dataset_hash, model_family)` namespace 检索，失效 memory 会被过滤，跨数据集经验不会串入。Web 的 `/memory` 与 Multi-Agent 使用同一个进程内 backend，Inspector 展示裁剪后的 evidence provenance；当前默认 backend 在服务重启后不持久化，生产环境应切换已有 Postgres adapter。
+
+### 14.5 为什么 Reflection 与 Memory 不能混为一谈
+
+Reflection 是当前 run 内的确定性事实提取：它把 metrics、失败类型和 artifacts 压缩进 planner history，不替 LLM 输出策略。Memory 是跨轮或跨 run 的可检索经验，必须有 namespace、置信度和 evidence refs。前者保证错误事实马上到达下一次决策，后者避免重复踩已经验证过的坑。两者同时存在，才不是“有 history 就等于有长期记忆”。
+
+### 14.6 当前可用于面试的工程点
+
+> 我把单文件演示页重构成无 Node 构建步骤的 Agent Operations Console，并把白名单 Knowledge 与 typed Memory 接入 Multi-Agent 每轮规划。检索只注入 top-k evidence，PlanGate 用 evidence allowlist 拒绝伪造 citation；Execution 将验证结果写回按 domain、dataset 和 model family 隔离的 episodic memory。SSE Inspector 展示 provenance 而不泄露完整 prompt，Web 开关和 CLI 参数可以做 context on/off 消融。当前诚实边界是默认 Memory 仍为进程内存储，算法增益还需固定预算评测。
+
+### 14.7 为什么保留受控模型搜索
+
+开放式 CodingAgent 能展示代码生成、隔离执行和失败修复，但它的算法质量受模型能力和领域先验影响。v4.2.0 因此保留另一条生产路径：受控搜索只在 `DomainPlugin.design_space()` 注册的成熟模型族内规划，并通过 `FilteredDomain` 同时限制允许的模型取值与可覆盖字段。
+
+Web 中“允许模型”决定 Planner 可选的固定实现；“可调参数”决定本轮可写入 overrides 的字段。未勾选字段继承 baseline，越权修改由 Guard 拒绝。即使可调参数全部关闭，空列表也不会退化为“全部可调”。两条路径共享 ExperimentPlannerLoop、ToolRegistry、真实训练、Reflection、Trace 和报告，因此性能稳定性与 Agent 工程展示可以同时保留。
+
+面试时可表述为：
+
+> 我没有把所有任务都强制交给自由代码生成，而是设计了双轨实验系统。开放式 Multi-Agent 用于新架构探索；受控搜索在经过验证的模型族内优化，用户可以分别锁定模型集合和参数字段。Planner 只看到允许空间，Guard 再做一次确定性校验，两条链路最终进入同一训练和评测内核。

@@ -336,6 +336,7 @@ async def stream_agent_events(
     fake_plan: str | None = None,
     domain_name: str | None = None,
     enabled_fields: list[str] | None = None,
+    allowed_models: list[str] | None = None,
     data_file: str | None = None,
 ):
     """Agent Planner Loop 的完整 SSE 流。
@@ -382,10 +383,24 @@ async def stream_agent_events(
 
         # ── 加载 domain（空/未知 → 默认非线性建模，保证 prompt 契约）──
         domain = _load_domain(domain_name)
-        if enabled_fields:
+        if enabled_fields is not None or allowed_models is not None:
             from nonlinear_agent.domains.filtered import FilteredDomain
 
-            domain = FilteredDomain(domain, enabled_fields)
+            selected_fields = (
+                list(enabled_fields)
+                if enabled_fields is not None
+                else list(domain.design_space())
+            )
+            allowed_values = (
+                {"model_type": list(allowed_models)}
+                if allowed_models is not None
+                else None
+            )
+            domain = FilteredDomain(
+                domain,
+                selected_fields,
+                allowed_values=allowed_values,
+            )
 
         # ── 创建 Agent Loop ──
         constraints = {"parameter_count_max": parameter_count_max}
@@ -631,6 +646,7 @@ def _build_default_multi_agent_graph(
     workspace: Path,
     payload: dict[str, Any],
     cancel_check: Any | None = None,
+    memory_backend: Any | None = None,
 ) -> Any:
     """Assemble the production DeepSeek multi-agent graph on demand."""
     provider = str(payload.get("provider", "deepseek"))
@@ -644,6 +660,9 @@ def _build_default_multi_agent_graph(
     from nonlinear_agent.llm import create_llm_client
     from nonlinear_agent.model_router import ModelRouter
     from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+    from nonlinear_agent.knowledge import KnowledgeIngestor, KnowledgeRetriever
+    from nonlinear_agent.memory.langgraph_store import LangGraphMemoryBackend
+    from nonlinear_agent.memory.planner_context import PlannerContextBuilder
     from nonlinear_agent.supervisor_graph import build_multi_agent_graph
     from nonlinear_agent.writing_agent import WritingAgent
 
@@ -684,6 +703,21 @@ def _build_default_multi_agent_graph(
         temp_root=coding_temp_root,
     )
     writing = WritingAgent(model_router=router)
+    memory_backend = memory_backend or LangGraphMemoryBackend()
+    context_enabled = bool(payload.get("knowledge_context_enabled", True))
+    context_builder = None
+    if context_enabled:
+        knowledge_root = workspace / "docs" / "knowledge" / "nonlinear-modeling"
+        chunks = KnowledgeIngestor(roots=[knowledge_root]).ingest()
+        context_builder = PlannerContextBuilder(
+            retriever=KnowledgeRetriever(chunks),
+            memory_backend=memory_backend,
+        )
+    namespace = (
+        str(payload.get("domain", "nonlinear-modeling")),
+        str(payload.get("dataset_hash", "default")),
+        str(payload.get("model_family", "mixed")),
+    )
     runtime = MultiAgentRuntime(
         repo_root=workspace,
         model_router=router,
@@ -695,8 +729,13 @@ def _build_default_multi_agent_graph(
         ),
         writing_agent=writing,
         nmse_threshold_db=float(payload.get("nmse_threshold_db", -35.0)),
+        planner_context_builder=context_builder,
+        planner_context_enabled=context_enabled,
+        planner_namespace=namespace,
+        planner_context_top_k=int(payload.get("knowledge_top_k", 3)),
+        memory_backend=memory_backend,
     )
-    return build_multi_agent_graph(
+    graph = build_multi_agent_graph(
         runtime.workers(),
         max_replans=int(payload.get("max_replans", 1)),
         model_router=router,
@@ -705,6 +744,7 @@ def _build_default_multi_agent_graph(
         experiments_per_round=int(payload.get("experiments_per_round", 1)),
         final_evaluation=bool(payload.get("final_evaluation", False)),
     )
+    return graph
 
 
 def _configure_multi_agent_client(
@@ -750,7 +790,7 @@ def create_app(
         ) from exc
 
     root = Path(workspace)
-    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="0.3")
+    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.2.0")
 
     # v3.6.0: process-local memory inspector backend (LangGraph InMemoryStore).
     # Action-loop runs write through the same MemoryBackend port; this
@@ -788,6 +828,34 @@ def create_app(
                     }
                 )
         return {"namespaces": [list(ns) for ns in namespaces], "items": items}
+
+    @app.get("/knowledge/sources")
+    async def knowledge_sources():
+        """Preview the fixed project-local knowledge allowlist."""
+        from nonlinear_agent.knowledge import KnowledgeIngestor
+
+        resolved_root = root.resolve()
+        knowledge_root = resolved_root / "docs" / "knowledge" / "nonlinear-modeling"
+        chunks = KnowledgeIngestor(roots=[knowledge_root]).ingest()
+        sources: dict[str, dict[str, Any]] = {}
+        for chunk in chunks:
+            source = Path(chunk.source_path)
+            key = source.name
+            entry = sources.setdefault(
+                key,
+                {
+                    "name": key,
+                    "path": source.resolve().relative_to(resolved_root).as_posix(),
+                    "chunk_count": 0,
+                    "content_hashes": [],
+                },
+            )
+            entry["chunk_count"] += 1
+            entry["content_hashes"].append(chunk.content_hash)
+        return {
+            "root": knowledge_root.relative_to(resolved_root).as_posix() + "/",
+            "sources": list(sources.values()),
+        }
 
     @app.get("/domains/{domain_name}/fields")
     async def domain_fields(domain_name: str):
@@ -1006,6 +1074,67 @@ def create_app(
 
         return StreamingResponse(agent_stream(), media_type="text/event-stream")
 
+    @app.post("/controlled-search/{session_id}/events")
+    async def controlled_search_events(
+        session_id: str,
+        body: Optional[Dict[str, Any]] = None,
+    ):
+        """Run the proven model family with strict model/parameter allowlists."""
+        payload = dict(body or {})
+        domain_name = str(payload.get("domain", "nonlinear"))
+        domain = _load_domain(domain_name)
+        design_space = domain.design_space()
+        valid_models = [str(item) for item in design_space.get("model_type", [])]
+        requested_models = [str(item) for item in payload.get("allowed_models", valid_models)]
+        invalid_models = sorted(set(requested_models) - set(valid_models))
+        if invalid_models:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown allowed models: {invalid_models}",
+            )
+        allowed_models = [item for item in requested_models if item in valid_models]
+        if not allowed_models:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail="Select at least one allowed model.")
+
+        requested_fields = [str(item) for item in payload.get("enabled_fields", [])]
+        invalid_fields = sorted(set(requested_fields) - set(design_space))
+        if invalid_fields:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown tunable fields: {invalid_fields}",
+            )
+        enabled_fields = list(dict.fromkeys(["model_type", *requested_fields]))
+
+        async def controlled_stream():
+            async for chunk in stream_agent_events(
+                root,
+                session_id,
+                provider=str(payload.get("provider", "fake")),
+                goal=str(payload.get(
+                    "goal",
+                    "Optimize a validated nonlinear model under the selected controls.",
+                )),
+                max_rounds=int(payload.get("max_rounds", 3)),
+                max_experiments=int(payload.get("max_experiments", 9)),
+                parameter_count_max=int(payload.get("parameter_count_max", 4000)),
+                nmse_threshold_db=float(payload.get("nmse_threshold_db", -35.0)),
+                timeout_seconds=float(payload.get("timeout_seconds", 300.0)),
+                artifact_dir=payload.get("artifact_dir"),
+                domain_name=domain_name,
+                enabled_fields=enabled_fields,
+                allowed_models=allowed_models,
+                data_file=payload.get("data_file"),
+            ):
+                yield chunk
+
+        return StreamingResponse(controlled_stream(), media_type="text/event-stream")
+
     @app.post("/multi-agent/{session_id}/events")
     async def multi_agent_events(
         session_id: str,
@@ -1025,7 +1154,10 @@ def create_app(
                 graph = multi_agent_graph_factory(payload)
             else:
                 graph = _build_default_multi_agent_graph(
-                    root, payload, cancel_check=cancel_evt.is_set
+                    root,
+                    payload,
+                    cancel_check=cancel_evt.is_set,
+                    memory_backend=memory_backend,
                 )
         except Exception as exc:
             _cancel_events.pop(session_id, None)

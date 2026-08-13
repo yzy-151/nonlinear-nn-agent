@@ -82,6 +82,43 @@ class TestFilteredDomain(unittest.TestCase):
         self.assertEqual(domain.primary_metric(), "nmse_db")
         self.assertIsInstance(domain.historical_priors(), list)
 
+    def test_filtered_domain_limits_allowed_model_values(self):
+        from nonlinear_agent.domains.filtered import FilteredDomain
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
+        domain = FilteredDomain(
+            NonlinearModelingDomain(),
+            enabled_fields=["model_type", "memory_depth"],
+            allowed_values={"model_type": ["complex_lstsq", "spline_mlp"]},
+        )
+
+        self.assertEqual(
+            domain.design_space()["model_type"],
+            ["complex_lstsq", "spline_mlp"],
+        )
+        self.assertEqual(
+            domain.validate_candidate({"model_type": "complex_cnn"}),
+            ["model_type must be one of ['complex_lstsq', 'spline_mlp'] for this run."],
+        )
+        instructions = domain.planner_instructions()
+        self.assertIn("AUTHORITATIVE CONTROLLED SEARCH SPACE", instructions)
+        self.assertIn("complex_lstsq", instructions)
+        self.assertIn("spline_mlp", instructions)
+        self.assertIn("Only emit override fields listed in this space", instructions)
+
+    def test_empty_enabled_fields_lock_every_override(self):
+        from nonlinear_agent.domains.filtered import FilteredDomain
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
+        domain = FilteredDomain(NonlinearModelingDomain(), enabled_fields=[])
+
+        self.assertEqual(domain.design_space(), {})
+        self.assertEqual(domain.allowed_override_fields(), set())
+        self.assertIn(
+            "field not enabled for tuning: memory_depth",
+            domain.validate_candidate({"memory_depth": 24}),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

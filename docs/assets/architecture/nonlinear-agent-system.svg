@@ -20,8 +20,8 @@
 <text x="2603" y="72" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16" font-weight="500" fill="#435363">Guard / Budget</text>
 <rect x="2740" y="55" width="28" height="20" rx="3" fill="#FFF0F0" stroke="#C94B4B" stroke-width="2"/>
 <text x="2778" y="72" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16" font-weight="500" fill="#435363">失败事实</text>
-<rect x="2915" y="55" width="28" height="20" rx="3" fill="#F2F5F8" stroke="#74899D" stroke-width="2"/>
-<text x="2953" y="72" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16" font-weight="500" fill="#435363">PLANNED</text>
+<rect x="2915" y="55" width="28" height="20" rx="3" fill="#EDF6FF" stroke="#3478B9" stroke-width="2"/>
+<text x="2953" y="72" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="16" font-weight="500" fill="#435363">上下文 / Memory</text>
 <rect x="60" y="180" width="340" height="1180" rx="6" fill="#F7FAFC" stroke="#B9C5D0" stroke-width="2"/>
 <rect x="60" y="180" width="340" height="58" rx="6" fill="#FFFFFF" stroke="#B9C5D0" stroke-width="2"/>
 <text x="82" y="218" text-anchor="start" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="24" font-weight="700" fill="#253647">01 交付入口 / Delivery</text>
@@ -70,7 +70,7 @@
 <polyline points="1470,1065 1480,1065 1480,1065 1490,1065" fill="none" stroke="#3478B9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
 <polyline points="1797,1125 1797,1065 1585,1065 1585,1005" fill="none" stroke="#74899D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-planned)"/>
 <polyline points="1585,1005 1585,930 805,930 805,492 790,492" fill="none" stroke="#3478B9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
-<polyline points="1585,1005 1585,955 945,955 945,560" fill="none" stroke="#74899D" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-planned)" stroke-dasharray="12 9"/>
+<polyline points="1585,1005 1585,955 945,955 945,560" fill="none" stroke="#3478B9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
 <polyline points="790,1122 825,1122 825,1325 1975,1325 1975,330 2000,330" fill="none" stroke="#3478B9" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
 <polyline points="1550,490 1775,490 1775,330 2000,330" fill="none" stroke="#3478B9" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
 <polyline points="1295,560 1295,590 1975,590 1975,690 2000,690" fill="none" stroke="#7557C5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-purple)"/>
@@ -99,7 +99,7 @@
 <text x="230" y="346" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#263442">budget · target · whitelist</text>
 <rect x="90" y="435" width="280" height="100" rx="6" fill="#EDF6FF" stroke="#3478B9" stroke-width="3"/>
 <text x="230" y="464" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#173D5C">Web Operations Console</text>
-<text x="230" y="489" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">Multi-Agent 默认首页</text>
+<text x="230" y="489" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">Multi-Agent + 受控搜索</text>
 <text x="230" y="511" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">Timeline / Inspector</text>
 <rect x="90" y="560" width="280" height="100" rx="6" fill="#EDF6FF" stroke="#3478B9" stroke-width="3"/>
 <text x="230" y="589" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#173D5C">CLI</text>
@@ -123,9 +123,9 @@
 <text x="620" y="343" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#30245B">Idea / Coding / Execute</text>
 <text x="620" y="365" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#30245B">Writing / Supervisor</text>
 <rect x="450" y="435" width="340" height="115" rx="6" fill="#F4EFFF" stroke="#7557C5" stroke-width="3"/>
-<text x="620" y="468" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#30245B">Agent Planner Loop</text>
-<text x="620" y="493" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#30245B">plan → tool → metric</text>
-<text x="620" y="515" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#30245B">facts → next plan</text>
+<text x="620" y="468" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#30245B">受控搜索 / Agent Loop</text>
+<text x="620" y="493" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#30245B">模型 + 参数双白名单</text>
+<text x="620" y="515" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#30245B">plan → metric → facts → replan</text>
 <rect x="450" y="585" width="340" height="105" rx="6" fill="#EDF6FF" stroke="#3478B9" stroke-width="3"/>
 <text x="620" y="614" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#173D5C">Fixed Workflow</text>
 <text x="620" y="639" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">确定性步骤编排</text>
@@ -195,14 +195,14 @@
 <text x="1585" y="1038" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="13" font-weight="700" fill="#173D5C">PlannerContextBuilder</text>
 <text x="1585" y="1063" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">Goal + facts + best</text>
 <text x="1585" y="1085" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="12" font-weight="400" fill="#173D5C">EvidenceChunk allowlist</text>
-<rect x="1700" y="1005" width="195" height="120" rx="6" fill="#F2F5F8" stroke="#74899D" stroke-width="3" stroke-dasharray="9 7"/>
-<text x="1797" y="1038" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#374A5C">Typed Memory</text>
-<text x="1797" y="1063" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#374A5C">semantic / episodic</text>
-<text x="1797" y="1085" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="13" font-weight="400" fill="#374A5C">procedural + namespace</text>
-<rect x="875" y="1190" width="1020" height="105" rx="6" fill="#F2F5F8" stroke="#74899D" stroke-width="3" stroke-dasharray="9 7"/>
-<text x="1385" y="1219" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#374A5C">当前真实性边界</text>
-<text x="1385" y="1244" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#374A5C">CLI / Action Loop：检索与 typed memory 已接通（实线）</text>
-<text x="1385" y="1266" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#374A5C">Multi-Agent Idea / Plan：UI 已预留，注入仍为 PLANNED（虚线）</text>
+<rect x="1700" y="1005" width="195" height="120" rx="6" fill="#EDF6FF" stroke="#3478B9" stroke-width="3"/>
+<text x="1797" y="1038" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#173D5C">Typed Memory</text>
+<text x="1797" y="1063" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">semantic / episodic</text>
+<text x="1797" y="1085" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="13" font-weight="400" fill="#173D5C">procedural + namespace</text>
+<rect x="875" y="1190" width="1020" height="105" rx="6" fill="#EDF6FF" stroke="#3478B9" stroke-width="3"/>
+<text x="1385" y="1219" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#173D5C">当前真实性边界</text>
+<text x="1385" y="1244" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">CLI / Action Loop 与 Multi-Agent：top-k 检索、引用校验、provenance 已接通</text>
+<text x="1385" y="1266" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">本地默认进程内 Memory；持久化部署可切换 Postgres backend</text>
 <rect x="2000" y="280" width="460" height="100" rx="6" fill="#EDF6FF" stroke="#3478B9" stroke-width="3"/>
 <text x="2230" y="309" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#173D5C">ToolRegistry</text>
 <text x="2230" y="334" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, sans-serif" font-size="15" font-weight="400" fill="#173D5C">ToolSpec · ToolCall · ToolResult</text>

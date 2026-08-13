@@ -1601,24 +1601,55 @@ Goal -> Plan -> Validate -> Code -> Execute -> Evaluate -> Reflect -> Write -> E
 
 实施记录：正式图包含 6 个分区、47 个业务节点、53 条数据/控制连线；Draw.io XML 共 55 个可编辑 vertex（含分区、标题和叙事带），不是嵌入位图。SVG 已由 XML 解析器验证，PNG 经 Edge 实际渲染为 `3200 x 1800`。抽查 `PlanGate -> CodingAgent`、`ExecutionAgent -> ToolRegistry`、`Evaluator -> metrics`、Reflection facts 回到下一轮 planner、`PlannerContextBuilder -> Multi-Agent` 的 planned 链路均与源码和当前能力边界一致。
 
-### 15.14 架构图排版修订、领导简版与 README 收口（2026-08-12）
+### 15.14 架构图排版修订、系统概览版与 README 收口（2026-08-12）
 
 #### 已批准设计
 
 采用“同一结构化定义、两种叙事层级”的方案，不在导出的 SVG/PNG 上手工修补：
 
 1. **工程详细版**继续使用 `nonlinear-agent-system.*` 三件套。保留六个分区和真实数据流，移除非必要 edge label，长标题使用宽度感知字号，窄节点改为短标题加副标题；底部深色区域改成浅灰蓝叙事带和低饱和步骤块。所有节点正文必须留出上下边距，连线标签不得压住节点正文。
-2. **领导简化版**新增 `nonlinear-agent-executive.*` 三件套。只回答四个问题：解决什么问题、系统怎样工作、工程护栏是什么、产生什么证据。画面控制在 12 个以内的主节点、5 个阶段和 3 个真实结果数字，不列源码文件、协议细节或每个子 Agent 的内部字段。
-3. **README**由版本流水账改为项目主页：一句话定位、领导简图、项目价值、当前能力与真实性边界、真实 3x3 证据、快速开始、详细架构入口、核心实现、评测方法、文档导航。删除旧 UI 六连图、v3 早期 synthetic 大表、过时参数敏感性和重复命令；原始报告与 benchmark 文件继续保留并从文档导航访问。
-4. **编辑方式**写入 README：在 diagrams.net 选择 `File -> Open from -> Device` 打开 `.drawio`；编辑后从源文件导出 SVG/PNG，禁止直接修改 PNG。详细版与领导版均提供独立可编辑源文件。
+2. **系统概览版**新增 `nonlinear-agent-executive.*` 三件套。只回答四个问题：解决什么问题、系统怎样工作、工程护栏是什么、产生什么证据。画面控制在 12 个以内的主节点、5 个阶段和 3 个真实结果数字，不列源码文件、协议细节或每个子 Agent 的内部字段。
+3. **README**由版本流水账改为项目主页：一句话定位、系统概览图、项目价值、当前能力与真实性边界、真实 3x3 证据、快速开始、详细架构入口、核心实现、评测方法、文档导航。删除旧 UI 六连图、v3 早期 synthetic 大表、过时参数敏感性和重复命令；原始报告与 benchmark 文件继续保留并从文档导航访问。
+4. **编辑方式**写入 README：在 diagrams.net 选择 `File -> Open from -> Device` 打开 `.drawio`；编辑后从源文件导出 SVG/PNG，禁止直接修改 PNG。详细版与系统概览版均提供独立可编辑源文件。
 
 #### 实施与验收清单
 
 - [x] 详细版 Draw.io/SVG/PNG 同步生成，PNG 不低于 3200px 宽；浅色底部叙事带；自动检查节点文字估算宽度和行数。
-- [x] 领导版 Draw.io/SVG/PNG 同步生成，PNG 不低于 2400px 宽；主流程在 README 默认宽度下仍能快速辨认。
+- [x] 系统概览版 Draw.io/SVG/PNG 同步生成，PNG 不低于 2400px 宽；主流程在 README 默认宽度下仍能快速辨认。
 - [x] 两张 Draw.io 均可由 XML 解析，节点是独立 vertex；SVG 可解析且不依赖外部字体/CDN。
-- [x] README 控制在约 180-240 行，只展示领导简版与一张当前 Operations Console；详细版通过链接或折叠区访问。
+- [x] README 控制在约 180-240 行，只展示系统概览版与一张当前 Operations Console；详细版通过链接或折叠区访问。
 - [x] README 的所有相对链接存在；真实结果保持 `8/9`、`-23.0778 dB`、`24 params`、`-41 dB not hit`，不把历史 `-42 dB` 与本次 Multi-Agent 结果混写。
 - [x] 目视检查两张 PNG：无文字越界、无深色大底、无关键连线穿过正文；运行 fast tests、链接检查和 `git diff --check` 后提交推送。
 
-实施记录：详细版保留 55 个可编辑 vertex 和 53 条 edge，移除狭窄节点间的冗余 edge label，并以宽度感知字号和动态行距消除溢出；底部改为浅灰蓝叙事带。领导版提供 15 个可编辑 vertex、5 条主流程/反馈 edge，默认展示五阶段主线和四项真实性数字。两张 PNG 分别为 `3200 x 1800`、`2400 x 1350`。README 从 393 行收敛到 207 行，19 个相对链接全部存在；fast tests `234/234` 与 `git diff --check` 通过。
+实施记录：详细版保留 55 个可编辑 vertex 和 53 条 edge，移除狭窄节点间的冗余 edge label，并以宽度感知字号和动态行距消除溢出；底部改为浅灰蓝叙事带。系统概览版提供 15 个可编辑 vertex、5 条主流程/反馈 edge，默认展示五阶段主线和四项真实性数字。两张 PNG 分别为 `3200 x 1800`、`2400 x 1350`。README 从 393 行收敛到 207 行，19 个相对链接全部存在；fast tests `234/234` 与 `git diff --check` 通过。
+
+### 15.15 v4.2.0：Multi-Agent Knowledge / Memory 接线（2026-08-12）
+
+#### 实施设计
+
+- 复用现有 `KnowledgeIngestor -> KnowledgeRetriever -> PlannerContextBuilder` 与 `MemoryBackend`，不再创建第二套 RAG。每轮 query 只由 goal、round、压缩后的已验证记录组成，默认各取 top-3，不传完整 corpus、raw history 或源码。
+- Runtime 将检索结果投影为稳定 `ContextEvidence`：Knowledge ID 为 `knowledge:<chunk_id>`，Memory ID 为 `memory:<memory_id>`；字段只包含 citation/source/hash/score/text 或 kind/provenance/confidence/fact/metrics。
+- `_planner_context.allowed_citation_ids` 由 Harness 在 LLM 返回后覆盖写入，模型不能自行声明 allowlist。PlanGate 对 hypothesis 与 candidate 的 citation 做成员校验，未知或伪造引用直接产生 `invalid_plan`。
+- Supervisor 的 Idea/Plan trace 把 context evidence ID 放入 `input_refs`，把 source/hash/score/usage 放入安全的 `context_evidence`；Web Inspector 由同一 SSE event 展示来源，不建立第二套日志。
+- Execution 完成或失败后写 typed episodic memory，namespace 固定为 `(domain, dataset_hash, model_family)`；只写验证指标、状态、候选名、失败事实和 artifact refs，不写 prompt、源代码或密钥。
+- FastAPI 的 `/memory` 与 Multi-Agent 共用同一个 process-local backend。Web 默认启用知识上下文，可调 top-k，并通过只读 `/knowledge/sources` 预览白名单文档；浏览器文件上传仍不开放，避免任意文件进入 prompt。
+- CLI 增加 `--planner-context on|off`、`--knowledge-top-k`、`--domain`、`--dataset-hash`、`--model-family`，用于消融和 namespace 隔离。
+
+#### 验收标准
+
+1. 未知 citation 被 PlanGate 拒绝；LLM 伪造 `_planner_context` 不得扩大 allowlist。
+2. Prompt 只出现 top-k evidence，invalidated memory 不进入上下文，namespace 不串域。
+3. Idea/Plan SSE 事件展示 evidence ID、source/citation/hash/score 或 memory provenance；不包含完整文档或 secret。
+4. 执行结果写回 typed episodic memory，下一轮/下一次同 namespace 运行可检索；Web `/memory` 可查看同一条记录。
+5. Web 开关、top-k 与 `/knowledge/sources` 实际可用；关闭后 prompt、PlanGate allowlist 和 trace 均不含 knowledge/memory evidence。
+6. 聚焦测试、fast/full、secret scan、README 链接与 `git diff --check` 通过；详细架构图将 Knowledge -> Multi-Agent 从 `PLANNED` 改为实线。
+
+### 15.16 v4.2.0：受控模型搜索双轨入口（2026-08-13）
+
+- 保留开放式 `Idea/Plan -> Coding -> Execution -> Writing`，用于新模型和完整 candidate package 探索。
+- 新增 `/controlled-search/{session_id}/events` 与 Web“受控搜索”入口，复用 `ExperimentPlannerLoop -> Harness -> Reflection`，不复制训练或评测实现。
+- `allowed_models` 限制 `model_type` 的可选值；`enabled_fields` 限制本轮可覆盖参数。两者同时进入 Planner design space 与确定性 Guard。
+- 未开放字段继承 baseline；空 `enabled_fields` 表示锁定全部超参数，不得因空列表真假判断恢复全量权限；`model_type` 始终保留为受控候选选择字段。
+- 当前固定模型族：`complex_lstsq`、`linear`、`tiny_mlp`、`spline_mlp`、`complex_cnn`。模型集合由 DomainPlugin 提供，不在前端另写一份易漂移列表。
+
+验收：模型白名单之外的候选被拒绝；未勾选字段被拒绝；Web 可独立启动受控搜索；SSE、训练、Reflection 和报告仍走既有生产链路；README、学习文档和两张架构图同步。

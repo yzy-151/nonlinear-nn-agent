@@ -2,7 +2,8 @@ import { classifyEvent, formatConsole, normalizeEvent } from "/ui/event_view_mod
 
 const $ = (id) => document.getElementById(id);
 const state = { events: [], selected: null, currentRunId: null, controller: null, experiments: [], finalEvaluation: null, terminalStatus: null };
-const titles = { multiagent: "Multi-Agent 运行", agent: "Agent Planner", workflow: "Fixed Workflow", experiments: "实验策略对照", benchmark: "Benchmark 评估", memory: "Memory Inspector", reports: "报告与产物", diagnostics: "运行诊断" };
+const titles = { multiagent: "Multi-Agent 运行", controlled: "受控模型搜索", agent: "Agent Planner", workflow: "Fixed Workflow", experiments: "实验策略对照", benchmark: "Benchmark 评估", memory: "Memory Inspector", reports: "报告与产物", diagnostics: "运行诊断" };
+const CONTROLLED_DEFAULT_FIELDS = new Set(["feature_mode", "memory_depth", "mp_order_count", "hidden_units", "spline_knots", "epochs", "learning_rate", "optimizer"]);
 
 function esc(value) { return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char])); }
 function number(id) { return Number($(id).value); }
@@ -157,7 +158,7 @@ function setRunning(runId, running) {
 }
 
 function setRunControlsDisabled(disabled) {
-  ["maBtn", "agBtn", "wfBtn", "bmBtn", "agentTaskBtn", "cmpBtn"].forEach((id) => { $(id).disabled = disabled; });
+  ["maBtn", "csBtn", "agBtn", "wfBtn", "bmBtn", "agentTaskBtn", "cmpBtn"].forEach((id) => { $(id).disabled = disabled; });
 }
 
 function applyTerminalStatus() {
@@ -223,7 +224,14 @@ $("stopBtn").addEventListener("click", async () => {
 
 $("maBtn").addEventListener("click", () => {
   const runId = `ui-multi-${Date.now()}`;
-  streamRun(`/multi-agent/${runId}/events`, { provider: "deepseek", goal: $("maGoal").value, idea_plan_model: $("maPlanModel").value, coding_model: $("maCodeModel").value, writing_model: $("maWriteModel").value, max_replans: number("maReplans"), nmse_threshold_db: number("maThreshold"), token_budget: number("maTokens"), cost_budget_usd: number("maCost"), rounds: 3, experiments_per_round: 3, final_evaluation: true }, $("maBtn"), runId);
+  streamRun(`/multi-agent/${runId}/events`, { provider: "deepseek", goal: $("maGoal").value, idea_plan_model: $("maPlanModel").value, coding_model: $("maCodeModel").value, writing_model: $("maWriteModel").value, max_replans: number("maReplans"), nmse_threshold_db: number("maThreshold"), token_budget: number("maTokens"), cost_budget_usd: number("maCost"), rounds: 3, experiments_per_round: 3, final_evaluation: true, knowledge_context_enabled: $("knowledgeContextEnabled").checked, knowledge_top_k: number("knowledgeTopK"), domain: "nonlinear-modeling", dataset_hash: "default", model_family: "mixed" }, $("maBtn"), runId);
+});
+$("csBtn").addEventListener("click", () => {
+  const runId = `ui-controlled-${Date.now()}`;
+  const allowedModels = [...document.querySelectorAll(".cs-model:checked")].map((item) => item.value);
+  const enabledFields = [...document.querySelectorAll(".cs-tune:checked")].map((item) => item.value);
+  if (!allowedModels.length) { appendEvent({ event_type: "error", error: "Select at least one allowed model." }); return; }
+  streamRun(`/controlled-search/${runId}/events`, { provider: $("csProv").value, goal: $("csGoal").value, max_rounds: number("csRnd"), max_experiments: number("csExp"), parameter_count_max: number("csPm"), nmse_threshold_db: number("csThr"), timeout_seconds: number("csTo"), domain: "nonlinear", allowed_models: allowedModels, enabled_fields: enabledFields }, $("csBtn"), runId);
 });
 $("agBtn").addEventListener("click", () => {
   const runId = `ui-agent-${Date.now()}`;
@@ -237,6 +245,7 @@ $("cmpBtn").addEventListener("click", () => { const count = number("cmpSeeds"); 
 
 $("agProv").addEventListener("change", () => { $("noteFake").classList.toggle("hidden", $("agProv").value !== "fake"); $("noteDp").classList.toggle("hidden", $("agProv").value !== "deepseek"); });
 async function loadTuneFields(domain) { try { const data = await fetch(`/domains/${encodeURIComponent(domain)}/fields`).then((response) => response.json()); $("agTune").innerHTML = (data.fields || []).map((field) => `<label title="${esc((field.values || []).join(", "))}"><input type="checkbox" class="tune-f" value="${esc(field.name)}" checked>${esc(field.name)}</label>`).join(""); } catch { $("agTune").innerHTML = '<span class="ev-failure">failed to load fields</span>'; } }
+async function loadControlledFields() { try { const data = await fetch("/domains/nonlinear/fields").then((response) => response.json()); const fields = data.fields || []; const modelField = fields.find((field) => field.name === "model_type"); $("csModels").innerHTML = (modelField?.values || []).map((value) => `<label><input type="checkbox" class="cs-model" value="${esc(value)}" checked>${esc(value)}</label>`).join(""); $("csTune").innerHTML = fields.filter((field) => field.name !== "model_type").map((field) => `<label title="${esc((field.values || []).join(", "))}"><input type="checkbox" class="cs-tune" value="${esc(field.name)}" ${CONTROLLED_DEFAULT_FIELDS.has(field.name) ? "checked" : ""}>${esc(field.name)}</label>`).join(""); } catch { $("csModels").innerHTML = '<span class="ev-failure">failed to load models</span>'; $("csTune").innerHTML = '<span class="ev-failure">failed to load fields</span>'; } }
 async function loadMatFiles() { try { const data = await fetch("/data/mat-files").then((response) => response.json()); $("agData").innerHTML = '<option value="">auto</option>' + (data.files || []).map((file) => `<option value="${esc(file)}">${esc(file)}</option>`).join(""); } catch {} }
 $("agDom").addEventListener("change", () => loadTuneFields($("agDom").value));
 
@@ -247,6 +256,17 @@ function renderMemory(data) {
 }
 async function loadMemory() { $("memBox").textContent = "loading..."; try { renderMemory(await fetch("/memory").then((response) => response.json())); } catch (error) { $("memBox").textContent = String(error); } }
 $("memRefresh").addEventListener("click", loadMemory);
+
+async function previewKnowledgeSources() {
+  const box = $("knowledgeSources");
+  box.classList.remove("hidden");
+  box.textContent = "loading...";
+  try {
+    const data = await fetch("/knowledge/sources").then((response) => response.json());
+    box.innerHTML = `<b>${esc(data.root)}</b><br>${(data.sources || []).map((item) => `${esc(item.name)} · ${esc(item.chunk_count)} chunks`).join("<br>") || "No sources"}`;
+  } catch (error) { box.textContent = String(error); }
+}
+$("knowledgePreviewBtn").addEventListener("click", previewKnowledgeSources);
 
 function metricCell(name, value) { return `<div><small>${esc(name)}</small><b>${esc(value == null ? "-" : value)}</b></div>`; }
 function renderBenchmarkSummary(data) {
@@ -271,5 +291,6 @@ $("cmpLoadBtn").addEventListener("click", () => loadCompareSummary(true));
 const initialView = new URLSearchParams(location.search).get("view") || new URLSearchParams(location.search).get("tab") || document.documentElement.dataset.defaultView;
 setView(initialView === "compare" ? "experiments" : initialView);
 loadTuneFields($("agDom").value);
+loadControlledFields();
 loadMatFiles();
 fetch("/health").then((response) => { if (!response.ok) throw new Error(); setStatus("idle", "空闲"); }).catch(() => setStatus("error", "离线"));
