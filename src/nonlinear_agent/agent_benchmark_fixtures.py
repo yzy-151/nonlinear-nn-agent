@@ -22,6 +22,71 @@ from nonlinear_agent.tools import ToolRegistry
 from nonlinear_agent.trace import TraceLogger
 
 
+def build_initial_fault_history(case: AgentTaskCase) -> list[dict[str, Any]]:
+    """Expose a deterministic failure as an observation for online recovery eval."""
+    if case.case_id == "stop-after-target-hit":
+        return [{
+            "action_id": "fixture-target-hit",
+            "planner_call_id": "benchmark-fixture",
+            "round": 0,
+            "tool_name": "verify_artifacts",
+            "arguments": {},
+            "caused_by_event_ids": [],
+            "event_id": "fixture-target-hit:succeeded",
+            "run_status": "succeeded",
+            "error": None,
+            "observation": {
+                "metrics": {"nmse_db": -42.26, "parameter_count": 3626},
+                "artifacts": ["reports/fixture-best/psd.png"],
+                "context_summary": "Verified target hit.",
+            },
+            "source": "deterministic_fault_fixture",
+        }]
+    if not case.fault:
+        return []
+    event_id = f"fixture-{case.fault}:failed"
+    messages = {
+        "training_error": "Training failed with a numerical divergence.",
+        "metric_threshold_error": "Verified NMSE -34.0 dB missed the -35.0 dB target.",
+        "timeout_error": "Training exceeded the allowed timeout.",
+        "missing_psd": "PSD artifact is missing after training.",
+        "duplicate_candidate": "Candidate config hash duplicates the previous trial.",
+        "historical_best_available": "Trace-backed best candidate reached -42.26 dB.",
+        "reflection_fact_available": "Failure fact: the previous model diverged during training.",
+        "conflicting_history": "Older evidence says -38 dB; newer verified trace says -42 dB.",
+        "compressed_history": "Compressed context retains parameter_count_max=4000 and timeout failure.",
+        "unknown_tool": "Guard rejected unavailable tool 'shell'.",
+        "missing_required_argument": "Guard rejected generate_config because experiment_id was missing.",
+        "unexpected_argument": "Guard rejected run_training because argument 'shell' is not allowed.",
+        "wrong_argument_type": "Guard rejected run_training because config_path must be a string.",
+    }
+    message = messages.get(case.fault, f"Injected benchmark fact: {case.fault}")
+    observation: dict[str, Any] = {"error": message, "error_type": case.fault}
+    if case.fault == "historical_best_available":
+        observation.update({
+            "metrics": {"nmse_db": -42.26, "parameter_count": 3626},
+            "evidence_id": "fixture-history-best-verified",
+            "config_hash": "fixture-best-config",
+        })
+    return [{
+        "action_id": f"fixture-{case.fault}",
+        "planner_call_id": "benchmark-fixture",
+        "round": 0,
+        "tool_name": None,
+        "arguments": {},
+        "caused_by_event_ids": [],
+        "event_id": event_id,
+        "run_status": "rejected" if case.fault in {
+            "unknown_tool", "missing_required_argument",
+            "unexpected_argument", "wrong_argument_type",
+        } else "failed",
+        "error": message,
+        "error_type": case.fault,
+        "observation": observation,
+        "source": "deterministic_fault_fixture",
+    }]
+
+
 def _tool_action(
     action_id: str,
     tool: str,
@@ -263,6 +328,73 @@ async def run_scripted_agent_task_benchmark(
         "planner": "FakeLLMClient scripted actions",
         "tool_schemas": "production ToolSpec",
         "tool_outputs": "deterministic fault fixture",
+    }
+    return report
+
+
+async def run_llm_agent_task_benchmark(
+    workspace: Path | str,
+    attempts: int = 3,
+    cases: list[AgentTaskCase] | None = None,
+    client_factory: Any | None = None,
+    model: str = "deepseek-v4-flash",
+    timeout_seconds: float = 90.0,
+) -> dict[str, Any]:
+    """Evaluate a real planner against production schemas and fixed fault facts."""
+    root = Path(workspace)
+    selected_cases = cases or build_nonlinear_agent_task_cases()
+    attempt_counts: dict[str, int] = {}
+
+    if client_factory is None:
+        from nonlinear_agent.server import _load_dotenv
+        from nonlinear_agent.llm import OpenAICompatibleClient
+
+        _load_dotenv(root)
+        client_factory = lambda: OpenAICompatibleClient.deepseek(
+            model=model, timeout_seconds=timeout_seconds, role="planner"
+        )
+
+    async def execute_case(case: AgentTaskCase):
+        attempt_counts[case.case_id] = attempt_counts.get(case.case_id, 0) + 1
+        attempt = attempt_counts[case.case_id]
+        session_id = f"agent-task-online-{case.case_id}-a{attempt}"
+        registry = build_fixture_tool_registry(case)
+        client = client_factory()
+        planner = AgentActionPlanner(client, registry)
+        loop = ActionPlannerLoop(
+            planner=planner,
+            tool_registry=registry,
+            runtime_factory=lambda current_session_id: ExperimentHarnessRuntime(
+                tool_registry=registry,
+                session_store=SessionStore(root / "sessions"),
+                trace_logger=TraceLogger(
+                    root / "traces" / f"{current_session_id}.jsonl"
+                ),
+            ),
+            session_id=session_id,
+            constraints={
+                "parameter_count_max": 4000,
+                "nmse_threshold_db": -35.0,
+                "domain": case.domain,
+                "benchmark_case_id": case.case_id,
+                "benchmark_fault": case.fault,
+            },
+        )
+        return await loop.run(
+            case.goal,
+            max_actions=case.max_actions,
+            initial_history=build_initial_fault_history(case),
+        )
+
+    report = await run_agent_task_benchmark(
+        selected_cases, execute_case, attempts=attempts
+    )
+    report["evaluation_mode"] = "real_llm_fault_fixture"
+    report["provenance"] = {
+        "planner": f"DeepSeek {model}",
+        "tool_schemas": "production ToolSpec",
+        "tool_outputs": "deterministic fault fixture",
+        "claim_scope": "LLM action selection and recovery, not model-training quality",
     }
     return report
 

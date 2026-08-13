@@ -1,0 +1,14 @@
+{
+  "concurrency": 8,
+  "requests": 300,
+  "failure_rate": 0.15,
+  "duplicate_requests": 0,
+  "duplicate_execution_rate": 0.0,
+  "executed_once": 300,
+  "event_loss_rate": 0.0,
+  "terminal_consistency": 1.0,
+  "recovery_rate": 1.0,
+  "injected_failures": 45,
+  "recovered": 45,
+  "pass": true
+}

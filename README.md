@@ -2,7 +2,7 @@
 
 面向真实机器学习实验的 Agent Harness：让 LLM 设计实验、生成候选代码并根据验证事实迭代，同时由确定性运行时负责安全校验、真实训练、指标复核、过程观测和证据报告。
 
-当前版本：`v4.2.0`。系统同时提供开放式 Multi-Agent 研究链路与稳定的受控模型搜索链路，覆盖从实验构思、代码生成到训练评测和证据交付的完整过程。
+当前版本：`v4.3.0`。系统同时提供开放式 Multi-Agent 研究链路、稳定的受控模型搜索链路与可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、行为评估和证据交付的完整过程。
 
 ## 项目总览
 
@@ -30,6 +30,58 @@
 | Knowledge / typed Memory | 已接通 | Multi-Agent 每轮只注入白名单 top-k evidence；PlanGate 拒绝伪造引用；执行结果写回 typed episodic memory |
 | 受控模型搜索 | 已接通 | 可选择允许的固定模型族和可调参数；未开放字段继承 baseline，越权覆盖由 Guard 拒绝 |
 | 开放模型探索 | 已验证 | 真实 3×3 run 完成跨轮代码生成与独立终评，为后续知识增强和模型路由优化提供可复现实验基线 |
+
+## 量化证据
+
+`v4.3.0` 将 Agent 行为、搜索质量和运行时可靠性拆成独立协议。所有图表由原始 JSON/JSONL 生成，避免把 scripted fixture、真实 LLM 推理和模型训练性能混为一个总分。
+
+### 工程改动带来了什么
+
+下图从仓库已有的 `deepseek-v21-final` 与 `deepseek-v26` 原始结果复算。修复 Domain 上下文未注入、结构化输出契约和训练超时传递后，10-case 真实 DeepSeek 运行中：
+
+- 目标命中率从 **50.0% 提升到 90.0%**；
+- Planner 合法率从 **15.0% 提升到 92.6%**；
+- 非法计划占比从 **85.0% 降到 7.4%**；
+- 最佳验证 NMSE 从 **-37.42 dB 改善到 -42.43 dB**，提升 **5.00 dB**。
+
+![工程改动前后量化对比](docs/assets/evidence/v1/engineering-improvement.png)
+
+这些数据证明的是特定版本改动在固定项目协议中的效果，不代表通用 Agent 排行榜成绩。
+
+### 真实 Agent 行为评测
+
+行为集包含18个语义独立的 `nonlinear-modeling` 任务，覆盖 ToolSpec 参数契约、故障恢复、因果引用、工具顺序、预算停止、历史证据、Reflection Facts 和压缩上下文。确定性故障环境固定 observation，真实 DeepSeek 只负责逐步选择工具或停止，因此结果衡量 Planner 决策，不受神经网络训练随机性干扰。
+
+| 协议 | 任务/尝试 | pass@1 | pass@3 | 结论边界 |
+| --- | ---: | ---: | ---: | --- |
+| Scripted contract regression | 18 / 54 | **100.0%** | 100.0% | 只证明 Harness 契约，无 LLM 推理结论 |
+| DeepSeek 改进前 | 18 / 18 | **77.8%** | - | 暴露过度执行和终态不明确问题 |
+| DeepSeek 改进后 | 18 / 54 | **94.4%** | **100.0%** | 同模型、同 ToolSpec、同评分器下复测 |
+
+![Agent任务通过率](docs/assets/evidence/v1/agent-pass-rate.png)
+
+本轮改进增加了显式停止/去重契约、Planner坏JSON事实化和初始故障证据注入。正式复测记录约 **226k prompt tokens + 345k completion tokens**。其中两个任务曾因评分协议没有把初始已验证指标载入 state 而被误判；修复后仅增量重跑受影响任务，并在合并结果中保留 `correction_provenance`，没有覆盖原始错误评分文件。
+
+### 搜索策略消融
+
+真实 DeepSeek 消融采用 `synthetic-hard` 的2500组合空间，四组策略共享模型、3个 seeds、每组每 seed 10个有效 trial：
+
+| 方法 | 有效 trial | Target hit | 观察 |
+| --- | ---: | ---: | --- |
+| Direct | 30 | 33.3% | 无历史上下文 |
+| + History | 30 | 43.3% | 命中率增加10个百分点 |
+| + History + Facts | 30 | 40.0% | Facts 独立增量不显著 |
+| + History + Facts + Priors | 30 | **53.3%** | 命中率最高，但最终 best 增量未显著 |
+
+![真实DeepSeek固定预算搜索曲线](docs/assets/evidence/v1/search-convergence.png)
+
+结论是：当前 Knowledge/Priors 主要提高**命中频率和搜索效率**，尚不能证明其显著改善最终最优值；不能再把历史上的 `-4.28 dB` 混杂消融单独归因给 Reflection。
+
+### 运行时可靠性
+
+SQLite 控制面在 `concurrency=8`、300请求和15%故障注入下完成测试：重复执行率 **0%**、事件丢失率 **0%**、唯一终态一致率 **100%**，45个注入故障恢复率 **100%**。这是本地单进程可靠性基线，不外推为分布式生产SLA。
+
+[Evidence 汇总 JSON](docs/assets/evidence/v1/evidence-summary.json) · [Evidence 报告](docs/assets/evidence/v1/evidence-report.md)
 
 ## 真实运行证据
 
@@ -166,6 +218,15 @@ Benchmark/Search 复用生产 `Guard`、`Runtime`、`ToolRegistry` 和 evaluator
 python agent.py agent-benchmark --provider scripted --attempts 1 --output-dir benchmarks/agent-tasks-v1
 python agent.py compare-search --protocol benchmarks/protocol/nonlinear-search-v1.json --output-dir benchmarks/nonlinear-search-v1-v20000
 python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1 --output-dir benchmarks/runtime-v2
+
+# 真实 LLM 行为评测（显式在线命令）
+python agent.py agent-benchmark --provider deepseek --attempts 3 --output-dir benchmarks/evidence-v1/deepseek
+
+# 四组正交真实搜索消融
+python agent.py compare-search --domain synthetic-hard --methods llm_direct,llm_history_only,llm_history_facts,llm_history_facts_priors --seeds 7,17,29 --trial-budget 10 --parameter-count-max 100 --llm-provider deepseek --output-dir benchmarks/evidence-v1/search-deepseek
+
+# 从原始结果重新生成报告与科研图
+python agent.py evidence-pack --scripted-results benchmarks/evidence-v1/scripted/results.json --online-results benchmarks/evidence-v1/deepseek-after/results.json --online-correction benchmarks/evidence-v1/deepseek-protocol-correction/results.json --online-before benchmarks/evidence-v1/deepseek-smoke/results.json --search-dir benchmarks/evidence-v1/search-deepseek --stress-results benchmarks/evidence-v1/runtime/stress.json --before-results benchmarks/deepseek-v21-final/results.json --after-results benchmarks/deepseek-v26/results.json --output-dir docs/assets/evidence/v1
 ```
 
 ## 常用命令
@@ -178,6 +239,7 @@ python agent.py stress-runtime --concurrency 8 --requests 100 --failure-rate 0.1
 | Web `受控搜索` | 在固定模型族内按字段锁定或开放参数，复用 Agent Loop 与真实 Harness |
 | `python agent.py benchmark` | 传统 Harness 行为回归 |
 | `python agent.py agent-benchmark` | 独立 action-level Agent 任务评测 |
+| `python agent.py evidence-pack` | 汇总行为、搜索、可靠性原始证据并生成科研图 |
 | `python agent.py compare-search` | 四种搜索策略统一协议对照 |
 | `python agent.py stress-runtime` | SQLite 控制面并发压测 |
 | `python agent.py dashboard` | 生成离线诊断 Dashboard |
@@ -199,6 +261,7 @@ tests/                     单元、集成、故障注入与 Web 契约测试
 - [最新学习文档 v1.6.2](docs/learning/experiment-agent-harness-v1.6.2.md)
 - [真实 DeepSeek 3×3 PDF 报告](docs/reports/v4.0.0-e-deepseek-3x3-report.pdf)
 - [独立 Agent 任务摘要](benchmarks/agent-tasks-v1/summary.md)
+- [v4.3.0 Evidence Benchmark](docs/assets/evidence/v1/evidence-report.md)
 - [搜索策略历史实验 v3](docs/experiments/nonlinear-search-ablation-v3.md)
 
 ## 演进方向

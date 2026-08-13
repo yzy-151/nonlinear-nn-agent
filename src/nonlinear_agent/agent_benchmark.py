@@ -30,7 +30,12 @@ def score_agent_task(
     ]
 
     checks["terminal_status"] = result.status in case.expected_statuses
-    checks["action_budget"] = len(history) <= case.max_actions
+    agent_history = [
+        record
+        for record in history
+        if record.get("source") != "deterministic_fault_fixture"
+    ]
+    checks["action_budget"] = len(agent_history) <= case.max_actions
     checks["required_tools"] = all(tool in tools for tool in case.required_tools)
     checks["forbidden_tools"] = not any(tool in tools for tool in case.forbidden_tools)
     if case.require_tool_order:
@@ -81,6 +86,7 @@ async def run_agent_task_benchmark(
             scores.append(score)
             rows.append({
                 "case_id": case.case_id,
+                "category": case.category,
                 "attempt": attempt_index,
                 **asdict(score),
                 "status": result.status,

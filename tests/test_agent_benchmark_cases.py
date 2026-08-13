@@ -26,6 +26,14 @@ class AgentBenchmarkCasesTest(unittest.TestCase):
         self.assertFalse(any("-v" in case.case_id for case in cases))
         validate_agent_task_catalog(cases)
 
+    def test_control_and_history_tasks_state_an_explicit_terminal_condition(self):
+        cases = {case.case_id: case for case in build_nonlinear_agent_task_cases()}
+
+        self.assertIn("then stop", cases["stop-after-target-hit"].goal.lower())
+        self.assertIn("exactly one", cases["hard-action-budget-stop"].goal.lower())
+        self.assertIn("then stop", cases["reuse-history-best"].goal.lower())
+        self.assertIn("generate", cases["compressed-context-constraint"].goal.lower())
+
     def test_catalog_rejects_duplicate_semantic_task(self):
         case = AgentTaskCase(
             case_id="one",
@@ -99,6 +107,38 @@ class AgentBenchmarkCasesTest(unittest.TestCase):
         self.assertFalse(score.passed)
         self.assertIn("required_tools", score.failed_checks)
         self.assertIn("required_artifact", score.failed_checks)
+
+    def test_seeded_fault_observation_does_not_consume_action_budget(self):
+        case = AgentTaskCase(
+            case_id="seeded",
+            goal="recover",
+            category="recovery",
+            max_actions=1,
+            required_tools=("generate_config",),
+            require_rejection=True,
+        )
+        result = ActionLoopResult(
+            status="stopped",
+            planner_call_count=1,
+            history=[
+                {
+                    "event_id": "fixture:rejected",
+                    "run_status": "rejected",
+                    "source": "deterministic_fault_fixture",
+                },
+                {
+                    "event_id": "a1:succeeded",
+                    "run_status": "succeeded",
+                    "tool_name": "generate_config",
+                    "planner_call_id": "p1",
+                    "caused_by_event_ids": ["fixture:rejected"],
+                },
+            ],
+        )
+
+        score = score_agent_task(case, result)
+
+        self.assertTrue(score.passed)
 
     def test_runner_reports_pass_at_1_and_pass_at_3(self):
         case = AgentTaskCase(

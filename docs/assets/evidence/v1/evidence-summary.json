@@ -1,0 +1,185 @@
+{
+  "protocol": "evidence-pack-v1",
+  "agent_behavior": {
+    "scripted": {
+      "evaluation_mode": "scripted_fixture",
+      "task_count": 18,
+      "attempt_count": 54,
+      "pass_at_1": 1.0,
+      "pass_at_3": 1.0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "claim_scope": "Harness contract regression; no LLM reasoning claim."
+    },
+    "online": {
+      "evaluation_mode": "real_llm_fault_fixture",
+      "task_count": 18,
+      "attempt_count": 54,
+      "pass_at_1": 0.9444444444444444,
+      "pass_at_3": 1.0,
+      "prompt_tokens": 226302,
+      "completion_tokens": 345472,
+      "claim_scope": "Real LLM action selection and recovery on deterministic faults."
+    },
+    "online_before": {
+      "evaluation_mode": "real_llm_fault_fixture",
+      "task_count": 18,
+      "attempt_count": 18,
+      "pass_at_1": 0.7777777777777778,
+      "pass_at_3": null,
+      "prompt_tokens": 118461,
+      "completion_tokens": 188160,
+      "claim_scope": "Pre-improvement real LLM baseline on the same protocol."
+    }
+  },
+  "search_quality": {
+    "protocol_version": "1.9.0",
+    "bootstrap_seed": 20260802,
+    "bootstrap_samples": 2000,
+    "confidence_level": 0.95,
+    "per_method": {
+      "llm_direct": {
+        "method": "llm_direct",
+        "metric_name": "val_mse",
+        "n_seeds": 3,
+        "n_total_trials": 30,
+        "n_effective_trials": 30,
+        "best_val_mse_mean": 0.043362526643586446,
+        "best_val_mse_ci_95_low": 0.043362526643586446,
+        "best_val_mse_ci_95_high": 0.043362526643586446,
+        "best_val_mse_median": 0.043362526643586446,
+        "best_val_mse_std": 0.0,
+        "target_hit_rate_mean": 0.3333333333333333,
+        "target_hit_rate_ci_95_low": 0.20000000000000004,
+        "target_hit_rate_ci_95_high": 0.5,
+        "rejected_rate_mean": 0.0,
+        "rejected_rate_ci_95_low": 0.0,
+        "rejected_rate_ci_95_high": 0.0,
+        "runtime_failure_rate_mean": 0.0,
+        "runtime_failure_rate_ci_95_low": 0.0,
+        "runtime_failure_rate_ci_95_high": 0.0
+      },
+      "llm_history_only": {
+        "method": "llm_history_only",
+        "metric_name": "val_mse",
+        "n_seeds": 3,
+        "n_total_trials": 30,
+        "n_effective_trials": 30,
+        "best_val_mse_mean": 0.043360628599771106,
+        "best_val_mse_ci_95_low": 0.043360628599771106,
+        "best_val_mse_ci_95_high": 0.043360628599771106,
+        "best_val_mse_median": 0.043360628599771106,
+        "best_val_mse_std": 0.0,
+        "target_hit_rate_mean": 0.43333333333333335,
+        "target_hit_rate_ci_95_low": 0.4000000000000001,
+        "target_hit_rate_ci_95_high": 0.5,
+        "rejected_rate_mean": 0.0,
+        "rejected_rate_ci_95_low": 0.0,
+        "rejected_rate_ci_95_high": 0.0,
+        "runtime_failure_rate_mean": 0.0,
+        "runtime_failure_rate_ci_95_low": 0.0,
+        "runtime_failure_rate_ci_95_high": 0.0
+      },
+      "llm_history_facts": {
+        "method": "llm_history_facts",
+        "metric_name": "val_mse",
+        "n_seeds": 3,
+        "n_total_trials": 30,
+        "n_effective_trials": 30,
+        "best_val_mse_mean": 0.043360628599771106,
+        "best_val_mse_ci_95_low": 0.043360628599771106,
+        "best_val_mse_ci_95_high": 0.043360628599771106,
+        "best_val_mse_median": 0.043360628599771106,
+        "best_val_mse_std": 0.0,
+        "target_hit_rate_mean": 0.39999999999999997,
+        "target_hit_rate_ci_95_low": 0.3,
+        "target_hit_rate_ci_95_high": 0.5,
+        "rejected_rate_mean": 0.0,
+        "rejected_rate_ci_95_low": 0.0,
+        "rejected_rate_ci_95_high": 0.0,
+        "runtime_failure_rate_mean": 0.0,
+        "runtime_failure_rate_ci_95_low": 0.0,
+        "runtime_failure_rate_ci_95_high": 0.0
+      },
+      "llm_history_facts_priors": {
+        "method": "llm_history_facts_priors",
+        "metric_name": "val_mse",
+        "n_seeds": 3,
+        "n_total_trials": 30,
+        "n_effective_trials": 30,
+        "best_val_mse_mean": 0.043360628599771106,
+        "best_val_mse_ci_95_low": 0.043360628599771106,
+        "best_val_mse_ci_95_high": 0.043360628599771106,
+        "best_val_mse_median": 0.043360628599771106,
+        "best_val_mse_std": 0.0,
+        "target_hit_rate_mean": 0.5333333333333333,
+        "target_hit_rate_ci_95_low": 0.5,
+        "target_hit_rate_ci_95_high": 0.6,
+        "rejected_rate_mean": 0.0,
+        "rejected_rate_ci_95_low": 0.0,
+        "rejected_rate_ci_95_high": 0.0,
+        "runtime_failure_rate_mean": 0.0,
+        "runtime_failure_rate_ci_95_low": 0.0,
+        "runtime_failure_rate_ci_95_high": 0.0
+      }
+    },
+    "paired_comparisons": {
+      "history_increment": {
+        "paired_seed_count": 3,
+        "val_mse_delta_mean": -1.8980438153404222e-06,
+        "val_mse_delta_median": -1.8980438153404222e-06,
+        "val_mse_delta_std": 0.0,
+        "val_mse_delta_ci_95_low": -1.8980438153404222e-06,
+        "val_mse_delta_ci_95_high": -1.8980438153404222e-06,
+        "per_seed_deltas": {
+          "7": -1.8980438153404222e-06,
+          "17": -1.8980438153404222e-06,
+          "29": -1.8980438153404222e-06
+        },
+        "significant": true
+      },
+      "facts_increment": {
+        "paired_seed_count": 3,
+        "val_mse_delta_mean": 0.0,
+        "val_mse_delta_median": 0.0,
+        "val_mse_delta_std": 0.0,
+        "val_mse_delta_ci_95_low": 0.0,
+        "val_mse_delta_ci_95_high": 0.0,
+        "per_seed_deltas": {
+          "7": 0.0,
+          "17": 0.0,
+          "29": 0.0
+        },
+        "significant": false
+      },
+      "priors_increment": {
+        "paired_seed_count": 3,
+        "val_mse_delta_mean": 0.0,
+        "val_mse_delta_median": 0.0,
+        "val_mse_delta_std": 0.0,
+        "val_mse_delta_ci_95_low": 0.0,
+        "val_mse_delta_ci_95_high": 0.0,
+        "per_seed_deltas": {
+          "7": 0.0,
+          "17": 0.0,
+          "29": 0.0
+        },
+        "significant": false
+      }
+    }
+  },
+  "runtime_reliability": {
+    "concurrency": 8,
+    "requests": 300,
+    "failure_rate": 0.15,
+    "duplicate_requests": 0,
+    "duplicate_execution_rate": 0.0,
+    "executed_once": 300,
+    "event_loss_rate": 0.0,
+    "terminal_consistency": 1.0,
+    "recovery_rate": 1.0,
+    "injected_failures": 45,
+    "recovered": 45,
+    "pass": true
+  }
+}

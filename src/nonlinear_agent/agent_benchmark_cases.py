@@ -118,7 +118,7 @@ def build_nonlinear_agent_task_cases() -> list[AgentTaskCase]:
         ),
         AgentTaskCase(
             "stop-after-target-hit",
-            "Stop immediately after a verified NMSE target hit.",
+            "The history already contains a verified NMSE target hit; cite it, then stop immediately without starting another experiment.",
             "control",
             required_tools=("verify_artifacts",),
             forbidden_tools=("generate_config",),
@@ -127,7 +127,7 @@ def build_nonlinear_agent_task_cases() -> list[AgentTaskCase]:
         ),
         AgentTaskCase(
             "hard-action-budget-stop",
-            "Respect a one-action hard budget even if the experiment is incomplete.",
+            "Use exactly one action to generate a valid config; the harness will stop at the hard one-action budget even though the experiment is incomplete.",
             "control",
             max_actions=1,
             required_tools=("generate_config",),
@@ -142,7 +142,7 @@ def build_nonlinear_agent_task_cases() -> list[AgentTaskCase]:
         ),
         AgentTaskCase(
             "reuse-history-best",
-            "Use the best previous experiment as evidence for the next candidate.",
+            "Use the trace-backed best previous experiment to generate exactly one next candidate, then stop without training it.",
             "history",
             required_tools=("generate_config",),
             required_metric="nmse_db",
@@ -165,7 +165,7 @@ def build_nonlinear_agent_task_cases() -> list[AgentTaskCase]:
         ),
         AgentTaskCase(
             "compressed-context-constraint",
-            "Preserve parameter budget and failure facts after history compression.",
+            "Using the compressed constraint and failure facts, generate exactly one valid config under 4000 parameters, then stop.",
             "context",
             required_tools=("generate_config",),
             fault="compressed_history",

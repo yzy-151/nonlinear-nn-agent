@@ -154,6 +154,85 @@ class ActionPlannerLoopTest(unittest.TestCase):
         self.assertEqual(result.planner_call_count, 1)
         self.assertEqual(len(result.history), 1)
 
+    def test_initial_failure_fact_must_be_cited_by_first_recovery_action(self):
+        registry = ToolRegistry()
+        registry.register(
+            "generate_config",
+            lambda: {"context_summary": "recovered"},
+            ToolSpec(name="generate_config"),
+        )
+        llm = FakeLLMClient(responses=[
+            _action("a1", "generate_config", caused_by=["seed:failed"]),
+            _action("a2", stop=True),
+        ])
+        initial_history = [{
+            "action_id": "seed",
+            "planner_call_id": "fixture",
+            "event_id": "seed:failed",
+            "run_status": "failed",
+            "error": "training timed out",
+            "observation": {"error": "training timed out"},
+            "caused_by_event_ids": [],
+        }]
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result = asyncio.run(ActionPlannerLoop(
+                planner=AgentActionPlanner(llm, registry),
+                tool_registry=registry,
+                runtime_factory=self._runtime_factory(root, registry),
+                session_id="seeded-recovery",
+            ).run("recover", max_actions=3, initial_history=initial_history))
+
+        self.assertEqual(result.history[0]["event_id"], "seed:failed")
+        self.assertEqual(result.history[1]["run_status"], "succeeded")
+        self.assertEqual(result.status, "stopped")
+
+    def test_initial_verified_observation_seeds_result_metrics_and_artifacts(self):
+        registry = ToolRegistry()
+        llm = FakeLLMClient(responses=[_action("stop", stop=True)])
+        initial_history = [{
+            "event_id": "verified:succeeded",
+            "run_status": "succeeded",
+            "tool_name": "verify_artifacts",
+            "observation": {
+                "metrics": {"nmse_db": -42.0},
+                "artifacts": ["reports/best/psd.png"],
+            },
+        }]
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result = asyncio.run(ActionPlannerLoop(
+                planner=AgentActionPlanner(llm, registry),
+                tool_registry=registry,
+                runtime_factory=self._runtime_factory(root, registry),
+                session_id="seeded-metrics",
+            ).run("stop after target", initial_history=initial_history))
+
+        self.assertEqual(result.metrics["nmse_db"], -42.0)
+        self.assertIn("reports/best/psd.png", result.artifacts)
+
+    def test_invalid_planner_json_becomes_rejected_fact_instead_of_crashing(self):
+        registry = ToolRegistry()
+        llm = FakeLLMClient(responses=[
+            "not-json",
+            _action("stop", stop=True),
+        ])
+
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result = asyncio.run(ActionPlannerLoop(
+                planner=AgentActionPlanner(llm, registry),
+                tool_registry=registry,
+                runtime_factory=self._runtime_factory(root, registry),
+                session_id="planner-format-recovery",
+            ).run("recover malformed planner output", max_actions=2))
+
+        self.assertEqual(result.status, "stopped")
+        self.assertEqual(result.history[0]["run_status"], "rejected")
+        self.assertEqual(result.history[0]["error_type"], "planner_output_error")
+
     def test_memory_off_writes_nothing(self):
         registry = ToolRegistry()
         registry.register("echo", lambda: {"context_summary": "ok"}, ToolSpec(name="echo"))

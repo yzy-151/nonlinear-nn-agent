@@ -11,6 +11,8 @@ from nonlinear_agent.actions import AgentAction, parse_agent_action, validate_ag
 from nonlinear_agent.experiment_tools import build_experiment_tool_registry
 from nonlinear_agent.mcp_server import tool_spec_to_mcp_tool
 from nonlinear_agent.tools import ToolRegistry, ToolSpec
+from nonlinear_agent.llm import FakeLLMClient
+from nonlinear_agent.planner import AgentActionPlanner
 
 
 class AgentActionTest(unittest.TestCase):
@@ -133,6 +135,21 @@ class AgentActionTest(unittest.TestCase):
             mcp_tool["inputSchema"]["required"],
             self.registry.get_tool_spec("run_training").input_schema["required"],
         )
+
+    def test_action_planner_prompt_defines_stop_and_duplicate_avoidance_rules(self):
+        planner = AgentActionPlanner(
+            FakeLLMClient(responses=[
+                '{"type":"stop","action_id":"done","reason":"done",'
+                '"caused_by_event_ids":[]}'
+            ]),
+            self.registry,
+        )
+
+        planner.plan("finish once", history=[], constraints={})
+        prompt = planner.llm_client.last_prompt.lower()
+
+        self.assertIn("stop immediately", prompt)
+        self.assertIn("do not repeat", prompt)
 
 
 if __name__ == "__main__":

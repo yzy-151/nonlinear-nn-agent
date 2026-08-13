@@ -55,6 +55,38 @@ class CliTest(unittest.TestCase):
         self.assertEqual(args.provider, "scripted")
         self.assertEqual(args.attempts, 3)
 
+    def test_agent_benchmark_parser_supports_real_deepseek(self):
+        args = build_parser().parse_args([
+            "agent-benchmark", "--provider", "deepseek",
+            "--model", "deepseek-v4-flash", "--attempts", "3",
+        ])
+
+        self.assertEqual(args.provider, "deepseek")
+        self.assertEqual(args.model, "deepseek-v4-flash")
+
+    def test_agent_benchmark_parser_accepts_case_filter(self):
+        args = build_parser().parse_args([
+            "agent-benchmark", "--provider", "deepseek",
+            "--cases", "stop-after-target-hit,reuse-history-best",
+        ])
+
+        self.assertEqual(
+            args.cases, "stop-after-target-hit,reuse-history-best"
+        )
+
+    def test_evidence_pack_parser_accepts_source_artifacts(self):
+        args = build_parser().parse_args([
+            "evidence-pack",
+            "--scripted-results", "benchmarks/scripted/results.json",
+            "--online-results", "benchmarks/online/results.json",
+            "--search-dir", "benchmarks/search",
+            "--stress-results", "benchmarks/runtime/stress.json",
+            "--output-dir", "docs/assets/evidence/v1",
+        ])
+
+        self.assertEqual(args.command, "evidence-pack")
+        self.assertEqual(args.search_dir, "benchmarks/search")
+
     def test_fake_action_mode_can_stop_without_starting_training(self):
         stop_action = (
             '{"type":"stop","action_id":"safe-stop",'

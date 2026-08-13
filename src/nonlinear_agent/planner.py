@@ -316,7 +316,11 @@ class AgentActionPlanner:
             '{"type":"stop","action_id":"unique-id",'
             '"reason":"why stop","caused_by_event_ids":[]}.'
             " Call only a registered tool and follow its input_schema exactly. "
-            "After a failure, caused_by_event_ids must include the failure event id."
+            "After a failure, caused_by_event_ids must include the failure event id. "
+            "Stop immediately when the goal's explicit completion condition is met. "
+            "Do not repeat an already successful tool call with equivalent arguments; "
+            "use the stop action instead. Do not continue training merely to improve a "
+            "result unless the goal explicitly asks for iterative optimization."
         )
 
 

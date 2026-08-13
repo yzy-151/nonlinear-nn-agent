@@ -1,0 +1,387 @@
+{
+  "domain": "nonlinear-modeling",
+  "task_count": 2,
+  "attempt_count": 6,
+  "pass_at_1": 1.0,
+  "pass_at_3": 1.0,
+  "results": [
+    {
+      "case_id": "stop-after-target-hit",
+      "category": "control",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 1,
+      "history": [
+        {
+          "action_id": "fixture-target-hit",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": "verify_artifacts",
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-target-hit:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -42.26,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/fixture-best/psd.png"
+            ],
+            "context_summary": "Verified target hit."
+          },
+          "source": "deterministic_fault_fixture"
+        }
+      ],
+      "metrics": {
+        "nmse_db": -42.26,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "reports/fixture-best/psd.png"
+      ],
+      "total_prompt_tokens": 964,
+      "total_completion_tokens": 702
+    },
+    {
+      "case_id": "stop-after-target-hit",
+      "category": "control",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 1,
+      "history": [
+        {
+          "action_id": "fixture-target-hit",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": "verify_artifacts",
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-target-hit:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -42.26,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/fixture-best/psd.png"
+            ],
+            "context_summary": "Verified target hit."
+          },
+          "source": "deterministic_fault_fixture"
+        }
+      ],
+      "metrics": {
+        "nmse_db": -42.26,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "reports/fixture-best/psd.png"
+      ],
+      "total_prompt_tokens": 964,
+      "total_completion_tokens": 260
+    },
+    {
+      "case_id": "stop-after-target-hit",
+      "category": "control",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 1,
+      "history": [
+        {
+          "action_id": "fixture-target-hit",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": "verify_artifacts",
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-target-hit:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -42.26,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/fixture-best/psd.png"
+            ],
+            "context_summary": "Verified target hit."
+          },
+          "source": "deterministic_fault_fixture"
+        }
+      ],
+      "metrics": {
+        "nmse_db": -42.26,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "reports/fixture-best/psd.png"
+      ],
+      "total_prompt_tokens": 964,
+      "total_completion_tokens": 321
+    },
+    {
+      "case_id": "reuse-history-best",
+      "category": "history",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-historical_best_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-historical_best_available:failed",
+          "run_status": "failed",
+          "error": "Trace-backed best candidate reached -42.26 dB.",
+          "error_type": "historical_best_available",
+          "observation": {
+            "error": "Trace-backed best candidate reached -42.26 dB.",
+            "error_type": "historical_best_available",
+            "metrics": {
+              "nmse_db": -42.26,
+              "parameter_count": 3626
+            },
+            "evidence_id": "fixture-history-best-verified",
+            "config_hash": "fixture-best-config"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-next-candidate",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/trace_best.yaml",
+            "experiment_id": "next_candidate_001"
+          },
+          "caused_by_event_ids": [
+            "fixture-historical_best_available:failed"
+          ],
+          "event_id": "generate-next-candidate:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/reuse-history-best/configs/reuse-history-best.yaml",
+            "artifacts": [
+              "runs/reuse-history-best/configs/reuse-history-best.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/reuse-history-best/configs/reuse-history-best.yaml",
+        "reports/reuse-history-best/psd.png"
+      ],
+      "total_prompt_tokens": 2184,
+      "total_completion_tokens": 1888
+    },
+    {
+      "case_id": "reuse-history-best",
+      "category": "history",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-historical_best_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-historical_best_available:failed",
+          "run_status": "failed",
+          "error": "Trace-backed best candidate reached -42.26 dB.",
+          "error_type": "historical_best_available",
+          "observation": {
+            "error": "Trace-backed best candidate reached -42.26 dB.",
+            "error_type": "historical_best_available",
+            "metrics": {
+              "nmse_db": -42.26,
+              "parameter_count": 3626
+            },
+            "evidence_id": "fixture-history-best-verified",
+            "config_hash": "fixture-best-config"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_candidate_reuse_best",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "candidate_from_history_best",
+            "overrides": {
+              "parameter_count": 3626
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-historical_best_available:failed"
+          ],
+          "event_id": "generate_candidate_reuse_best:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/reuse-history-best/configs/reuse-history-best.yaml",
+            "artifacts": [
+              "runs/reuse-history-best/configs/reuse-history-best.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -42.26,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/reuse-history-best/configs/reuse-history-best.yaml"
+      ],
+      "total_prompt_tokens": 2200,
+      "total_completion_tokens": 5238
+    },
+    {
+      "case_id": "reuse-history-best",
+      "category": "history",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-historical_best_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-historical_best_available:failed",
+          "run_status": "failed",
+          "error": "Trace-backed best candidate reached -42.26 dB.",
+          "error_type": "historical_best_available",
+          "observation": {
+            "error": "Trace-backed best candidate reached -42.26 dB.",
+            "error_type": "historical_best_available",
+            "metrics": {
+              "nmse_db": -42.26,
+              "parameter_count": 3626
+            },
+            "evidence_id": "fixture-history-best-verified",
+            "config_hash": "fixture-best-config"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-candidate-1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "fixture-best-config",
+            "experiment_id": "candidate-1",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-historical_best_available:failed"
+          ],
+          "event_id": "generate-config-candidate-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/reuse-history-best/configs/reuse-history-best.yaml",
+            "artifacts": [
+              "runs/reuse-history-best/configs/reuse-history-best.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -42.26,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/reuse-history-best/configs/reuse-history-best.yaml"
+      ],
+      "total_prompt_tokens": 2190,
+      "total_completion_tokens": 691
+    }
+  ],
+  "evaluation_mode": "real_llm_fault_fixture",
+  "provenance": {
+    "planner": "DeepSeek deepseek-v4-flash",
+    "tool_schemas": "production ToolSpec",
+    "tool_outputs": "deterministic fault fixture",
+    "claim_scope": "LLM action selection and recovery, not model-training quality"
+  }
+}

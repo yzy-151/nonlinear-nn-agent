@@ -51,21 +51,70 @@ class ActionPlannerLoop:
         self.memory_kind = memory_kind
         self.planner_context_builder = planner_context_builder
 
-    async def run(self, goal: str, max_actions: int = 12) -> ActionLoopResult:
-        history: list[dict[str, Any]] = []
+    async def run(
+        self,
+        goal: str,
+        max_actions: int = 12,
+        initial_history: list[dict[str, Any]] | None = None,
+    ) -> ActionLoopResult:
+        history: list[dict[str, Any]] = [
+            dict(record) for record in (initial_history or [])
+        ]
         metrics: dict[str, Any] = {}
         artifacts: list[str] = []
-        unresolved_failure_event_id: str | None = None
+        for record in history:
+            observation = record.get("observation", {})
+            if not isinstance(observation, dict):
+                continue
+            initial_metrics = observation.get("metrics", {})
+            if isinstance(initial_metrics, dict):
+                metrics.update(initial_metrics)
+            initial_artifacts = observation.get("artifacts", [])
+            if isinstance(initial_artifacts, list):
+                for artifact in initial_artifacts:
+                    if str(artifact) not in artifacts:
+                        artifacts.append(str(artifact))
+        unresolved_failure_event_id = next(
+            (
+                str(record["event_id"])
+                for record in reversed(history)
+                if record.get("run_status") in {"failed", "rejected"}
+                and record.get("event_id")
+            ),
+            None,
+        )
         planner_call_count = 0
 
         for action_index in range(1, max_actions + 1):
             planner_call_count += 1
             planner_call_id = f"action-planner-{planner_call_count:03d}"
-            action = self.planner.plan(
-                goal=goal,
-                history=history,
-                constraints=self._planning_constraints(goal),
-            )
+            try:
+                action = self.planner.plan(
+                    goal=goal,
+                    history=history,
+                    constraints=self._planning_constraints(goal),
+                )
+            except (ValueError, TypeError, json.JSONDecodeError) as exc:
+                event_id = f"{planner_call_id}:rejected"
+                history.append({
+                    "action_id": planner_call_id,
+                    "planner_call_id": planner_call_id,
+                    "round": action_index,
+                    "tool_name": None,
+                    "arguments": {},
+                    "caused_by_event_ids": [],
+                    "event_id": event_id,
+                    "run_status": "rejected",
+                    "error": str(exc),
+                    "error_type": "planner_output_error",
+                    "observation": {
+                        "error": str(exc),
+                        "error_type": "planner_output_error",
+                    },
+                })
+                if unresolved_failure_event_id is None:
+                    unresolved_failure_event_id = event_id
+                continue
 
             if action.is_stop:
                 return self._result(

@@ -1,0 +1,5492 @@
+{
+  "domain": "nonlinear-modeling",
+  "task_count": 18,
+  "attempt_count": 54,
+  "pass_at_1": 0.8888888888888888,
+  "pass_at_3": 0.9444444444444444,
+  "results": [
+    {
+      "case_id": "complete-experiment",
+      "category": "workflow",
+      "attempt": 1,
+      "passed": false,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "forbidden_tools",
+        "required_metric",
+        "required_artifact"
+      ],
+      "failed_checks": [
+        "required_tools",
+        "tool_order"
+      ],
+      "status": "stopped",
+      "planner_call_count": 4,
+      "history": [
+        {
+          "action_id": "act-1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "experiment-001"
+          },
+          "caused_by_event_ids": [],
+          "event_id": "act-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/complete-experiment/configs/complete-experiment.yaml",
+            "artifacts": [
+              "runs/complete-experiment/configs/complete-experiment.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "act-2",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/complete-experiment/configs/complete-experiment.yaml"
+          },
+          "caused_by_event_ids": [
+            "act-1:succeeded"
+          ],
+          "event_id": "act-2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/complete-experiment/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "act-3",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "runs/complete-experiment",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "act-2:succeeded"
+          ],
+          "event_id": "act-3:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/complete-experiment/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/complete-experiment/configs/complete-experiment.yaml",
+        "reports/complete-experiment/psd.png",
+        "reports/complete-experiment/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 4138,
+      "total_completion_tokens": 2154
+    },
+    {
+      "case_id": "complete-experiment",
+      "category": "workflow",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "tool_order",
+        "required_metric",
+        "required_artifact"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "call_gen_config_001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "nonlinear-exp-001"
+          },
+          "caused_by_event_ids": [],
+          "event_id": "call_gen_config_001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/complete-experiment/configs/complete-experiment.yaml",
+            "artifacts": [
+              "runs/complete-experiment/configs/complete-experiment.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "call_run_training_001",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/complete-experiment/configs/complete-experiment.yaml"
+          },
+          "caused_by_event_ids": [
+            "call_gen_config_001:succeeded"
+          ],
+          "event_id": "call_run_training_001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/complete-experiment/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "call_verify_artifacts_001",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/complete-experiment",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "call_run_training_001:succeeded"
+          ],
+          "event_id": "call_verify_artifacts_001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/complete-experiment/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        },
+        {
+          "action_id": "call_write_report_001",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "write_report",
+          "arguments": {
+            "session_id": "complete-experiment",
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/complete-experiment/psd.png"
+            ]
+          },
+          "caused_by_event_ids": [
+            "call_verify_artifacts_001:succeeded"
+          ],
+          "event_id": "call_write_report_001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "artifacts": [
+              "reports/complete-experiment/agent-harness-report.md"
+            ],
+            "context_summary": "fixture report written"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/complete-experiment/configs/complete-experiment.yaml",
+        "reports/complete-experiment/psd.png",
+        "reports/complete-experiment/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 5650,
+      "total_completion_tokens": 2713
+    },
+    {
+      "case_id": "complete-experiment",
+      "category": "workflow",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "tool_order",
+        "required_metric",
+        "required_artifact"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "call_generate_config_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "nonlinear_exp_1"
+          },
+          "caused_by_event_ids": [],
+          "event_id": "call_generate_config_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/complete-experiment/configs/complete-experiment.yaml",
+            "artifacts": [
+              "runs/complete-experiment/configs/complete-experiment.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "call_run_training_1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/complete-experiment/configs/complete-experiment.yaml"
+          },
+          "caused_by_event_ids": [
+            "call_generate_config_1:succeeded"
+          ],
+          "event_id": "call_run_training_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/complete-experiment/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "call_verify_artifacts_1",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/complete-experiment",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "call_run_training_1:succeeded"
+          ],
+          "event_id": "call_verify_artifacts_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/complete-experiment/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        },
+        {
+          "action_id": "call_write_report_1",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "write_report",
+          "arguments": {
+            "session_id": "complete-experiment",
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/complete-experiment/psd.png"
+            ]
+          },
+          "caused_by_event_ids": [
+            "call_verify_artifacts_1:succeeded"
+          ],
+          "event_id": "call_write_report_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "artifacts": [
+              "reports/complete-experiment/agent-harness-report.md"
+            ],
+            "context_summary": "fixture report written"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/complete-experiment/configs/complete-experiment.yaml",
+        "reports/complete-experiment/psd.png",
+        "reports/complete-experiment/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 5661,
+      "total_completion_tokens": 2775
+    },
+    {
+      "case_id": "generate-config-only",
+      "category": "workflow",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "generate_config_001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/nonlinear_modeling.yaml",
+            "experiment_id": "generate-config-only"
+          },
+          "caused_by_event_ids": [],
+          "event_id": "generate_config_001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/generate-config-only/configs/generate-config-only.yaml",
+            "artifacts": [
+              "runs/generate-config-only/configs/generate-config-only.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/generate-config-only/configs/generate-config-only.yaml"
+      ],
+      "total_prompt_tokens": 1775,
+      "total_completion_tokens": 3127
+    },
+    {
+      "case_id": "generate-config-only",
+      "category": "workflow",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "act-gen-config-001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base.yaml",
+            "experiment_id": "constrained_experiment",
+            "overrides": {
+              "parameter_count_max": 4000,
+              "nmse_threshold_db": -35.0,
+              "domain": "nonlinear-modeling",
+              "benchmark_case_id": "generate-config-only"
+            }
+          },
+          "caused_by_event_ids": [],
+          "event_id": "act-gen-config-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/generate-config-only/configs/generate-config-only.yaml",
+            "artifacts": [
+              "runs/generate-config-only/configs/generate-config-only.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/generate-config-only/configs/generate-config-only.yaml"
+      ],
+      "total_prompt_tokens": 1818,
+      "total_completion_tokens": 1460
+    },
+    {
+      "case_id": "generate-config-only",
+      "category": "workflow",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "generate_config_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "config_only_001"
+          },
+          "caused_by_event_ids": [],
+          "event_id": "generate_config_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/generate-config-only/configs/generate-config-only.yaml",
+            "artifacts": [
+              "runs/generate-config-only/configs/generate-config-only.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/generate-config-only/configs/generate-config-only.yaml"
+      ],
+      "total_prompt_tokens": 1771,
+      "total_completion_tokens": 5773
+    },
+    {
+      "case_id": "unknown-tool-rejection",
+      "category": "contract",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-unknown_tool",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-unknown_tool:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected unavailable tool 'shell'.",
+          "error_type": "unknown_tool",
+          "observation": {
+            "error": "Guard rejected unavailable tool 'shell'.",
+            "error_type": "unknown_tool"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "recover-generate_config",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/nonlinear_modeling.yaml",
+            "experiment_id": "unknown_tool_rejection",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-unknown_tool:failed"
+          ],
+          "event_id": "recover-generate_config:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml",
+            "artifacts": [
+              "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-after-recovery",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-unknown-tool:failed",
+            "recover-generate_config:succeeded"
+          ],
+          "event_id": "run-training-after-recovery:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/unknown-tool-rejection/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml",
+        "reports/unknown-tool-rejection/psd.png",
+        "reports/unknown-tool-rejection/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 3371,
+      "total_completion_tokens": 4394
+    },
+    {
+      "case_id": "unknown-tool-rejection",
+      "category": "contract",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-unknown_tool",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-unknown_tool:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected unavailable tool 'shell'.",
+          "error_type": "unknown_tool",
+          "observation": {
+            "error": "Guard rejected unavailable tool 'shell'.",
+            "error_type": "unknown_tool"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "recover-generate-config",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "unknown-tool-rejection"
+          },
+          "caused_by_event_ids": [
+            "fixture-unknown_tool:failed"
+          ],
+          "event_id": "recover-generate-config:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml",
+            "artifacts": [
+              "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml"
+      ],
+      "total_prompt_tokens": 2063,
+      "total_completion_tokens": 1872
+    },
+    {
+      "case_id": "unknown-tool-rejection",
+      "category": "contract",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-unknown_tool",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-unknown_tool:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected unavailable tool 'shell'.",
+          "error_type": "unknown_tool",
+          "observation": {
+            "error": "Guard rejected unavailable tool 'shell'.",
+            "error_type": "unknown_tool"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "recover-generate-config",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base.yaml",
+            "experiment_id": "unknown-tool-recovery"
+          },
+          "caused_by_event_ids": [
+            "fixture-unknown_tool:failed"
+          ],
+          "event_id": "recover-generate-config:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml",
+            "artifacts": [
+              "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/unknown-tool-rejection/configs/unknown-tool-rejection.yaml"
+      ],
+      "total_prompt_tokens": 2061,
+      "total_completion_tokens": 1491
+    },
+    {
+      "case_id": "missing-required-argument",
+      "category": "contract",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-missing_required_argument",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-missing_required_argument:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected generate_config because experiment_id was missing.",
+          "error_type": "missing_required_argument",
+          "observation": {
+            "error": "Guard rejected generate_config because experiment_id was missing.",
+            "error_type": "missing_required_argument"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-repaired",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "config.yaml",
+            "experiment_id": "experiment-1"
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_required_argument:failed"
+          ],
+          "event_id": "generate-config-repaired:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/missing-required-argument/configs/missing-required-argument.yaml",
+            "artifacts": [
+              "runs/missing-required-argument/configs/missing-required-argument.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/missing-required-argument/configs/missing-required-argument.yaml",
+        "reports/missing-required-argument/psd.png",
+        "reports/missing-required-argument/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 2071,
+      "total_completion_tokens": 742
+    },
+    {
+      "case_id": "missing-required-argument",
+      "category": "contract",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-missing_required_argument",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-missing_required_argument:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected generate_config because experiment_id was missing.",
+          "error_type": "missing_required_argument",
+          "observation": {
+            "error": "Guard rejected generate_config because experiment_id was missing.",
+            "error_type": "missing_required_argument"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "call-generate-config-repair",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "experiment-1",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_required_argument:failed"
+          ],
+          "event_id": "call-generate-config-repair:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/missing-required-argument/configs/missing-required-argument.yaml",
+            "artifacts": [
+              "runs/missing-required-argument/configs/missing-required-argument.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/missing-required-argument/configs/missing-required-argument.yaml"
+      ],
+      "total_prompt_tokens": 2082,
+      "total_completion_tokens": 4214
+    },
+    {
+      "case_id": "missing-required-argument",
+      "category": "contract",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-missing_required_argument",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-missing_required_argument:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected generate_config because experiment_id was missing.",
+          "error_type": "missing_required_argument",
+          "observation": {
+            "error": "Guard rejected generate_config because experiment_id was missing.",
+            "error_type": "missing_required_argument"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "repair-generate-config-001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "repair-fix-001",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_required_argument:failed"
+          ],
+          "event_id": "repair-generate-config-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/missing-required-argument/configs/missing-required-argument.yaml",
+            "artifacts": [
+              "runs/missing-required-argument/configs/missing-required-argument.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/missing-required-argument/configs/missing-required-argument.yaml"
+      ],
+      "total_prompt_tokens": 2087,
+      "total_completion_tokens": 3778
+    },
+    {
+      "case_id": "unexpected-argument",
+      "category": "contract",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-unexpected_argument",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-unexpected_argument:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected run_training because argument 'shell' is not allowed.",
+          "error_type": "unexpected_argument",
+          "observation": {
+            "error": "Guard rejected run_training because argument 'shell' is not allowed.",
+            "error_type": "unexpected_argument"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "run-training-retry-no-shell",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "config.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-unexpected_argument:failed"
+          ],
+          "event_id": "run-training-retry-no-shell:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/unexpected-argument/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-artifacts",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/unexpected-argument",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "fixture-unexpected_argument:failed",
+            "run-training-retry-no-shell:succeeded"
+          ],
+          "event_id": "verify-artifacts:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/unexpected-argument/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "reports/unexpected-argument/psd.png"
+      ],
+      "total_prompt_tokens": 3333,
+      "total_completion_tokens": 6654
+    },
+    {
+      "case_id": "unexpected-argument",
+      "category": "contract",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-unexpected_argument",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-unexpected_argument:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected run_training because argument 'shell' is not allowed.",
+          "error_type": "unexpected_argument",
+          "observation": {
+            "error": "Guard rejected run_training because argument 'shell' is not allowed.",
+            "error_type": "unexpected_argument"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "retry_run_training_removing_shell",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "config.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-unexpected_argument:failed"
+          ],
+          "event_id": "retry_run_training_removing_shell:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/unexpected-argument/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "reports/unexpected-argument/psd.png"
+      ],
+      "total_prompt_tokens": 2067,
+      "total_completion_tokens": 10813
+    },
+    {
+      "case_id": "unexpected-argument",
+      "category": "contract",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-unexpected_argument",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-unexpected_argument:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected run_training because argument 'shell' is not allowed.",
+          "error_type": "unexpected_argument",
+          "observation": {
+            "error": "Guard rejected run_training because argument 'shell' is not allowed.",
+            "error_type": "unexpected_argument"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "retry-run-training-no-shell",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "config.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-unexpected_argument:failed"
+          ],
+          "event_id": "retry-run-training-no-shell:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/unexpected-argument/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "reports/unexpected-argument/psd.png"
+      ],
+      "total_prompt_tokens": 2059,
+      "total_completion_tokens": 5285
+    },
+    {
+      "case_id": "wrong-argument-type",
+      "category": "contract",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-wrong_argument_type",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-wrong_argument_type:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected run_training because config_path must be a string.",
+          "error_type": "wrong_argument_type",
+          "observation": {
+            "error": "Guard rejected run_training because config_path must be a string.",
+            "error_type": "wrong_argument_type"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "wrong_argument_type"
+          },
+          "caused_by_event_ids": [
+            "fixture-wrong_argument_type:failed"
+          ],
+          "event_id": "generate_config_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/wrong-argument-type/configs/wrong-argument-type.yaml",
+            "artifacts": [
+              "runs/wrong-argument-type/configs/wrong-argument-type.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_corrected",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/wrong-argument-type/configs/wrong-argument-type.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-wrong_argument_type:failed",
+            "generate_config_1:succeeded"
+          ],
+          "event_id": "run_training_corrected:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/wrong-argument-type/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/wrong-argument-type/configs/wrong-argument-type.yaml",
+        "reports/wrong-argument-type/psd.png",
+        "reports/wrong-argument-type/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 3357,
+      "total_completion_tokens": 6751
+    },
+    {
+      "case_id": "wrong-argument-type",
+      "category": "contract",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-wrong_argument_type",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-wrong_argument_type:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected run_training because config_path must be a string.",
+          "error_type": "wrong_argument_type",
+          "observation": {
+            "error": "Guard rejected run_training because config_path must be a string.",
+            "error_type": "wrong_argument_type"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "run-training-string",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "config.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-wrong_argument_type:failed"
+          ],
+          "event_id": "run-training-string:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/wrong-argument-type/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "reports/wrong-argument-type/psd.png"
+      ],
+      "total_prompt_tokens": 2053,
+      "total_completion_tokens": 6159
+    },
+    {
+      "case_id": "wrong-argument-type",
+      "category": "contract",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "guard_rejection"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 4,
+      "history": [
+        {
+          "action_id": "fixture-wrong_argument_type",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-wrong_argument_type:failed",
+          "run_status": "rejected",
+          "error": "Guard rejected run_training because config_path must be a string.",
+          "error_type": "wrong_argument_type",
+          "observation": {
+            "error": "Guard rejected run_training because config_path must be a string.",
+            "error_type": "wrong_argument_type"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "exp_001",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-wrong_argument_type:failed"
+          ],
+          "event_id": "generate-config-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/wrong-argument-type/configs/wrong-argument-type.yaml",
+            "artifacts": [
+              "runs/wrong-argument-type/configs/wrong-argument-type.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-corrected",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/wrong-argument-type/configs/wrong-argument-type.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-wrong_argument_type:failed"
+          ],
+          "event_id": "run-training-corrected:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/wrong-argument-type/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-artifacts-1",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/wrong-argument-type",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run-training-corrected:succeeded"
+          ],
+          "event_id": "verify-artifacts-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/wrong-argument-type/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/wrong-argument-type/configs/wrong-argument-type.yaml",
+        "reports/wrong-argument-type/psd.png"
+      ],
+      "total_prompt_tokens": 4805,
+      "total_completion_tokens": 5463
+    },
+    {
+      "case_id": "training-failure-recovery",
+      "category": "recovery",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 6,
+      "history": [
+        {
+          "action_id": "fixture-training_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-training_error:failed",
+          "run_status": "failed",
+          "error": "Training failed with a numerical divergence.",
+          "error_type": "training_error",
+          "observation": {
+            "error": "Training failed with a numerical divergence.",
+            "error_type": "training_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_recovery_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base.yaml",
+            "experiment_id": "recovery_1",
+            "overrides": {
+              "training.learning_rate": 1e-05,
+              "training.gradient_clip_val": 0.5
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-training_error:failed"
+          ],
+          "event_id": "generate_config_recovery_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+            "artifacts": [
+              "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_recovery_1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-training_error:failed",
+            "generate_config_recovery_1:succeeded"
+          ],
+          "event_id": "run_training_recovery_1:failed",
+          "run_status": "failed",
+          "error": "Injected training error",
+          "observation": {
+            "error": "Injected training error",
+            "error_type": "tool_error"
+          }
+        },
+        {
+          "action_id": "generate_config_recovery_2",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base.yaml",
+            "experiment_id": "recovery_2",
+            "overrides": {
+              "training.learning_rate": 1e-06,
+              "training.gradient_clip_val": 0.1
+            }
+          },
+          "caused_by_event_ids": [
+            "run_training_recovery_1:failed"
+          ],
+          "event_id": "generate_config_recovery_2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+            "artifacts": [
+              "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_recovery_2",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+          },
+          "caused_by_event_ids": [
+            "run_training_recovery_1:failed"
+          ],
+          "event_id": "run_training_recovery_2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/training-failure-recovery/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_artifacts_recovery_2",
+          "planner_call_id": "action-planner-005",
+          "round": 5,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/training-failure-recovery",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run_training_recovery_2:succeeded"
+          ],
+          "event_id": "verify_artifacts_recovery_2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/training-failure-recovery/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+        "reports/training-failure-recovery/psd.png",
+        "reports/training-failure-recovery/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 8268,
+      "total_completion_tokens": 10024
+    },
+    {
+      "case_id": "training-failure-recovery",
+      "category": "recovery",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "fixture-training_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-training_error:failed",
+          "run_status": "failed",
+          "error": "Training failed with a numerical divergence.",
+          "error_type": "training_error",
+          "observation": {
+            "error": "Training failed with a numerical divergence.",
+            "error_type": "training_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "recover-gen-config-1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "exp-recovery-1",
+            "overrides": {
+              "learning_rate": 0.0001,
+              "optimizer": "adam"
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-training_error:failed"
+          ],
+          "event_id": "recover-gen-config-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+            "artifacts": [
+              "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-recovered-1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-training_error:failed"
+          ],
+          "event_id": "run-training-recovered-1:failed",
+          "run_status": "failed",
+          "error": "Injected training error",
+          "observation": {
+            "error": "Injected training error",
+            "error_type": "tool_error"
+          }
+        },
+        {
+          "action_id": "recover-gen-config-2",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "exp-recovery-2",
+            "overrides": {
+              "learning_rate": 1e-05,
+              "optimizer": "sgd"
+            }
+          },
+          "caused_by_event_ids": [
+            "run-training-recovered-1:failed"
+          ],
+          "event_id": "recover-gen-config-2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+            "artifacts": [
+              "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-recovered-2",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+          },
+          "caused_by_event_ids": [
+            "run-training-recovered-1:failed"
+          ],
+          "event_id": "run-training-recovered-2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/training-failure-recovery/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+        "reports/training-failure-recovery/psd.png"
+      ],
+      "total_prompt_tokens": 6382,
+      "total_completion_tokens": 12383
+    },
+    {
+      "case_id": "training-failure-recovery",
+      "category": "recovery",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "fixture-training_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-training_error:failed",
+          "run_status": "failed",
+          "error": "Training failed with a numerical divergence.",
+          "error_type": "training_error",
+          "observation": {
+            "error": "Training failed with a numerical divergence.",
+            "error_type": "training_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "recover-generate-config",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "recovery_run",
+            "overrides": {
+              "optimizer": {
+                "lr": 0.0001
+              },
+              "training": {
+                "gradient_clipping": 1.0
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-training_error:failed"
+          ],
+          "event_id": "recover-generate-config:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+            "artifacts": [
+              "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-recovery",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-training_error:failed",
+            "recover-generate-config:succeeded"
+          ],
+          "event_id": "run-training-recovery:failed",
+          "run_status": "failed",
+          "error": "Injected training error",
+          "observation": {
+            "error": "Injected training error",
+            "error_type": "tool_error"
+          }
+        },
+        {
+          "action_id": "recover-generate-config-v2",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "recovery_run_v2",
+            "overrides": {
+              "optimizer": {
+                "lr": 1e-06
+              },
+              "training": {
+                "gradient_clipping": 0.1
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "run-training-recovery:failed"
+          ],
+          "event_id": "recover-generate-config-v2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+            "artifacts": [
+              "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-recovery-v2",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/training-failure-recovery/configs/training-failure-recovery.yaml"
+          },
+          "caused_by_event_ids": [
+            "run-training-recovery:failed",
+            "recover-generate-config-v2:succeeded"
+          ],
+          "event_id": "run-training-recovery-v2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/training-failure-recovery/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/training-failure-recovery/configs/training-failure-recovery.yaml",
+        "reports/training-failure-recovery/psd.png"
+      ],
+      "total_prompt_tokens": 6448,
+      "total_completion_tokens": 10327
+    },
+    {
+      "case_id": "threshold-failure-switch-candidate",
+      "category": "recovery",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 7,
+      "history": [
+        {
+          "action_id": "fixture-metric_threshold_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-metric_threshold_error:failed",
+          "run_status": "failed",
+          "error": "Verified NMSE -34.0 dB missed the -35.0 dB target.",
+          "error_type": "metric_threshold_error",
+          "observation": {
+            "error": "Verified NMSE -34.0 dB missed the -35.0 dB target.",
+            "error_type": "metric_threshold_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_switch_candidate",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "threshold_failure_switch_candidate",
+            "overrides": {
+              "model_type": "narmax"
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-metric_threshold_error:failed"
+          ],
+          "event_id": "generate_config_switch_candidate:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+            "artifacts": [
+              "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_switch_candidate",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-metric_threshold_error:failed",
+            "generate_config_switch_candidate:succeeded"
+          ],
+          "event_id": "run_training_switch_candidate:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_artifacts_switch_candidate",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "runs/threshold-failure-switch-candidate",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run_training_switch_candidate:succeeded"
+          ],
+          "event_id": "verify_artifacts_switch_candidate:failed",
+          "run_status": "failed",
+          "error": "NMSE -34.0 exceeds threshold -35.0",
+          "observation": {
+            "error": "NMSE -34.0 exceeds threshold -35.0",
+            "error_type": "metric_threshold_error"
+          }
+        },
+        {
+          "action_id": "generate_config_switch_candidate_nlarx",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "threshold_failure_switch_candidate_nlarx",
+            "overrides": {
+              "model_type": "nlarx"
+            }
+          },
+          "caused_by_event_ids": [
+            "verify_artifacts_switch_candidate:failed"
+          ],
+          "event_id": "generate_config_switch_candidate_nlarx:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+            "artifacts": [
+              "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_switch_candidate_nlarx",
+          "planner_call_id": "action-planner-005",
+          "round": 5,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "verify_artifacts_switch_candidate:failed",
+            "generate_config_switch_candidate_nlarx:succeeded"
+          ],
+          "event_id": "run_training_switch_candidate_nlarx:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_artifacts_switch_candidate_nlarx",
+          "planner_call_id": "action-planner-006",
+          "round": 6,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "runs/threshold-failure-switch-candidate",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run_training_switch_candidate_nlarx:succeeded",
+            "verify_artifacts_switch_candidate:failed"
+          ],
+          "event_id": "verify_artifacts_switch_candidate_nlarx:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+        "reports/threshold-failure-switch-candidate/psd.png",
+        "reports/threshold-failure-switch-candidate/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 10764,
+      "total_completion_tokens": 13404
+    },
+    {
+      "case_id": "threshold-failure-switch-candidate",
+      "category": "recovery",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 7,
+      "history": [
+        {
+          "action_id": "fixture-metric_threshold_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-metric_threshold_error:failed",
+          "run_status": "failed",
+          "error": "Verified NMSE -34.0 dB missed the -35.0 dB target.",
+          "error_type": "metric_threshold_error",
+          "observation": {
+            "error": "Verified NMSE -34.0 dB missed the -35.0 dB target.",
+            "error_type": "metric_threshold_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "exp_002",
+            "overrides": {
+              "model_type": "polynomial"
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-metric_threshold_error:failed"
+          ],
+          "event_id": "generate_config_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+            "artifacts": [
+              "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-metric_threshold_error:failed",
+            "generate_config_1:succeeded"
+          ],
+          "event_id": "run_training_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_artifacts_1",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/threshold-failure-switch-candidate",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "fixture-metric_threshold_error:failed",
+            "run_training_1:succeeded"
+          ],
+          "event_id": "verify_artifacts_1:failed",
+          "run_status": "failed",
+          "error": "NMSE -34.0 exceeds threshold -35.0",
+          "observation": {
+            "error": "NMSE -34.0 exceeds threshold -35.0",
+            "error_type": "metric_threshold_error"
+          }
+        },
+        {
+          "action_id": "generate_config_2",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "exp_003",
+            "overrides": {
+              "model_type": "neural_network"
+            }
+          },
+          "caused_by_event_ids": [
+            "verify_artifacts_1:failed"
+          ],
+          "event_id": "generate_config_2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+            "artifacts": [
+              "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_2",
+          "planner_call_id": "action-planner-005",
+          "round": 5,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "verify_artifacts_1:failed",
+            "generate_config_2:succeeded"
+          ],
+          "event_id": "run_training_2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_artifacts_2",
+          "planner_call_id": "action-planner-006",
+          "round": 6,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/threshold-failure-switch-candidate",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "verify_artifacts_1:failed",
+            "run_training_2:succeeded"
+          ],
+          "event_id": "verify_artifacts_2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+        "reports/threshold-failure-switch-candidate/psd.png"
+      ],
+      "total_prompt_tokens": 10586,
+      "total_completion_tokens": 10849
+    },
+    {
+      "case_id": "threshold-failure-switch-candidate",
+      "category": "recovery",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 7,
+      "history": [
+        {
+          "action_id": "fixture-metric_threshold_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-metric_threshold_error:failed",
+          "run_status": "failed",
+          "error": "Verified NMSE -34.0 dB missed the -35.0 dB target.",
+          "error_type": "metric_threshold_error",
+          "observation": {
+            "error": "Verified NMSE -34.0 dB missed the -35.0 dB target.",
+            "error_type": "metric_threshold_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-switch-candidate",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "threshold-failure-switch-candidate-round-1",
+            "overrides": {
+              "candidate": "candidate_b"
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-metric_threshold_error:failed"
+          ],
+          "event_id": "generate-config-switch-candidate:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+            "artifacts": [
+              "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-candidate-b",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-metric_threshold_error:failed",
+            "generate-config-switch-candidate:succeeded"
+          ],
+          "event_id": "run-training-candidate-b:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-artifacts-candidate-b",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/threshold-failure-switch-candidate",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "fixture-metric_threshold_error:failed",
+            "run-training-candidate-b:succeeded"
+          ],
+          "event_id": "verify-artifacts-candidate-b:failed",
+          "run_status": "failed",
+          "error": "NMSE -34.0 exceeds threshold -35.0",
+          "observation": {
+            "error": "NMSE -34.0 exceeds threshold -35.0",
+            "error_type": "metric_threshold_error"
+          }
+        },
+        {
+          "action_id": "generate-config-switch-candidate-c",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "threshold-failure-switch-candidate-round-2",
+            "overrides": {
+              "candidate": "candidate_c"
+            }
+          },
+          "caused_by_event_ids": [
+            "verify-artifacts-candidate-b:failed"
+          ],
+          "event_id": "generate-config-switch-candidate-c:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+            "artifacts": [
+              "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-candidate-c",
+          "planner_call_id": "action-planner-005",
+          "round": 5,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "verify-artifacts-candidate-b:failed",
+            "generate-config-switch-candidate-c:succeeded"
+          ],
+          "event_id": "run-training-candidate-c:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-artifacts-candidate-c",
+          "planner_call_id": "action-planner-006",
+          "round": 6,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/threshold-failure-switch-candidate",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "verify-artifacts-candidate-b:failed",
+            "run-training-candidate-c:succeeded"
+          ],
+          "event_id": "verify-artifacts-candidate-c:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/threshold-failure-switch-candidate/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/threshold-failure-switch-candidate/configs/threshold-failure-switch-candidate.yaml",
+        "reports/threshold-failure-switch-candidate/psd.png"
+      ],
+      "total_prompt_tokens": 10710,
+      "total_completion_tokens": 11774
+    },
+    {
+      "case_id": "timeout-reduce-training-budget",
+      "category": "recovery",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-timeout_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-timeout_error:failed",
+          "run_status": "failed",
+          "error": "Training exceeded the allowed timeout.",
+          "error_type": "timeout_error",
+          "observation": {
+            "error": "Training exceeded the allowed timeout.",
+            "error_type": "timeout_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-reduced-budget-1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "timeout_retry_reduced_budget",
+            "overrides": {
+              "training_budget": 100
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-timeout_error:failed"
+          ],
+          "event_id": "generate-config-reduced-budget-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml",
+            "artifacts": [
+              "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-reduced-budget-1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-timeout_error:failed",
+            "generate-config-reduced-budget-1:succeeded"
+          ],
+          "event_id": "run-training-reduced-budget-1:failed",
+          "run_status": "failed",
+          "error": "Injected training timeout",
+          "observation": {
+            "error": "Injected training timeout",
+            "error_type": "timeout_error"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+      ],
+      "total_prompt_tokens": 3361,
+      "total_completion_tokens": 6945
+    },
+    {
+      "case_id": "timeout-reduce-training-budget",
+      "category": "recovery",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-timeout_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-timeout_error:failed",
+          "run_status": "failed",
+          "error": "Training exceeded the allowed timeout.",
+          "error_type": "timeout_error",
+          "observation": {
+            "error": "Training exceeded the allowed timeout.",
+            "error_type": "timeout_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-reduced-budget",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "config.yaml",
+            "experiment_id": "timeout-reduce-training-budget-retry",
+            "overrides": {
+              "training": {
+                "max_steps": 500
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-timeout_error:failed"
+          ],
+          "event_id": "generate-config-reduced-budget:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml",
+            "artifacts": [
+              "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-reduced-budget",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+          },
+          "caused_by_event_ids": [
+            "generate-config-reduced-budget:succeeded"
+          ],
+          "event_id": "run-training-reduced-budget:failed",
+          "run_status": "failed",
+          "error": "Injected training timeout",
+          "observation": {
+            "error": "Injected training timeout",
+            "error_type": "timeout_error"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+      ],
+      "total_prompt_tokens": 3344,
+      "total_completion_tokens": 3101
+    },
+    {
+      "case_id": "timeout-reduce-training-budget",
+      "category": "recovery",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-timeout_error",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-timeout_error:failed",
+          "run_status": "failed",
+          "error": "Training exceeded the allowed timeout.",
+          "error_type": "timeout_error",
+          "observation": {
+            "error": "Training exceeded the allowed timeout.",
+            "error_type": "timeout_error"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_retry_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "config.yaml",
+            "experiment_id": "timeout-reduce-training-budget-retry",
+            "overrides": {
+              "training_budget": 100
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-timeout_error:failed"
+          ],
+          "event_id": "generate_config_retry_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml",
+            "artifacts": [
+              "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_retry_1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-timeout_error:failed",
+            "generate_config_retry_1:succeeded"
+          ],
+          "event_id": "run_training_retry_1:failed",
+          "run_status": "failed",
+          "error": "Injected training timeout",
+          "observation": {
+            "error": "Injected training timeout",
+            "error_type": "timeout_error"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/timeout-reduce-training-budget/configs/timeout-reduce-training-budget.yaml"
+      ],
+      "total_prompt_tokens": 3354,
+      "total_completion_tokens": 4166
+    },
+    {
+      "case_id": "missing-artifact-reverify",
+      "category": "artifact",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 7,
+      "history": [
+        {
+          "action_id": "fixture-missing_psd",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-missing_psd:failed",
+          "run_status": "failed",
+          "error": "PSD artifact is missing after training.",
+          "error_type": "missing_psd",
+          "observation": {
+            "error": "PSD artifact is missing after training.",
+            "error_type": "missing_psd"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-recovery",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "missing-artifact-reverify"
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_psd:failed"
+          ],
+          "event_id": "generate-config-recovery:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml",
+            "artifacts": [
+              "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-recovery",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_psd:failed",
+            "generate-config-recovery:succeeded"
+          ],
+          "event_id": "run-training-recovery:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/missing-artifact-reverify/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-recovery",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/missing-artifact-reverify",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_psd:failed",
+            "run-training-recovery:succeeded"
+          ],
+          "event_id": "verify-recovery:failed",
+          "run_status": "failed",
+          "error": "Injected missing PSD artifact",
+          "observation": {
+            "error": "Injected missing PSD artifact",
+            "error_type": "tool_error"
+          }
+        },
+        {
+          "action_id": "generate-config-recovery-2",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "missing-artifact-reverify",
+            "overrides": {
+              "output_psd": true
+            }
+          },
+          "caused_by_event_ids": [
+            "verify-recovery:failed"
+          ],
+          "event_id": "generate-config-recovery-2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml",
+            "artifacts": [
+              "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-recovery-2",
+          "planner_call_id": "action-planner-005",
+          "round": 5,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml"
+          },
+          "caused_by_event_ids": [
+            "verify-recovery:failed",
+            "generate-config-recovery-2:succeeded"
+          ],
+          "event_id": "run-training-recovery-2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/missing-artifact-reverify/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-recovery-2",
+          "planner_call_id": "action-planner-006",
+          "round": 6,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/missing-artifact-reverify",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "verify-recovery:failed",
+            "run-training-recovery-2:succeeded"
+          ],
+          "event_id": "verify-recovery-2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/missing-artifact-reverify/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml",
+        "reports/missing-artifact-reverify/psd.png"
+      ],
+      "total_prompt_tokens": 10128,
+      "total_completion_tokens": 15692
+    },
+    {
+      "case_id": "missing-artifact-reverify",
+      "category": "artifact",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "fixture-missing_psd",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-missing_psd:failed",
+          "run_status": "failed",
+          "error": "PSD artifact is missing after training.",
+          "error_type": "missing_psd",
+          "observation": {
+            "error": "PSD artifact is missing after training.",
+            "error_type": "missing_psd"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_for_recovery",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "recovery_missing_psd",
+            "overrides": {
+              "psd": {
+                "enabled": true
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_psd:failed"
+          ],
+          "event_id": "generate_config_for_recovery:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml",
+            "artifacts": [
+              "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_for_recovery",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_psd:failed",
+            "generate_config_for_recovery:succeeded"
+          ],
+          "event_id": "run_training_for_recovery:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/missing-artifact-reverify/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_after_recovery",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/missing-artifact-reverify",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run_training_for_recovery:succeeded"
+          ],
+          "event_id": "verify_after_recovery:failed",
+          "run_status": "failed",
+          "error": "Injected missing PSD artifact",
+          "observation": {
+            "error": "Injected missing PSD artifact",
+            "error_type": "tool_error"
+          }
+        },
+        {
+          "action_id": "verify_retry_after_recovery",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/missing-artifact-reverify",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "verify_after_recovery:failed"
+          ],
+          "event_id": "verify_retry_after_recovery:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/missing-artifact-reverify/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml",
+        "reports/missing-artifact-reverify/psd.png"
+      ],
+      "total_prompt_tokens": 6468,
+      "total_completion_tokens": 8761
+    },
+    {
+      "case_id": "missing-artifact-reverify",
+      "category": "artifact",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "fixture-missing_psd",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-missing_psd:failed",
+          "run_status": "failed",
+          "error": "PSD artifact is missing after training.",
+          "error_type": "missing_psd",
+          "observation": {
+            "error": "PSD artifact is missing after training.",
+            "error_type": "missing_psd"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "gen-config-1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "reverify"
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_psd:failed"
+          ],
+          "event_id": "gen-config-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml",
+            "artifacts": [
+              "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-missing_psd:failed"
+          ],
+          "event_id": "run-training-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/missing-artifact-reverify/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-1",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/missing-artifact-reverify",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run-training-1:succeeded"
+          ],
+          "event_id": "verify-1:failed",
+          "run_status": "failed",
+          "error": "Injected missing PSD artifact",
+          "observation": {
+            "error": "Injected missing PSD artifact",
+            "error_type": "tool_error"
+          }
+        },
+        {
+          "action_id": "verify-retry-1",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/missing-artifact-reverify",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "verify-1:failed"
+          ],
+          "event_id": "verify-retry-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/missing-artifact-reverify/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/missing-artifact-reverify/configs/missing-artifact-reverify.yaml",
+        "reports/missing-artifact-reverify/psd.png"
+      ],
+      "total_prompt_tokens": 6317,
+      "total_completion_tokens": 12044
+    },
+    {
+      "case_id": "verify-before-report",
+      "category": "workflow",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "tool_order",
+        "required_artifact"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "act-001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "exp_verify_before_report",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [],
+          "event_id": "act-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/verify-before-report/configs/verify-before-report.yaml",
+            "artifacts": [
+              "runs/verify-before-report/configs/verify-before-report.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "act-002",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/verify-before-report/configs/verify-before-report.yaml"
+          },
+          "caused_by_event_ids": [
+            "act-001:succeeded"
+          ],
+          "event_id": "act-002:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "act-003",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/verify-before-report",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "act-002:succeeded"
+          ],
+          "event_id": "act-003:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        },
+        {
+          "action_id": "act-004",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "write_report",
+          "arguments": {
+            "session_id": "verify-before-report",
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ]
+          },
+          "caused_by_event_ids": [
+            "act-003:succeeded"
+          ],
+          "event_id": "act-004:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "artifacts": [
+              "reports/verify-before-report/agent-harness-report.md"
+            ],
+            "context_summary": "fixture report written"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/verify-before-report/configs/verify-before-report.yaml",
+        "reports/verify-before-report/psd.png",
+        "reports/verify-before-report/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 5646,
+      "total_completion_tokens": 3911
+    },
+    {
+      "case_id": "verify-before-report",
+      "category": "workflow",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "tool_order",
+        "required_artifact"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "call_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/verify-before-report.yaml",
+            "experiment_id": "verify-before-report",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [],
+          "event_id": "call_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/verify-before-report/configs/verify-before-report.yaml",
+            "artifacts": [
+              "runs/verify-before-report/configs/verify-before-report.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "call_2",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/verify-before-report/configs/verify-before-report.yaml"
+          },
+          "caused_by_event_ids": [
+            "call_1:succeeded"
+          ],
+          "event_id": "call_2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "call_3",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/verify-before-report",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "call_2:succeeded"
+          ],
+          "event_id": "call_3:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        },
+        {
+          "action_id": "action-planner-004",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "write_report",
+          "arguments": {
+            "session_id": "verify-before-report",
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ]
+          },
+          "caused_by_event_ids": [
+            "call_3:succeeded"
+          ],
+          "event_id": "action-planner-004:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "artifacts": [
+              "reports/verify-before-report/agent-harness-report.md"
+            ],
+            "context_summary": "fixture report written"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/verify-before-report/configs/verify-before-report.yaml",
+        "reports/verify-before-report/psd.png",
+        "reports/verify-before-report/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 5662,
+      "total_completion_tokens": 3023
+    },
+    {
+      "case_id": "verify-before-report",
+      "category": "workflow",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "tool_order",
+        "required_artifact"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "gen_config_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/verify_before_report.yaml",
+            "experiment_id": "verify_before_report_run",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [],
+          "event_id": "gen_config_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/verify-before-report/configs/verify-before-report.yaml",
+            "artifacts": [
+              "runs/verify-before-report/configs/verify-before-report.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/verify-before-report/configs/verify-before-report.yaml"
+          },
+          "caused_by_event_ids": [
+            "gen_config_1:succeeded"
+          ],
+          "event_id": "run_training_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_artifacts_1",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/verify-before-report",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run_training_1:succeeded"
+          ],
+          "event_id": "verify_artifacts_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        },
+        {
+          "action_id": "write_report_1",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "write_report",
+          "arguments": {
+            "session_id": "verify-before-report",
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/verify-before-report/psd.png"
+            ]
+          },
+          "caused_by_event_ids": [
+            "verify_artifacts_1:succeeded"
+          ],
+          "event_id": "write_report_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "artifacts": [
+              "reports/verify-before-report/agent-harness-report.md"
+            ],
+            "context_summary": "fixture report written"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/verify-before-report/configs/verify-before-report.yaml",
+        "reports/verify-before-report/psd.png",
+        "reports/verify-before-report/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 5711,
+      "total_completion_tokens": 3464
+    },
+    {
+      "case_id": "stop-after-target-hit",
+      "category": "control",
+      "attempt": 1,
+      "passed": false,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "forbidden_tools"
+      ],
+      "failed_checks": [
+        "required_tools",
+        "required_metric"
+      ],
+      "status": "stopped",
+      "planner_call_count": 1,
+      "history": [],
+      "metrics": {},
+      "artifacts": [],
+      "total_prompt_tokens": 822,
+      "total_completion_tokens": 1807
+    },
+    {
+      "case_id": "stop-after-target-hit",
+      "category": "control",
+      "attempt": 2,
+      "passed": false,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget"
+      ],
+      "failed_checks": [
+        "required_tools",
+        "forbidden_tools",
+        "required_metric"
+      ],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "act-001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/nonlinear_modeling.yaml",
+            "experiment_id": "exp-nonlinear-001",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [],
+          "event_id": "act-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/stop-after-target-hit/configs/stop-after-target-hit.yaml",
+            "artifacts": [
+              "runs/stop-after-target-hit/configs/stop-after-target-hit.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/stop-after-target-hit/configs/stop-after-target-hit.yaml"
+      ],
+      "total_prompt_tokens": 1808,
+      "total_completion_tokens": 2239
+    },
+    {
+      "case_id": "stop-after-target-hit",
+      "category": "control",
+      "attempt": 3,
+      "passed": false,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "forbidden_tools"
+      ],
+      "failed_checks": [
+        "required_tools",
+        "required_metric"
+      ],
+      "status": "stopped",
+      "planner_call_count": 1,
+      "history": [],
+      "metrics": {},
+      "artifacts": [],
+      "total_prompt_tokens": 822,
+      "total_completion_tokens": 241
+    },
+    {
+      "case_id": "hard-action-budget-stop",
+      "category": "control",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "max_actions_reached",
+      "planner_call_count": 1,
+      "history": [
+        {
+          "action_id": "action-1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "exp_hard_action_budget",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [],
+          "event_id": "action-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml",
+            "artifacts": [
+              "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml"
+      ],
+      "total_prompt_tokens": 828,
+      "total_completion_tokens": 1082
+    },
+    {
+      "case_id": "hard-action-budget-stop",
+      "category": "control",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "max_actions_reached",
+      "planner_call_count": 1,
+      "history": [
+        {
+          "action_id": "gen-config-001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "hard-action-budget-stop",
+            "overrides": {
+              "parameter_count_max": 4000,
+              "nmse_threshold_db": -35.0,
+              "domain": "nonlinear-modeling",
+              "benchmark_case_id": "hard-action-budget-stop"
+            }
+          },
+          "caused_by_event_ids": [],
+          "event_id": "gen-config-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml",
+            "artifacts": [
+              "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml"
+      ],
+      "total_prompt_tokens": 828,
+      "total_completion_tokens": 1609
+    },
+    {
+      "case_id": "hard-action-budget-stop",
+      "category": "control",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "max_actions_reached",
+      "planner_call_count": 1,
+      "history": [
+        {
+          "action_id": "gen_config_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "hard-action-budget-stop",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [],
+          "event_id": "gen_config_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml",
+            "artifacts": [
+              "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/hard-action-budget-stop/configs/hard-action-budget-stop.yaml"
+      ],
+      "total_prompt_tokens": 828,
+      "total_completion_tokens": 1191
+    },
+    {
+      "case_id": "avoid-duplicate-candidate",
+      "category": "history",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-duplicate_candidate",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-duplicate_candidate:failed",
+          "run_status": "failed",
+          "error": "Candidate config hash duplicates the previous trial.",
+          "error_type": "duplicate_candidate",
+          "observation": {
+            "error": "Candidate config hash duplicates the previous trial.",
+            "error_type": "duplicate_candidate"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base.yaml",
+            "experiment_id": "trial-002",
+            "overrides": {
+              "seed": 1234
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-duplicate_candidate:failed"
+          ],
+          "event_id": "generate-config-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml",
+            "artifacts": [
+              "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-001",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "generate-config-001:succeeded"
+          ],
+          "event_id": "run-training-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/avoid-duplicate-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml",
+        "reports/avoid-duplicate-candidate/psd.png",
+        "reports/avoid-duplicate-candidate/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 3350,
+      "total_completion_tokens": 5617
+    },
+    {
+      "case_id": "avoid-duplicate-candidate",
+      "category": "history",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-duplicate_candidate",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-duplicate_candidate:failed",
+          "run_status": "failed",
+          "error": "Candidate config hash duplicates the previous trial.",
+          "error_type": "duplicate_candidate",
+          "observation": {
+            "error": "Candidate config hash duplicates the previous trial.",
+            "error_type": "duplicate_candidate"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "gen-config-1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base.yaml",
+            "experiment_id": "exp-avoid-duplicate",
+            "overrides": {
+              "seed": 12345
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-duplicate_candidate:failed"
+          ],
+          "event_id": "gen-config-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml",
+            "artifacts": [
+              "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-1",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "gen-config-1:succeeded"
+          ],
+          "event_id": "run-training-1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/avoid-duplicate-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml",
+        "reports/avoid-duplicate-candidate/psd.png"
+      ],
+      "total_prompt_tokens": 3352,
+      "total_completion_tokens": 13565
+    },
+    {
+      "case_id": "avoid-duplicate-candidate",
+      "category": "history",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-duplicate_candidate",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-duplicate_candidate:failed",
+          "run_status": "failed",
+          "error": "Candidate config hash duplicates the previous trial.",
+          "error_type": "duplicate_candidate",
+          "observation": {
+            "error": "Candidate config hash duplicates the previous trial.",
+            "error_type": "duplicate_candidate"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "gen-config-avoid-dup",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "exp-avoid-dup-001",
+            "overrides": {
+              "seed": 12345
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-duplicate_candidate:failed"
+          ],
+          "event_id": "gen-config-avoid-dup:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml",
+            "artifacts": [
+              "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-avoid-dup",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml"
+          },
+          "caused_by_event_ids": [
+            "gen-config-avoid-dup:succeeded"
+          ],
+          "event_id": "run-training-avoid-dup:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/avoid-duplicate-candidate/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/avoid-duplicate-candidate/configs/avoid-duplicate-candidate.yaml",
+        "reports/avoid-duplicate-candidate/psd.png"
+      ],
+      "total_prompt_tokens": 3374,
+      "total_completion_tokens": 9098
+    },
+    {
+      "case_id": "reuse-history-best",
+      "category": "history",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "required_metric"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-historical_best_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-historical_best_available:failed",
+          "run_status": "failed",
+          "error": "Trace-backed best candidate reached -42.26 dB.",
+          "error_type": "historical_best_available",
+          "observation": {
+            "error": "Trace-backed best candidate reached -42.26 dB.",
+            "error_type": "historical_best_available"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "gen_config_reuse_hist_best",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/best_previous.yaml",
+            "experiment_id": "reuse-history-best",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-historical_best_available:failed"
+          ],
+          "event_id": "gen_config_reuse_hist_best:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/reuse-history-best/configs/reuse-history-best.yaml",
+            "artifacts": [
+              "runs/reuse-history-best/configs/reuse-history-best.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/reuse-history-best/configs/reuse-history-best.yaml",
+        "reports/reuse-history-best/psd.png"
+      ],
+      "total_prompt_tokens": 2111,
+      "total_completion_tokens": 3705
+    },
+    {
+      "case_id": "reuse-history-best",
+      "category": "history",
+      "attempt": 2,
+      "passed": false,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [
+        "required_metric"
+      ],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-historical_best_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-historical_best_available:failed",
+          "run_status": "failed",
+          "error": "Trace-backed best candidate reached -42.26 dB.",
+          "error_type": "historical_best_available",
+          "observation": {
+            "error": "Trace-backed best candidate reached -42.26 dB.",
+            "error_type": "historical_best_available"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "gen-cand-001",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/historical_best.yaml",
+            "experiment_id": "next_candidate_after_best",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-historical_best_available:failed"
+          ],
+          "event_id": "gen-cand-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/reuse-history-best/configs/reuse-history-best.yaml",
+            "artifacts": [
+              "runs/reuse-history-best/configs/reuse-history-best.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/reuse-history-best/configs/reuse-history-best.yaml"
+      ],
+      "total_prompt_tokens": 2109,
+      "total_completion_tokens": 2748
+    },
+    {
+      "case_id": "reuse-history-best",
+      "category": "history",
+      "attempt": 3,
+      "passed": false,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [
+        "required_metric"
+      ],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-historical_best_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-historical_best_available:failed",
+          "run_status": "failed",
+          "error": "Trace-backed best candidate reached -42.26 dB.",
+          "error_type": "historical_best_available",
+          "observation": {
+            "error": "Trace-backed best candidate reached -42.26 dB.",
+            "error_type": "historical_best_available"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-next-candidate-01",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "historical_best.yaml",
+            "experiment_id": "next_candidate",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-historical_best_available:failed"
+          ],
+          "event_id": "generate-next-candidate-01:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/reuse-history-best/configs/reuse-history-best.yaml",
+            "artifacts": [
+              "runs/reuse-history-best/configs/reuse-history-best.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/reuse-history-best/configs/reuse-history-best.yaml"
+      ],
+      "total_prompt_tokens": 2103,
+      "total_completion_tokens": 3168
+    },
+    {
+      "case_id": "consume-reflection-facts",
+      "category": "reflection",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 7,
+      "history": [
+        {
+          "action_id": "fixture-reflection_fact_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-reflection_fact_available:failed",
+          "run_status": "failed",
+          "error": "Failure fact: the previous model diverged during training.",
+          "error_type": "reflection_fact_available",
+          "observation": {
+            "error": "Failure fact: the previous model diverged during training.",
+            "error_type": "reflection_fact_available"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-after-reflection",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "experiment-002",
+            "overrides": {
+              "optimizer": {
+                "lr": 0.0001,
+                "clip_grad_norm": 1.0
+              },
+              "model": {
+                "hidden_size": 32,
+                "num_layers": 2
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-reflection_fact_available:failed"
+          ],
+          "event_id": "generate-config-after-reflection:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml",
+            "artifacts": [
+              "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-after-reflection",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-reflection_fact_available:failed",
+            "generate-config-after-reflection:succeeded"
+          ],
+          "event_id": "run-training-after-reflection:failed",
+          "run_status": "failed",
+          "error": "Injected training error",
+          "observation": {
+            "error": "Injected training error",
+            "error_type": "tool_error"
+          }
+        },
+        {
+          "action_id": "generate-config-after-training-failure",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "experiment-003",
+            "overrides": {
+              "optimizer": {
+                "lr": 1e-05,
+                "clip_grad_norm": 0.5
+              },
+              "model": {
+                "hidden_size": 16,
+                "num_layers": 1
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "run-training-after-reflection:failed",
+            "fixture-reflection_fact_available:failed"
+          ],
+          "event_id": "generate-config-after-training-failure:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml",
+            "artifacts": [
+              "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-after-config",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+          },
+          "caused_by_event_ids": [
+            "generate-config-after-training-failure:succeeded",
+            "run-training-after-reflection:failed"
+          ],
+          "event_id": "run-training-after-config:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/consume-reflection-facts/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-artifacts-after-success",
+          "planner_call_id": "action-planner-005",
+          "round": 5,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/consume-reflection-facts",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run-training-after-config:succeeded"
+          ],
+          "event_id": "verify-artifacts-after-success:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/consume-reflection-facts/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        },
+        {
+          "action_id": "write-report-after-verification",
+          "planner_call_id": "action-planner-006",
+          "round": 6,
+          "tool_name": "write_report",
+          "arguments": {
+            "session_id": "consume-reflection-facts",
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/consume-reflection-facts/psd.png"
+            ]
+          },
+          "caused_by_event_ids": [
+            "verify-artifacts-after-success:succeeded"
+          ],
+          "event_id": "write-report-after-verification:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "artifacts": [
+              "reports/consume-reflection-facts/agent-harness-report.md"
+            ],
+            "context_summary": "fixture report written"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml",
+        "reports/consume-reflection-facts/psd.png",
+        "reports/consume-reflection-facts/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 10638,
+      "total_completion_tokens": 13719
+    },
+    {
+      "case_id": "consume-reflection-facts",
+      "category": "reflection",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "fixture-reflection_fact_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-reflection_fact_available:failed",
+          "run_status": "failed",
+          "error": "Failure fact: the previous model diverged during training.",
+          "error_type": "reflection_fact_available",
+          "observation": {
+            "error": "Failure fact: the previous model diverged during training.",
+            "error_type": "reflection_fact_available"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-after-reflection",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "experiment_after_reflection",
+            "overrides": {
+              "training": {
+                "learning_rate": 0.0001,
+                "gradient_clip_norm": 1.0,
+                "max_steps": 3000
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-reflection_fact_available:failed"
+          ],
+          "event_id": "generate-config-after-reflection:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml",
+            "artifacts": [
+              "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-after-reflection",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-reflection_fact_available:failed",
+            "generate-config-after-reflection:succeeded"
+          ],
+          "event_id": "run-training-after-reflection:failed",
+          "run_status": "failed",
+          "error": "Injected training error",
+          "observation": {
+            "error": "Injected training error",
+            "error_type": "tool_error"
+          }
+        },
+        {
+          "action_id": "generate-config-after-reflection-v2",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "experiment_after_reflection_v2",
+            "overrides": {
+              "training": {
+                "learning_rate": 1e-05,
+                "gradient_clip_norm": 0.5,
+                "max_steps": 1500
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-reflection_fact_available:failed",
+            "run-training-after-reflection:failed"
+          ],
+          "event_id": "generate-config-after-reflection-v2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml",
+            "artifacts": [
+              "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-after-reflection-v2",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-reflection_fact_available:failed",
+            "run-training-after-reflection:failed"
+          ],
+          "event_id": "run-training-after-reflection-v2:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/consume-reflection-facts/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml",
+        "reports/consume-reflection-facts/psd.png"
+      ],
+      "total_prompt_tokens": 6672,
+      "total_completion_tokens": 12569
+    },
+    {
+      "case_id": "consume-reflection-facts",
+      "category": "reflection",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools",
+        "causal_recovery"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 3,
+      "history": [
+        {
+          "action_id": "fixture-reflection_fact_available",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-reflection_fact_available:failed",
+          "run_status": "failed",
+          "error": "Failure fact: the previous model diverged during training.",
+          "error_type": "reflection_fact_available",
+          "observation": {
+            "error": "Failure fact: the previous model diverged during training.",
+            "error_type": "reflection_fact_available"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate-config-after-divergence",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "exp-reflect-fix-001",
+            "overrides": {
+              "optimizer": {
+                "lr": 0.0001
+              },
+              "training": {
+                "gradient_clip_val": 1.0
+              }
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-reflection_fact_available:failed"
+          ],
+          "event_id": "generate-config-after-divergence:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml",
+            "artifacts": [
+              "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-after-divergence-fix",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+          },
+          "caused_by_event_ids": [
+            "fixture-reflection_fact_available:failed",
+            "generate-config-after-divergence:succeeded"
+          ],
+          "event_id": "run-training-after-divergence-fix:failed",
+          "run_status": "failed",
+          "error": "Injected training error",
+          "observation": {
+            "error": "Injected training error",
+            "error_type": "tool_error"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/consume-reflection-facts/configs/consume-reflection-facts.yaml"
+      ],
+      "total_prompt_tokens": 3444,
+      "total_completion_tokens": 7427
+    },
+    {
+      "case_id": "resolve-conflicting-history",
+      "category": "history",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 5,
+      "history": [
+        {
+          "action_id": "fixture-conflicting_history",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-conflicting_history:failed",
+          "run_status": "failed",
+          "error": "Older evidence says -38 dB; newer verified trace says -42 dB.",
+          "error_type": "conflicting_history",
+          "observation": {
+            "error": "Older evidence says -38 dB; newer verified trace says -42 dB.",
+            "error_type": "conflicting_history"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "resolve-conflict-newest-trace",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "resolve-conflicting-history-001",
+            "overrides": {
+              "prefer_newer_trace": true,
+              "expected_nmse_db": -42.0
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-conflicting_history:failed"
+          ],
+          "event_id": "resolve-conflict-newest-trace:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml",
+            "artifacts": [
+              "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run-training-resolve-conflicting-history-001",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml"
+          },
+          "caused_by_event_ids": [
+            "resolve-conflict-newest-trace:succeeded"
+          ],
+          "event_id": "run-training-resolve-conflicting-history-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/resolve-conflicting-history/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify-resolve-conflicting-history-001",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/resolve-conflicting-history",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run-training-resolve-conflicting-history-001:succeeded"
+          ],
+          "event_id": "verify-resolve-conflicting-history-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/resolve-conflicting-history/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        },
+        {
+          "action_id": "write-report-resolve-conflicting-history-001",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "write_report",
+          "arguments": {
+            "session_id": "resolve-conflicting-history-001",
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml",
+              "reports/resolve-conflicting-history/psd.png"
+            ]
+          },
+          "caused_by_event_ids": [
+            "verify-resolve-conflicting-history-001:succeeded"
+          ],
+          "event_id": "write-report-resolve-conflicting-history-001:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "artifacts": [
+              "reports/resolve-conflicting-history/agent-harness-report.md"
+            ],
+            "context_summary": "fixture report written"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml",
+        "reports/resolve-conflicting-history/psd.png",
+        "reports/resolve-conflicting-history/agent-harness-report.md"
+      ],
+      "total_prompt_tokens": 6612,
+      "total_completion_tokens": 17377
+    },
+    {
+      "case_id": "resolve-conflicting-history",
+      "category": "history",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 4,
+      "history": [
+        {
+          "action_id": "fixture-conflicting_history",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-conflicting_history:failed",
+          "run_status": "failed",
+          "error": "Older evidence says -38 dB; newer verified trace says -42 dB.",
+          "error_type": "conflicting_history",
+          "observation": {
+            "error": "Older evidence says -38 dB; newer verified trace says -42 dB.",
+            "error_type": "conflicting_history"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_newer_trace",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/conflicting_history_newer.yaml",
+            "experiment_id": "resolve_conflicting_history"
+          },
+          "caused_by_event_ids": [
+            "fixture-conflicting_history:failed"
+          ],
+          "event_id": "generate_config_newer_trace:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml",
+            "artifacts": [
+              "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_newer_trace",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml"
+          },
+          "caused_by_event_ids": [
+            "generate_config_newer_trace:succeeded",
+            "fixture-conflicting_history:failed"
+          ],
+          "event_id": "run_training_newer_trace:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/resolve-conflicting-history/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_newer_trace_after_training",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "reports/resolve-conflicting-history",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run_training_newer_trace:succeeded"
+          ],
+          "event_id": "verify_newer_trace_after_training:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/resolve-conflicting-history/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml",
+        "reports/resolve-conflicting-history/psd.png"
+      ],
+      "total_prompt_tokens": 4855,
+      "total_completion_tokens": 10806
+    },
+    {
+      "case_id": "resolve-conflicting-history",
+      "category": "history",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 7,
+      "history": [
+        {
+          "action_id": "fixture-conflicting_history",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-conflicting_history:failed",
+          "run_status": "failed",
+          "error": "Older evidence says -38 dB; newer verified trace says -42 dB.",
+          "error_type": "conflicting_history",
+          "observation": {
+            "error": "Older evidence says -38 dB; newer verified trace says -42 dB.",
+            "error_type": "conflicting_history"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "gen_config_newer_evidence",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "resolve-conflicting-history-001",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-conflicting_history:failed"
+          ],
+          "event_id": "gen_config_newer_evidence:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml",
+            "artifacts": [
+              "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_after_gen_config",
+          "planner_call_id": "action-planner-002",
+          "round": 2,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml"
+          },
+          "caused_by_event_ids": [
+            "gen_config_newer_evidence:succeeded"
+          ],
+          "event_id": "run_training_after_gen_config:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/resolve-conflicting-history/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_artifacts_after_training",
+          "planner_call_id": "action-planner-003",
+          "round": 3,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "runs/resolve-conflicting-history",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run_training_after_gen_config:succeeded"
+          ],
+          "event_id": "verify_artifacts_after_training:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/resolve-conflicting-history/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        },
+        {
+          "action_id": "gen_config_prefer_newer_evidence",
+          "planner_call_id": "action-planner-004",
+          "round": 4,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_config.yaml",
+            "experiment_id": "resolve-conflicting-history-002",
+            "overrides": {
+              "conflict_resolution": "newer"
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-conflicting_history:failed"
+          ],
+          "event_id": "gen_config_prefer_newer_evidence:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml",
+            "artifacts": [
+              "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        },
+        {
+          "action_id": "run_training_prefer_newer",
+          "planner_call_id": "action-planner-005",
+          "round": 5,
+          "tool_name": "run_training",
+          "arguments": {
+            "config_path": "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml"
+          },
+          "caused_by_event_ids": [
+            "gen_config_prefer_newer_evidence:succeeded"
+          ],
+          "event_id": "run_training_prefer_newer:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/resolve-conflicting-history/psd.png"
+            ],
+            "context_summary": "fixture training completed"
+          }
+        },
+        {
+          "action_id": "verify_artifacts_after_prefer_newer",
+          "planner_call_id": "action-planner-006",
+          "round": 6,
+          "tool_name": "verify_artifacts",
+          "arguments": {
+            "output_dir": "runs/resolve-conflicting-history",
+            "nmse_threshold_db": -35.0
+          },
+          "caused_by_event_ids": [
+            "run_training_prefer_newer:succeeded"
+          ],
+          "event_id": "verify_artifacts_after_prefer_newer:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "metrics": {
+              "nmse_db": -36.0,
+              "parameter_count": 3626
+            },
+            "artifacts": [
+              "reports/resolve-conflicting-history/psd.png"
+            ],
+            "context_summary": "fixture artifacts verified"
+          }
+        }
+      ],
+      "metrics": {
+        "nmse_db": -36.0,
+        "parameter_count": 3626
+      },
+      "artifacts": [
+        "runs/resolve-conflicting-history/configs/resolve-conflicting-history.yaml",
+        "reports/resolve-conflicting-history/psd.png"
+      ],
+      "total_prompt_tokens": 10310,
+      "total_completion_tokens": 15364
+    },
+    {
+      "case_id": "compressed-context-constraint",
+      "category": "context",
+      "attempt": 1,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-compressed_history",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-compressed_history:failed",
+          "run_status": "failed",
+          "error": "Compressed context retains parameter_count_max=4000 and timeout failure.",
+          "error_type": "compressed_history",
+          "observation": {
+            "error": "Compressed context retains parameter_count_max=4000 and timeout failure.",
+            "error_type": "compressed_history"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_after_fixture_failure",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "base_configs/compressed-context-constraint.yaml",
+            "experiment_id": "compressed-context-constraint",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-compressed_history:failed"
+          ],
+          "event_id": "generate_config_after_fixture_failure:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml",
+            "artifacts": [
+              "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "reports/compressed-context-constraint/agent-harness-report.md",
+        "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml"
+      ],
+      "total_prompt_tokens": 2132,
+      "total_completion_tokens": 6435
+    },
+    {
+      "case_id": "compressed-context-constraint",
+      "category": "context",
+      "attempt": 2,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-compressed_history",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-compressed_history:failed",
+          "run_status": "failed",
+          "error": "Compressed context retains parameter_count_max=4000 and timeout failure.",
+          "error_type": "compressed_history",
+          "observation": {
+            "error": "Compressed context retains parameter_count_max=4000 and timeout failure.",
+            "error_type": "compressed_history"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config-for-valid-under-4000",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "config.yaml",
+            "experiment_id": "compressed-context-constraint",
+            "overrides": {}
+          },
+          "caused_by_event_ids": [
+            "fixture-compressed_history:failed"
+          ],
+          "event_id": "generate_config-for-valid-under-4000:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml",
+            "artifacts": [
+              "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml"
+      ],
+      "total_prompt_tokens": 2122,
+      "total_completion_tokens": 6683
+    },
+    {
+      "case_id": "compressed-context-constraint",
+      "category": "context",
+      "attempt": 3,
+      "passed": true,
+      "passed_checks": [
+        "terminal_status",
+        "action_budget",
+        "required_tools",
+        "forbidden_tools"
+      ],
+      "failed_checks": [],
+      "status": "stopped",
+      "planner_call_count": 2,
+      "history": [
+        {
+          "action_id": "fixture-compressed_history",
+          "planner_call_id": "benchmark-fixture",
+          "round": 0,
+          "tool_name": null,
+          "arguments": {},
+          "caused_by_event_ids": [],
+          "event_id": "fixture-compressed_history:failed",
+          "run_status": "failed",
+          "error": "Compressed context retains parameter_count_max=4000 and timeout failure.",
+          "error_type": "compressed_history",
+          "observation": {
+            "error": "Compressed context retains parameter_count_max=4000 and timeout failure.",
+            "error_type": "compressed_history"
+          },
+          "source": "deterministic_fault_fixture"
+        },
+        {
+          "action_id": "generate_config_1",
+          "planner_call_id": "action-planner-001",
+          "round": 1,
+          "tool_name": "generate_config",
+          "arguments": {
+            "base_config_path": "configs/base.yaml",
+            "experiment_id": "compressed-context-constraint",
+            "overrides": {
+              "model_type": "linear"
+            }
+          },
+          "caused_by_event_ids": [
+            "fixture-compressed_history:failed"
+          ],
+          "event_id": "generate_config_1:succeeded",
+          "run_status": "succeeded",
+          "error": null,
+          "observation": {
+            "config_path": "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml",
+            "artifacts": [
+              "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml"
+            ],
+            "context_summary": "fixture config generated"
+          }
+        }
+      ],
+      "metrics": {},
+      "artifacts": [
+        "runs/compressed-context-constraint/configs/compressed-context-constraint.yaml"
+      ],
+      "total_prompt_tokens": 2120,
+      "total_completion_tokens": 8344
+    }
+  ],
+  "evaluation_mode": "real_llm_fault_fixture",
+  "provenance": {
+    "planner": "DeepSeek deepseek-v4-flash",
+    "tool_schemas": "production ToolSpec",
+    "tool_outputs": "deterministic fault fixture",
+    "claim_scope": "LLM action selection and recovery, not model-training quality"
+  }
+}

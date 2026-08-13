@@ -116,9 +116,15 @@ def build_parser() -> argparse.ArgumentParser:
     agent_benchmark.add_argument("--workspace", default=str(PROJECT_ROOT))
     agent_benchmark.add_argument(
         "--provider",
-        choices=["scripted"],
+        choices=["scripted", "deepseek"],
         default="scripted",
-        help="scripted is an offline harness regression, not an LLM quality score.",
+        help="scripted validates harness contracts; deepseek measures real planner decisions on fixed faults.",
+    )
+    agent_benchmark.add_argument("--model", default="deepseek-v4-flash")
+    agent_benchmark.add_argument("--llm-timeout-seconds", type=float, default=90.0)
+    agent_benchmark.add_argument(
+        "--cases",
+        help="Comma-separated task ids for an incremental protocol rerun.",
     )
     agent_benchmark.add_argument("--attempts", type=int, choices=[1, 3], default=1)
     agent_benchmark.add_argument(
@@ -159,6 +165,23 @@ def build_parser() -> argparse.ArgumentParser:
     stress.add_argument("--failure-rate", type=float, default=0.1)
     stress.add_argument("--output-dir", default="benchmarks/runtime-v2")
 
+    evidence = subparsers.add_parser(
+        "evidence-pack", help="Aggregate behavior, search, and reliability artifacts."
+    )
+    evidence.add_argument("--workspace", default=str(PROJECT_ROOT))
+    evidence.add_argument("--scripted-results", required=True)
+    evidence.add_argument("--online-results")
+    evidence.add_argument("--online-before")
+    evidence.add_argument(
+        "--online-correction",
+        help="Optional incremental rerun whose case rows replace invalid scored rows.",
+    )
+    evidence.add_argument("--search-dir", required=True)
+    evidence.add_argument("--stress-results", required=True)
+    evidence.add_argument("--before-results")
+    evidence.add_argument("--after-results")
+    evidence.add_argument("--output-dir", default="docs/assets/evidence/v1")
+
     serve = subparsers.add_parser("serve", help="Serve the SSE harness API.")
     serve.add_argument("--workspace", default=str(PROJECT_ROOT))
     serve.add_argument("--host", default="127.0.0.1")
@@ -185,6 +208,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _write_dashboard(args)
     if args.command == "stress-runtime":
         return _run_stress(args)
+    if args.command == "evidence-pack":
+        return _run_evidence_pack(args)
     if args.command == "serve":
         return _serve(args)
     raise ValueError(f"Unsupported command: {args.command}")
@@ -448,6 +473,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
 
 def _run_agent_benchmark(args: argparse.Namespace) -> int:
     from nonlinear_agent.agent_benchmark_fixtures import (
+        run_llm_agent_task_benchmark,
         run_scripted_agent_task_benchmark,
         write_agent_task_benchmark_artifacts,
     )
@@ -456,9 +482,30 @@ def _run_agent_benchmark(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir)
     if not output_dir.is_absolute():
         output_dir = workspace / output_dir
-    report = asyncio.run(
-        run_scripted_agent_task_benchmark(workspace, attempts=args.attempts)
-    )
+    cases = None
+    if args.cases:
+        from nonlinear_agent.agent_benchmark_cases import build_nonlinear_agent_task_cases
+
+        catalog = {case.case_id: case for case in build_nonlinear_agent_task_cases()}
+        requested = [item.strip() for item in args.cases.split(",") if item.strip()]
+        unknown = sorted(set(requested) - set(catalog))
+        if unknown:
+            raise ValueError(f"Unknown agent benchmark cases: {', '.join(unknown)}")
+        cases = [catalog[case_id] for case_id in requested]
+    if args.provider == "deepseek":
+        report = asyncio.run(run_llm_agent_task_benchmark(
+            workspace,
+            attempts=args.attempts,
+            cases=cases,
+            model=args.model,
+            timeout_seconds=args.llm_timeout_seconds,
+        ))
+    else:
+        report = asyncio.run(
+            run_scripted_agent_task_benchmark(
+                workspace, attempts=args.attempts, cases=cases
+            )
+        )
     paths = write_agent_task_benchmark_artifacts(output_dir, report)
     print(json.dumps({
         "evaluation_mode": report["evaluation_mode"],
@@ -509,6 +556,65 @@ def _run_stress(args: argparse.Namespace) -> int:
     print(f"  Report: {out_dir / 'stress.json'}")
     print(f"  {'PASS' if report['pass'] else 'FAIL'}")
     return 0 if report["pass"] else 1
+
+
+def _run_evidence_pack(args: argparse.Namespace) -> int:
+    from nonlinear_agent.evidence_pack import write_evidence_pack
+
+    workspace = Path(args.workspace)
+
+    def resolve(value: str | None) -> Path | None:
+        if not value:
+            return None
+        path = Path(value)
+        return path if path.is_absolute() else workspace / path
+
+    def read_json(value: str | None) -> dict | None:
+        path = resolve(value)
+        if path is None:
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    scripted = read_json(args.scripted_results) or {}
+    online = read_json(args.online_results)
+    online_before = read_json(args.online_before)
+    online_correction = read_json(args.online_correction)
+    if online and online_correction:
+        from nonlinear_agent.evidence_pack import merge_agent_benchmark_reports
+
+        online = merge_agent_benchmark_reports(online, online_correction)
+    stress = read_json(args.stress_results)
+    before_payload = read_json(args.before_results)
+    after_payload = read_json(args.after_results)
+    before = (before_payload or {}).get("summary", before_payload)
+    after = (after_payload or {}).get("summary", after_payload)
+    search_dir = resolve(args.search_dir)
+    if search_dir is None:
+        raise ValueError("search-dir is required")
+    search_summary = json.loads(
+        (search_dir / "summary.json").read_text(encoding="utf-8")
+    )
+    trials = [
+        json.loads(line)
+        for line in (search_dir / "trials.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    output_dir = resolve(args.output_dir)
+    if output_dir is None:
+        raise ValueError("output-dir is required")
+    paths = write_evidence_pack(
+        output_dir,
+        scripted,
+        online,
+        search_summary,
+        trials,
+        stress,
+        online_before=online_before,
+        before=before,
+        after=after,
+    )
+    print(json.dumps({"artifacts": [str(path) for path in paths]}, ensure_ascii=False, indent=2))
+    return 0
 
 
 def _serve(args: argparse.Namespace) -> int:
