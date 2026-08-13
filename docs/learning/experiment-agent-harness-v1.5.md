@@ -34,7 +34,7 @@ v1.5 补上交付面：Unified CLI / Local Dashboard Client。
 
 - `src/nonlinear_agent/__init__.py`
 - `README.md`
-- `docs/handoff/llm-continuation-plan.md`
+- 本地维护的实施与交接记录
 - `docs/resume/experiment-agent-harness-resume.md`
 - `docs/superpowers/plans/experiment-agent-harness-plan.md`
 

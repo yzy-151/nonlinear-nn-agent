@@ -78,8 +78,8 @@ Web 首页默认进入 Multi-Agent。中栏的 Timeline、Console、Raw Events �
 
 ## 工程详细图
 
-<details>
-<summary>展开端到端工程架构图</summary>
+<details open>
+<summary>端到端工程架构图</summary>
 
 [打开可缩放 SVG](docs/assets/architecture/nonlinear-agent-system.svg) · [打开 3200×1800 PNG](docs/assets/architecture/nonlinear-agent-system.png)
 
@@ -197,7 +197,6 @@ tests/                     单元、集成、故障注入与 Web 契约测试
 
 - [新人上手指南](docs/onboarding/newcomer-guide.md)
 - [最新学习文档 v1.6.2](docs/learning/experiment-agent-harness-v1.6.2.md)
-- [唯一维护的后续计划与交接文档](docs/handoff/llm-continuation-plan.md)
 - [真实 DeepSeek 3×3 PDF 报告](docs/reports/v4.0.0-e-deepseek-3x3-report.pdf)
 - [独立 Agent 任务摘要](benchmarks/agent-tasks-v1/summary.md)
 - [搜索策略历史实验 v3](docs/experiments/nonlinear-search-ablation-v3.md)

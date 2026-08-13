@@ -238,4 +238,4 @@ Benchmark 分成四层，禁止混为一个总分：
 - 已把 history、facts、priors 拆为四组策略，并分别输出三段 paired increment。
 - 已增加 fast/full 离线测试入口，并同步修正 README 与简历包装文档中的 benchmark 口径。
 
-因此当前评级可以把“LLM 自主决策”的代码实现上调，但 Benchmark 有效性仍需等待确定性 fault environment、Web/CLI runner 和真实多 seed 结果后再上调。详细剩余项以 `docs/handoff/llm-continuation-plan.md` 的进度表为准。
+因此当前评级可以把“LLM 自主决策”的代码实现上调，但 Benchmark 有效性仍需等待确定性 fault environment、Web/CLI runner 和真实多 seed 结果后再上调。后续进度由本地维护文档持续记录。
