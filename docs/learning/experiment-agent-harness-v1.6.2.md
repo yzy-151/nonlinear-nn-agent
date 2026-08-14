@@ -370,3 +370,84 @@ WritingAgent 连续调用两次，是因为第一份草稿未满足证据忠实�
 面试表达：
 
 > 我把 Planner proposal 与 Execution observation 分成不同事件契约，UI 只从 observation 构建统计，避免把待执行计划误算成实验结果。CodingAgent 对服务端身份字段做 canonicalization，但危险能力、越界路径、参数预算和真实 smoke run 仍由确定性 gate 拦截。最终两条搜索链路都能给出运行级成功率、失败分类、目标命中和最优性能证据。
+
+## 21. 面试复盘：为什么这样设计、遇到了什么、怎样解决
+
+### 21.1 90 秒项目介绍
+
+> 这个项目最初解决的是非线性拟合实验依赖人工改模型、调参、跑训练和整理结果的问题。我希望让 LLM 负责提出假设和探索方向，但很快发现“让模型输出一份配置”只是工作流，并不等于可靠的 Agent Harness：它可能生成非法参数、看见错误却无法修正、写出不能执行的代码，也可能在报告里编造数字。因此我把系统逐步拆成 Idea/Plan、Coding、Execution、Writing 四个角色，由 Supervisor 管理结构化状态、预算、失败回路和唯一终态；把训练、参数校验、artifact 检查和报告 fidelity 留给确定性运行时。开放式 Multi-Agent 用来探索新模型，受控搜索用白名单模型和字段锁定提供稳定路径。最后我又把 Agent 行为、搜索质量和运行时可靠性拆成三套评测，避免用单个 NMSE 代表整个系统。固定协议下，10-case 目标命中率从 50% 提升到 90%，Planner 合法率从 15% 提升到 92.6%；18 项真实 DeepSeek 行为评测 pass@1 达到 94.4%、pass@3 达到 100%；508 项回归测试通过。
+
+### 21.2 最初的出发点
+
+第一层需求是**减少实验机械劳动**：用户只描述目标、参数预算和时间预算，系统自动设计实验、执行训练、比较 NMSE/PSD 并汇总结果。
+
+第二层需求是**让迭代有因果依据**：下一轮不能只看到一大段日志，而要消费“哪个候选失败、在哪个 gate 失败、得到了什么指标、哪些 artifact 可验证”等事实。
+
+第三层需求是**把 Demo 变成可解释的 Agent 工程**：系统必须回答谁做了决定、调用了哪个工具、为什么重试、证据来自哪里、花了多少 token、最终为什么停止，而不仅是最后跑出一张图。
+
+核心设计原则因此是：**LLM 负责开放推理，确定性程序负责权限、执行、验证和记账。** 不是因为 LLM 不聪明，而是因为安全边界、状态一致性和指标真实性必须可复现。
+
+### 21.3 演进过程中的关键困难与解决方法
+
+| 困难 | 为什么是问题 | 解决方法 | 我学到的工程原则 |
+| --- | --- | --- | --- |
+| 早期系统只是 Planner 输出固定配置 | 没有基于 observation 的循环，也不能探索仓库外的新模型 | 建立 `Plan -> Tool -> Observation -> Reflection Facts -> Replan`，再引入可生成完整插件包的 CodingAgent | Agentic 不取决于角色数量，而取决于是否能根据环境反馈改变下一步动作 |
+| Reflection 产物没有真正影响下一次决策 | “生成了反思文本”不等于消费者拿到了可执行信息；Planner 看见错误，Coding 仍会重复犯错 | Reflection 只提取验证事实，不输出硬编码策略；Supervisor 将压缩后的失败事实同时传给 Planner 和真正能修代码的 CodingAgent | 先确定信息的消费者，再设计 memory/reflection；不要为了有 Reflection 而 Reflection |
+| CodingAgent 只输出 `ModelClass`，ExecutionAgent 无法运行 | 缺少数据入口、训练函数、参数统计、产物协议和配置 schema | 定义 `ModelPlugin + manifest + descriptor` 完整候选包；固定 runner 负责加载、训练和输出 metrics/PSD | 跨 Agent 交接必须是可验证协议，不能依赖隐含约定 |
+| 放开代码生成后存在执行风险 | LLM 代码可能路径逃逸、导入危险模块、读取密钥或启动任意命令 | 候选在隔离 worktree 中生成；依次执行 JSON、路径、AST capability、参数预算、descriptor hash 和 smoke-training gate；ExecutionAgent 只能调用注册工具 | LLM 可以提议能力，但能力授予必须由 runtime 决定 |
+| 真实 DeepSeek 多次因格式细节在训练前失败 | `manifest.name`、候选目录、entrypoint 等由 Supervisor 已知，却要求模型逐字复制，浪费修复轮次 | 对 Supervisor 拥有的身份元数据做确定性 canonicalization，同时保留路径、AST、预算和 smoke gate | 严格应该用于安全语义，不应用于机器可确定修复的表面格式 |
+| 报告看起来完整但可能“漂亮地胡说” | 数字、模型结构和失败原因若没有来源，报告越专业风险越高 | 建立 EvidenceBundle、section-scoped evidence refs 和 numeric fidelity checker；一次 LLM 定向修复后仍失败则生成保守的确定性叙述，并再次走同一 checker | 生成质量与事实忠实度是两件事；失败降级不能绕过原验证器 |
+| MultiAgent 自由生成模型的实际性能不稳定 | 开放探索能展示能力，但弱模型可能远差于已有通信先验 | 保留双轨入口：开放 Multi-Agent 探索新结构；受控搜索选择成熟模型白名单，并分别锁定允许模型与可调字段 | 生产系统不应把所有请求都押在开放生成上，要允许探索与稳定路径共存 |
+| Web 里计划行被画成空实验结果 | 前端把 `plan_generated.experiments` 当 observation，出现空白 NMSE/参数列，统计失真 | 明确 proposal 与 observation 事件契约；只有 execution/final-evaluation 事件进入结果表，并增加运行级聚合统计 | 可观测性不是多打印日志，而是每类事件语义稳定、来源明确 |
+| 早期 benchmark 把不同能力混成一个结论 | 算法 NMSE、Planner 决策和控制面可靠性互相受随机性干扰，无法归因 | 拆成 Agent behavior、Search comparison、Runtime stress 三层；同模型、同 seed、同 trial budget 做消融并保留原始结果和修正 provenance | 评测先回答“想证明什么”，再选择指标；不能用一个总分替代因果分析 |
+
+### 21.4 最值得讲的三次真实故障
+
+**故障一：Planner 明明看见错误，Coding 下一轮仍重复。**
+
+排查后发现 history 只进入 Planner prompt，没有沿结构化 handoff 进入 CodingTask。修复不是增加一段更长的全局 prompt，而是把 prior outcomes 压缩为 round、candidate、status、metrics 和 failure facts，再发送给能够采取行动的角色。这个案例可以用于回答“你怎样设计跨 Agent 上下文”和“怎样控制 token”。
+
+**故障二：CodingAgent 连续失败，但训练根本没有开始。**
+
+根因并非模型不会写网络，而是候选名、manifest 名和目录等重复元数据存在轻微不一致。系统原先把格式一致性与安全性混在同一个严格 parser 中。修复后由 Supervisor canonicalize 自己拥有的字段，危险导入、越界路径、参数超限和 smoke 失败仍严格拒绝。真实最小回归中，DeepSeek 第一次 Coding 就通过，生成 162 参数插件并由 ExecutionAgent 完成运行。
+
+**故障三：WritingAgent 导致已完成实验整体失败。**
+
+真实报告中模型会引用不存在的 evidence ID，或在某一节写入没有被该节证据支持的数字。第一步把 fidelity errors 反馈给 WritingAgent 修复；第二次仍失败时，不降低 checker 标准，而由程序生成不引入未知数字的保底叙述，再交给同一 checker。结果是报告质量问题被降级和记录，训练成果不会丢失，最终 terminal 仍然唯一且可解释。
+
+### 21.5 可以量化的结果，以及它们分别证明什么
+
+| 证据 | 结果 | 只证明什么 |
+| --- | --- | --- |
+| 10-case 前后版本对照 | target hit `50% -> 90%`；Planner 合法率 `15% -> 92.6%`；最佳 NMSE `-37.42 -> -42.43 dB` | 固定项目协议下，Domain 上下文、输出契约和 timeout 传递修复有效 |
+| 18 项 Agent 行为集 | DeepSeek pass@1 `77.8% -> 94.4%`，pass@3 `100%` | 同 ToolSpec 和评分器下，停止、去重、坏 JSON 事实化和初始证据注入有效 |
+| 3 seeds 固定预算搜索消融 | Direct target hit `33.3%`；History `43.3%`；完整 Priors `53.3%` | 知识与历史提高命中频率；尚不能证明最终 best 有显著增益 |
+| 运行时压力测试 | 并发 8、300 请求、15% 故障注入；重复执行和事件丢失均为 0，唯一终态一致率和注入故障恢复率均为 100% | 本地单进程 SQLite 控制面的可靠性基线，不是分布式 SLA |
+| 真实 3x3 DeepSeek run | 搜索候选 `8/9` 完成，最佳 `-23.0778 dB / 24 params` 并独立复现 | MultiAgent 能跨轮生成、失败恢复和终评；没有证明算法达到 `-41 dB` |
+| 工程回归 | `508/508` tests passed | 当前代码契约未发生已覆盖范围内的回归，不代表真实 LLM 永不失败 |
+
+### 21.6 STAR 讲法
+
+**S（背景）**：非线性拟合实验需要反复改结构、调参、跑训练和整理 PSD/NMSE；单纯让 LLM 生成配置无法保证代码可执行、迭代有依据和报告可信。
+
+**T（任务）**：设计一个能够自主提出实验、生成新模型、受控执行、根据失败修正并交付可核验报告的 Agent Harness，同时限制参数量、epoch、时间和代码能力。
+
+**A（行动）**：我用结构化 handoff 和 Supervisor 串联四个 Agent；将执行收敛到 ToolRegistry；为生成代码增加隔离 worktree、AST/路径/预算/smoke gate；把 Reflection 改为事实提取并定向传给决策消费者；为报告建立 evidence registry 与 fidelity checker；最后拆分三层 benchmark，并用真实 DeepSeek、固定预算消融和故障注入验证。
+
+**R（结果）**：固定 10-case 协议下目标命中率提高 40 个百分点，Planner 合法率提高 77.6 个百分点；真实行为评测 pass@1 达到 94.4%、pass@3 达到 100%；本地压力测试保持零重复执行和零事件丢失；完整回归 508 项通过。对于没有达到的 `-41 dB`，我保留了失败证据并引入受控模型搜索，而没有把 Harness 成功偷换成算法 SOTA。
+
+### 21.7 面试官可能追问什么
+
+**为什么不用一个 Agent 加很多工具？** 角色拆分不是为了显得复杂，而是为了建立最小权限和清晰交接。Coding 可以写候选包但不能任意执行；Execution 只能调用注册工具；Writing 只读证据。简单任务仍可走 Fixed Workflow 或受控搜索，不强制 MultiAgent。
+
+**Reflection 为什么不用纯 LLM？** LLM 适合从干净 observation 中归纳失败事实，但事实 schema、数值提取、权限判断和状态写入应由程序校验。当前设计是 LLM 推理加确定性约束，而不是几个 `if` 替代推理，也不是把原始日志全部塞回 prompt。
+
+**Memory 与 Reflection 有什么区别？** Reflection 是本轮 observation 到事实的转换；Memory 是跨轮或跨 run 的持久化与检索。Memory 按 domain、dataset hash、model family 隔离，并带 provenance/confidence；无效或过期记忆不能进入 Planner context。
+
+**为什么需要受控搜索？** 自由 CodingAgent 的价值是探索未知结构，但真实 3x3 结果显示算法质量不稳定。受控搜索复用同一 Planner Loop、训练、Reflection 和报告链路，只把设计空间限制在成熟模型与用户开放字段内，适合要求稳定结果的场景。
+
+**这个项目还有什么不足？** 当前隔离主要是子进程和 worktree，不是容器或微虚拟机；SQLite 压测只代表单机控制面；知识增益对最终 best 尚无显著证据；开放 Coding 还需要更大的固定任务集统计 pass@1/pass@3；当前只有一个 nonlinear-modeling domain。主动说明这些边界，比声称“已经量产级”更可信。
+
+### 21.8 一句话收尾
+
+> 这个项目真正的贡献不是让 LLM 多跑了几次神经网络，而是把不稳定的模型推理放进了一个有协议、有权限、有反馈、有证据、可降级、可评测的实验运行时里，并且用真实失败推动每一层设计。
