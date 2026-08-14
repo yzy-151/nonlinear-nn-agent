@@ -10,6 +10,37 @@ from tests.test_supervisor_e2e import _plan, _three_candidate_plan
 
 
 class TestMultiAgentRuntime(unittest.TestCase):
+    def test_idea_plan_contract_uses_requested_experiment_count(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        class Router:
+            def __init__(self):
+                self.prompt = ""
+
+            def complete(self, role, prompt):
+                self.prompt = prompt
+                return json.dumps(_three_candidate_plan(1))
+
+        router = Router()
+        runtime = MultiAgentRuntime(Path.cwd(), router, object(), object())
+
+        runtime._idea_plan(
+            {
+                "run_id": "one-candidate-plan",
+                "goal": "run one experiment",
+                "round_index": 1,
+                "rounds_total": 1,
+                "experiments_per_round": 1,
+                "available_fact_refs": [],
+                "round_records": [],
+            }
+        )
+
+        contract_text = router.prompt.split("\nRun request:\n", 1)[0]
+        self.assertIn("Design exactly 1 distinct compact candidate", contract_text)
+        self.assertIn('"experiment_id": "candidate-1"', contract_text)
+        self.assertNotIn('"experiment_id": "candidate-2"', contract_text)
+
     def test_idea_plan_injects_bounded_context_and_protects_allowlist(self):
         from nonlinear_agent.knowledge.ingest import KnowledgeChunk
         from nonlinear_agent.knowledge.retriever import ScoredChunk
@@ -341,7 +372,8 @@ class TestMultiAgentRuntime(unittest.TestCase):
         )
 
         prompt = router.prompts[0][1]
-        self.assertIn("exactly three", prompt)
+        self.assertIn("exactly 3 distinct compact candidates", prompt)
+        self.assertIn('"experiment_id": "candidate-3"', prompt)
         self.assertIn("available_fact_refs", prompt)
         self.assertEqual(coding.tasks[0].candidate_name, "compact_sin_mlp")
         self.assertIn("candidate-2", coding.tasks[0].task_id)

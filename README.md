@@ -2,7 +2,7 @@
 
 面向真实机器学习实验的 Agent Harness：让 LLM 设计实验、生成候选代码并根据验证事实迭代，同时由确定性运行时负责安全校验、真实训练、指标复核、过程观测和证据报告。
 
-当前版本：`v4.4.0`。系统同时提供开放式 Multi-Agent 研究链路、稳定的受控模型搜索链路与可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、行为评估和证据交付的完整过程。
+当前版本：`v4.4.1`。系统同时提供开放式 Multi-Agent 研究链路、稳定的受控模型搜索链路与可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、行为评估和证据交付的完整过程。
 
 ## 项目总览
 
@@ -98,6 +98,8 @@ SQLite 控制面在 `concurrency=8`、300请求和15%故障注入下完成测试
 
 `v4.4.0` 又执行了一次最小真实 API 回归：DeepSeek 生成的新 `mlp_tanh_2x8` 候选在第 1 次 Coding 尝试即通过路径、AST、插件契约、参数预算和 smoke-training gate；ExecutionAgent 随后以固定工具完成独立执行，得到 `-20.1689 dB / 162 params`。WritingAgent 的两次草稿均经过 section-scoped evidence fidelity 检查；即使模型持续输出不合规叙述，确定性保底报告仍只使用已登记引用和可验证事实，使 6 阶段 timeline 最终以 `completed` 收口。该回归证明的是运行时兼容性与故障降级能力，不把单次 NMSE 当作算法质量结论。
 
+`v4.4.1` 使用 Web 同源 SSE 接口和默认 `deepseek-v4-flash` 完成 `1 round x 1 experiment + final evaluation`。修复后 Idea/Plan、Plan Gate、Coding、Execution、Final Evaluation、Writing 与 Terminal 全部完成；生成的 `mlp_tanh_16_8` 在第 2 次 Coding 尝试通过，搜索与独立终评均复现 `-21.0804 dB / 266 params`。该版本修复了 V4 thinking 模式耗尽结构化输出预算后正文为空，以及 Idea/Plan contract 固定要求三个候选导致小规模请求必然被拒绝的问题。
+
 [完整 6 页 PDF 报告](docs/reports/v4.0.0-e-deepseek-3x3-report.pdf) · [九次实验 NMSE](docs/assets/results/v4.0.0-e/nine-experiment-nmse.png) · [最终模型架构](docs/assets/results/v4.0.0-e/architecture.png)
 
 ![最终复评 PSD](docs/assets/results/v4.0.0-e/final-psd.png)
@@ -131,6 +133,8 @@ Web 首页默认进入 Multi-Agent。中栏的 Timeline、Console、Raw Events �
 页面还包含受控搜索、Agent Planner、Fixed Workflow、Experiments、Benchmark、Memory、Reports 与 Diagnostics。受控搜索可分别选择模型白名单和可调参数；Knowledge 面板可以启停 Multi-Agent 注入、调整 top-k，并预览白名单来源。Idea/Plan 事件会在 Inspector 中显示 evidence ID、citation、hash、score 和 memory provenance。
 
 `v4.4.0` 统一了两条搜索链路的结果视图：Multi-Agent 显示候选数、Coding gate 通过数、修复尝试、执行成功数、目标命中和独立终评；受控搜索显示实验总数、完成/拒绝/运行失败、目标命中、最优 NMSE、输入基线、增益和参数量。结果行只消费真实 `experiment_end` 或 Multi-Agent execution 事件，不再把 Planner 的待执行计划误画成空白实验。
+
+`v4.4.1` 在 Multi-Agent 控制面开放搜索轮次、每轮实验数与独立终评开关，默认用低成本的 `1 x 1` 验证链路；批量 `3 x 3` 仍可直接配置。DeepSeek V4 的结构化 Agent 调用显式关闭 thinking，确保 token 用于最终 JSON，而不是只留下 reasoning 内容。
 
 回归覆盖包括 `508` 项完整测试；另有真实 DeepSeek 最小链路验证 Coding、Execution、Writing 与 terminal 状态，而不是仅依赖 scripted fixture。
 

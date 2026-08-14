@@ -288,7 +288,7 @@ $("stopBtn").addEventListener("click", async () => {
 
 $("maBtn").addEventListener("click", () => {
   const runId = `ui-multi-${Date.now()}`;
-  streamRun(`/multi-agent/${runId}/events`, { provider: "deepseek", goal: $("maGoal").value, idea_plan_model: $("maPlanModel").value, coding_model: $("maCodeModel").value, writing_model: $("maWriteModel").value, max_replans: number("maReplans"), nmse_threshold_db: number("maThreshold"), token_budget: number("maTokens"), cost_budget_usd: number("maCost"), rounds: 3, experiments_per_round: 3, final_evaluation: true, knowledge_context_enabled: $("knowledgeContextEnabled").checked, knowledge_top_k: number("knowledgeTopK"), domain: "nonlinear-modeling", dataset_hash: "default", model_family: "mixed" }, $("maBtn"), runId);
+  streamRun(`/multi-agent/${runId}/events`, { provider: "deepseek", goal: $("maGoal").value, idea_plan_model: $("maPlanModel").value, coding_model: $("maCodeModel").value, writing_model: $("maWriteModel").value, max_replans: number("maReplans"), nmse_threshold_db: number("maThreshold"), token_budget: number("maTokens"), cost_budget_usd: number("maCost"), rounds: number("maRounds"), experiments_per_round: number("maExperiments"), final_evaluation: $("maFinalEvaluation").checked, knowledge_context_enabled: $("knowledgeContextEnabled").checked, knowledge_top_k: number("knowledgeTopK"), domain: "nonlinear-modeling", dataset_hash: "default", model_family: "mixed" }, $("maBtn"), runId);
 });
 $("csBtn").addEventListener("click", () => {
   const runId = `ui-controlled-${Date.now()}`;

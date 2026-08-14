@@ -237,6 +237,9 @@ class OpenAICompatibleClient:
         }
         if self.json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if self.model.startswith("deepseek-v4-"):
+            # Structured agent roles need final JSON, not a reasoning-only response.
+            payload["thinking"] = {"type": "disabled"}
         if self.max_tokens:
             payload["max_tokens"] = self.max_tokens
         if stream:
@@ -463,13 +466,16 @@ class OpenAISDKClient:
             },
             {"role": "user", "content": prompt},
         ]
-        response = self._client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            response_format={"type": "json_object"},
-            stream=stream,
-        )
+        request = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "response_format": {"type": "json_object"},
+            "stream": stream,
+        }
+        if self.model.startswith("deepseek-v4-"):
+            request["extra_body"] = {"thinking": {"type": "disabled"}}
+        response = self._client.chat.completions.create(**request)
 
         if stream:
             content = ""

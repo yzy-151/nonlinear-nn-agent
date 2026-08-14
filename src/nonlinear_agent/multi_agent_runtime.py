@@ -76,6 +76,10 @@ class MultiAgentRuntime:
 
     def _idea_plan(self, request: dict[str, Any]) -> dict[str, Any]:
         context_payload = self._build_planner_context(request)
+        experiment_count = max(1, int(request.get("experiments_per_round", 1)))
+        candidate_ids = [
+            f"candidate-{index}" for index in range(1, experiment_count + 1)
+        ]
         candidate_contract = {
             "experiment_id": "unique ID within this round",
             "model_type": "new candidate plugin name",
@@ -104,11 +108,11 @@ class MultiAgentRuntime:
             ],
             "decision_rationale": "why this round follows from available facts",
             "candidate_experiments": [
-                {**candidate_contract, "experiment_id": f"candidate-{index}"}
-                for index in range(1, 4)
+                {**candidate_contract, "experiment_id": candidate_id}
+                for candidate_id in candidate_ids
             ],
             "experiment_dag": {
-                "nodes": ["candidate-1", "candidate-2", "candidate-3"],
+                "nodes": candidate_ids,
                 "edges": [],
             },
             "expected_information_gain": 0.0,
@@ -121,8 +125,9 @@ class MultiAgentRuntime:
         }
         prompt = (
             "You are the Idea/Plan Agent for nonlinear model experiments. "
-            "Return one JSON object only, without Markdown. Design exactly three "
-            "distinct compact candidates for this round; each must be implementable "
+            "Return one JSON object only, without Markdown. Design exactly "
+            f"{experiment_count} distinct compact candidate"
+            f"{'s' if experiment_count != 1 else ''} for this round; each must be implementable "
             "as a ModelPlugin. Every "
             "hypothesis and candidate needs a citation. Respect parameter, "
             "epoch and timeout budgets. In rounds after the first, explain the prior "

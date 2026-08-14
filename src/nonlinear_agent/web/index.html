@@ -28,7 +28,7 @@
   <header class="topbar">
     <button class="icon-button mobile-only" id="menuBtn" title="打开导航"><svg><use href="#i-menu"/></svg></button>
     <div class="brand"><span class="brand-mark">NA</span><div><strong>Nonlinear Agent</strong><small>OPERATIONS CONSOLE</small></div></div>
-    <div class="runtime-strip"><span class="runtime-item"><span class="status-light idle" id="statusDot"></span><b id="statusLabel">空闲</b></span><span class="runtime-item"><small>服务</small><b>local</b></span><span class="runtime-item"><small>版本</small><b>v4.4.0</b></span><span class="runtime-item run-id"><small>RUN</small><b id="currentRunId">-</b></span></div>
+    <div class="runtime-strip"><span class="runtime-item"><span class="status-light idle" id="statusDot"></span><b id="statusLabel">空闲</b></span><span class="runtime-item"><small>服务</small><b>local</b></span><span class="runtime-item"><small>版本</small><b>v4.4.1</b></span><span class="runtime-item run-id"><small>RUN</small><b id="currentRunId">-</b></span></div>
     <div class="top-actions"><button class="button danger compact" id="stopBtn" disabled><svg><use href="#i-stop"/></svg>停止</button><button class="button ghost compact" id="newRunBtn">新建运行</button></div>
   </header>
   <div class="app-shell">
@@ -45,7 +45,8 @@
           <label for="maGoal">实验目标</label><textarea id="maGoal">Design an unseen compact nonlinear model under 4000 parameters, train it, and produce an evidence-grounded report.</textarea>
           <div class="form-grid two"><div><label for="maPlanModel">Idea / Plan 模型</label><input id="maPlanModel" value="deepseek-v4-flash"></div><div><label for="maCodeModel">Coding 模型</label><input id="maCodeModel" value="deepseek-v4-flash"></div></div>
           <label for="maWriteModel">Writing 模型</label><input id="maWriteModel" value="deepseek-v4-flash">
-          <div class="form-grid two"><div><label for="maReplans">最大重规划</label><input id="maReplans" type="number" min="0" max="3" value="1"></div><div><label for="maThreshold">目标 NMSE (dB)</label><input id="maThreshold" type="number" step="0.1" value="-35"></div><div><label for="maTokens">Token 预算</label><input id="maTokens" type="number" value="100000"></div><div><label for="maCost">成本预算 (USD)</label><input id="maCost" type="number" step="0.01" value="1"></div></div>
+          <div class="form-grid two"><div><label for="maRounds">搜索轮次</label><input id="maRounds" type="number" min="1" max="10" value="1"></div><div><label for="maExperiments">每轮实验</label><input id="maExperiments" type="number" min="1" max="10" value="1"></div><div><label for="maReplans">最大重规划</label><input id="maReplans" type="number" min="0" max="3" value="1"></div><div><label for="maThreshold">目标 NMSE (dB)</label><input id="maThreshold" type="number" step="0.1" value="-35"></div><div><label for="maTokens">Token 预算</label><input id="maTokens" type="number" value="100000"></div><div><label for="maCost">成本预算 (USD)</label><input id="maCost" type="number" step="0.01" value="1"></div></div>
+          <label class="switch-row"><span><b>独立终评</b><small>对搜索最优候选重新执行一次</small></span><input id="maFinalEvaluation" type="checkbox" checked><i></i></label>
           <button class="button primary run-button" id="maBtn"><svg><use href="#i-play"/></svg>启动 Multi-Agent</button>
         </section>
         <section class="control-view" id="panel-controlled" data-panel="controlled">

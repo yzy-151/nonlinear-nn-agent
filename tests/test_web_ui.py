@@ -19,6 +19,7 @@ class WebUITest(unittest.TestCase):
 
     def test_multi_agent_is_default_operations_view(self):
         html = render_home_page()
+        script = read_web_asset("app.js")
 
         self.assertIn('data-view="multiagent"', html)
         self.assertIn('data-default-view="multiagent"', html)
@@ -31,6 +32,12 @@ class WebUITest(unittest.TestCase):
         self.assertIn('id="runSummary"', html)
         self.assertIn('id="comparisonBasis"', html)
         self.assertIn('id="resultLinks"', html)
+        self.assertIn('id="maRounds"', html)
+        self.assertIn('id="maExperiments"', html)
+        self.assertIn('id="maFinalEvaluation"', html)
+        self.assertIn('rounds: number("maRounds")', script)
+        self.assertIn('experiments_per_round: number("maExperiments")', script)
+        self.assertNotIn("rounds: 3, experiments_per_round: 3", script)
 
     def test_sidebar_exposes_all_runtime_surfaces(self):
         html = render_home_page()

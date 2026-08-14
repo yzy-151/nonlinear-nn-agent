@@ -18,6 +18,26 @@ from nonlinear_agent.llm import (
 
 
 class TestCompatibleClientRetry(unittest.TestCase):
+    def test_v4_json_request_disables_thinking_for_final_structured_content(self):
+        client = OpenAICompatibleClient(
+            api_key="k",
+            base_url="https://api.deepseek.com",
+            model="deepseek-v4-flash",
+        )
+
+        payload = client._build_payload("return json", stream=False)
+
+        self.assertEqual(payload["thinking"], {"type": "disabled"})
+
+    def test_non_v4_request_does_not_send_provider_specific_thinking_field(self):
+        client = OpenAICompatibleClient(
+            api_key="k", base_url="https://example.com", model="other-model"
+        )
+
+        payload = client._build_payload("return json", stream=False)
+
+        self.assertNotIn("thinking", payload)
+
     def test_coding_role_uses_role_specific_system_prompt(self):
         client = create_llm_client(
             kind="compat",

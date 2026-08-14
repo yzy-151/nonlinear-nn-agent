@@ -451,3 +451,15 @@ WritingAgent 连续调用两次，是因为第一份草稿未满足证据忠实�
 ### 21.8 一句话收尾
 
 > 这个项目真正的贡献不是让 LLM 多跑了几次神经网络，而是把不稳定的模型推理放进了一个有协议、有权限、有反馈、有证据、可降级、可评测的实验运行时里，并且用真实失败推动每一层设计。
+
+## 22. v4.4.1：为什么 Web Multi-Agent 一直没有结果
+
+真实 UI run `ui-multi-1786683942603` 生成了六份 Coding trace，但每个候选的三次响应都是空内容哈希，插件和训练都没有开始。原因是 DeepSeek V4 默认启用 thinking，而 Coding 的结构化调用只读取最终 `content`；在输出预算主要消耗于 reasoning 时，最终 JSON 可能为空。修复后，`deepseek-v4-flash` 和 `deepseek-v4-pro` 的 JSON Agent 请求显式发送 `thinking.type=disabled`，SDK 与手写兼容客户端保持同一行为。
+
+第二个问题由真实 `1 x 1` SSE 复现：请求明确要求每轮一个实验，但 `_idea_plan()` 的文字和 JSON 示例始终写死三个候选，模型正确遵循了错误的 prompt，随后又被 PlanGate 以候选数不等于一拒绝。修复不是放宽 gate，而是根据 `experiments_per_round` 动态生成候选 contract 和 DAG。Web 同时开放轮次、每轮实验数和独立终评开关，默认 `1 x 1`，需要批量探索时再改为 `3 x 3`。
+
+修复后通过同一个 Web `/multi-agent/{run_id}/events` 接口真实调用 `deepseek-v4-flash`：七个阶段全部 `completed`，Coding `1/1` 通过，候选 `mlp_tanh_16_8` 在第二次尝试通过 gate，搜索与独立终评均得到 `-21.0804 dB / 266 params`，HTML/PDF 报告可访问。完整回归为 `511/511`。
+
+面试时可以这样总结：
+
+> 这次故障不是训练算法问题，而是控制面同时存在模型推理模式和实验预算契约不一致。我先从六份空响应 trace 定位到 V4 thinking，再通过真实 1 x 1 SSE 找到 prompt 写死三候选。最终保持 PlanGate 严格，只在请求源头关闭结构化任务的 thinking 并动态生成 contract；修复后用默认 V4 完成 Coding、训练、独立终评和报告全链路。
