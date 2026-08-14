@@ -92,7 +92,7 @@ class WritingAgentTest(unittest.TestCase):
             ("task:limits",),
         )
 
-    def test_round_journey_must_cite_every_recorded_round(self):
+    def test_round_journey_falls_back_to_all_recorded_rounds_after_failed_repair(self):
         import tempfile
         from pathlib import Path
 
@@ -125,8 +125,12 @@ class WritingAgentTest(unittest.TestCase):
             "evidence_refs": ["round:1:decision", "round:2:decision"],
         }
 
-        with self.assertRaisesRegex(NarrativeFidelityError, "must cite every round"):
-            WritingAgent(model_router=_Router(json.dumps(payload))).write(bundle)
+        narrative = WritingAgent(model_router=_Router(json.dumps(payload))).write(bundle)
+
+        self.assertEqual(
+            narrative.sections["round_journey"].evidence_refs,
+            ("round:1:decision", "round:2:decision", "round:3:decision"),
+        )
 
     def test_round_and_final_evidence_selects_final_descriptor(self):
         import tempfile
@@ -185,37 +189,46 @@ class WritingAgentTest(unittest.TestCase):
             ("architecture:adaptive_wavelet_lut",),
         )
 
-    def test_writing_agent_rejects_unsupported_numeric_claim(self):
-        from nonlinear_agent.writing_agent import EvidenceBundle, NarrativeFidelityError, WritingAgent
+    def test_writing_agent_falls_back_after_repeated_unsupported_numeric_claim(self):
+        from nonlinear_agent.writing_agent import EvidenceBundle, WritingAgent
 
         router = _Router(_narrative_response(nmse=-99.0))
-        with self.assertRaisesRegex(NarrativeFidelityError, "unsupported number"):
-            WritingAgent(model_router=router).write(
-                EvidenceBundle.from_task_source(_task_source())
-            )
+        narrative = WritingAgent(model_router=router).write(
+            EvidenceBundle.from_task_source(_task_source())
+        )
 
-    def test_writing_agent_rejects_unknown_evidence_reference(self):
-        from nonlinear_agent.writing_agent import EvidenceBundle, NarrativeFidelityError, WritingAgent
+        self.assertNotIn("-99.0", narrative.sections["executive_summary"].text)
+        self.assertEqual(len(router.calls), 2)
+
+    def test_writing_agent_falls_back_after_repeated_unknown_evidence_reference(self):
+        from nonlinear_agent.writing_agent import EvidenceBundle, WritingAgent
 
         payload = json.loads(_narrative_response())
         payload["sections"]["lessons"]["evidence_refs"] = ["memory:invented"]
-        with self.assertRaisesRegex(NarrativeFidelityError, "unknown evidence"):
-            WritingAgent(model_router=_Router(json.dumps(payload))).write(
-                EvidenceBundle.from_task_source(_task_source())
-            )
+        bundle = EvidenceBundle.from_task_source(_task_source())
+        narrative = WritingAgent(model_router=_Router(json.dumps(payload))).write(bundle)
 
-    def test_numeric_claim_must_come_from_the_sections_cited_evidence(self):
-        from nonlinear_agent.writing_agent import EvidenceBundle, NarrativeFidelityError, WritingAgent
+        self.assertTrue(
+            all(
+                ref in bundle.evidence_ids
+                for section in narrative.sections.values()
+                for ref in section.evidence_refs
+            )
+        )
+
+    def test_numeric_claim_with_wrong_section_evidence_uses_safe_fallback(self):
+        from nonlinear_agent.writing_agent import EvidenceBundle, WritingAgent
 
         payload = json.loads(_narrative_response())
         payload["sections"]["executive_summary"] = {
             "text": "最优候选达到 -21.83 dB。",
             "evidence_refs": ["constraint:parameter_count_max"],
         }
-        with self.assertRaisesRegex(NarrativeFidelityError, "not supported by cited evidence"):
-            WritingAgent(model_router=_Router(json.dumps(payload))).write(
-                EvidenceBundle.from_task_source(_task_source())
-            )
+        narrative = WritingAgent(model_router=_Router(json.dumps(payload))).write(
+            EvidenceBundle.from_task_source(_task_source())
+        )
+
+        self.assertNotIn("-21.83", narrative.sections["executive_summary"].text)
 
     def test_failure_line_numbers_are_supported_by_the_cited_failure_fact(self):
         from nonlinear_agent.writing_agent import EvidenceBundle, WritingAgent

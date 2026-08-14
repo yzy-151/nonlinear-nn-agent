@@ -15,6 +15,7 @@ from nonlinear_agent.server import (
     build_harness_request,
     encode_sse_event,
     stream_sse_events,
+    stream_multi_agent_events,
 )
 from nonlinear_agent.trace import TraceEvent
 
@@ -88,6 +89,40 @@ class ServerStreamingTest(unittest.TestCase):
         self.assertEqual(len(chunks), 2)
         self.assertIn("event: start", chunks[0])
         self.assertIn("event: complete", chunks[1])
+
+    def test_multi_agent_stream_exposes_aggregate_coding_outcome(self):
+        class FakeGraph:
+            def stream(self, initial, stream_mode):
+                yield {
+                    "coding": {
+                        "timeline": [{"role": "coding", "status": "completed"}],
+                        "code_results": [
+                            {"passed": True, "attempt_count": 2},
+                            {"passed": False, "attempt_count": 3},
+                        ],
+                    }
+                }
+                yield {
+                    "terminal": {
+                        "timeline": [{"role": "terminal", "status": "completed"}],
+                        "terminal": {"run_id": "multi-summary", "status": "completed"},
+                    }
+                }
+
+        chunks = asyncio.run(_collect(stream_multi_agent_events(
+            FakeGraph(), "multi-summary", "test summary"
+        )))
+        data_line = next(
+            line for line in chunks[0].splitlines() if line.startswith("data: ")
+        )
+        role_payload = json.loads(data_line.removeprefix("data: "))
+
+        self.assertEqual(role_payload["payload"]["coding_summary"], {
+            "candidate_count": 2,
+            "passed_count": 1,
+            "failed_count": 1,
+            "repair_attempts": 5,
+        })
 
     def test_build_harness_request_creates_real_experiment_tool_chain(self):
         request = build_harness_request(

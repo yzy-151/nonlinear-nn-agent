@@ -391,7 +391,11 @@ class WritingAgent:
             repaired = NarrativeSpec.from_json(str(self._complete(repair_prompt)))
             repaired_errors = NarrativeFidelityChecker().check(repaired, bundle)
             if repaired_errors:
-                raise NarrativeFidelityError("; ".join(repaired_errors))
+                fallback = _build_fidelity_fallback(bundle)
+                fallback_errors = NarrativeFidelityChecker().check(fallback, bundle)
+                if fallback_errors:
+                    raise NarrativeFidelityError("; ".join(fallback_errors))
+                return fallback
             return repaired
         return narrative
 
@@ -399,6 +403,60 @@ class WritingAgent:
         if self._router is not None:
             return self._router.complete(self._role, prompt)
         return self._llm.complete(prompt)
+
+
+def _build_fidelity_fallback(bundle: EvidenceBundle) -> NarrativeSpec:
+    """Build a conservative report when two model drafts fail fidelity checks."""
+    metric_refs = tuple(
+        evidence_id
+        for evidence_id, record in bundle.records.items()
+        if record.get("kind") == "execution_metrics"
+    )
+    round_refs = tuple(
+        evidence_id
+        for evidence_id, record in bundle.records.items()
+        if record.get("kind") == "round_decision"
+    )
+    failure_refs = tuple(
+        evidence_id
+        for evidence_id, record in bundle.records.items()
+        if record.get("kind") == "failure"
+    )
+    architecture_ref = f"architecture:{bundle.architecture.name}"
+    performance_refs = metric_refs or ("aggregate:performance",)
+    return NarrativeSpec(
+        task_id=bundle.task_id,
+        sections={
+            "executive_summary": NarrativeSection(
+                "本报告汇总已验证的实验执行、指标与产物。",
+                performance_refs,
+            ),
+            "architecture_analysis": NarrativeSection(
+                "模型结构以已验证的描述符节点与连接关系为准。",
+                (architecture_ref,),
+            ),
+            "performance_analysis": NarrativeSection(
+                "性能判断以逐次执行指标和聚合统计为准。",
+                (*performance_refs, "aggregate:performance"),
+            ),
+            "round_journey": NarrativeSection(
+                "实验过程按已记录的轮次决策与执行证据展示。",
+                round_refs or ("aggregate:performance",),
+            ),
+            "failure_analysis": NarrativeSection(
+                "失败分析仅引用已记录的失败事实；没有记录时不推断原因。",
+                failure_refs or ("aggregate:performance",),
+            ),
+            "lessons": NarrativeSection(
+                "后续实验应继续保留计划、执行和产物之间的证据引用。",
+                ("plan:hypotheses",),
+            ),
+            "limitations": NarrativeSection(
+                "结论只覆盖当前任务提供的约束与执行证据。",
+                ("task:limits",),
+            ),
+        },
+    )
 
 
 def build_deterministic_narrative(

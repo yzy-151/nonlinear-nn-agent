@@ -2,7 +2,7 @@
 
 面向真实机器学习实验的 Agent Harness：让 LLM 设计实验、生成候选代码并根据验证事实迭代，同时由确定性运行时负责安全校验、真实训练、指标复核、过程观测和证据报告。
 
-当前版本：`v4.3.0`。系统同时提供开放式 Multi-Agent 研究链路、稳定的受控模型搜索链路与可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、行为评估和证据交付的完整过程。
+当前版本：`v4.4.0`。系统同时提供开放式 Multi-Agent 研究链路、稳定的受控模型搜索链路与可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、行为评估和证据交付的完整过程。
 
 ## 项目总览
 
@@ -96,6 +96,8 @@ SQLite 控制面在 `concurrency=8`、300请求和15%故障注入下完成测试
 
 总计 `8/9` 个搜索候选完成。该运行完整验证了候选代码生成、失败隔离、跨轮事实反馈、独立终评和报告收口。最佳候选达到 `-23.0778 dB / 24 params`；`-41 dB` 继续作为后续算法优化目标，成熟历史先验由受控搜索链路保留并可直接复用。
 
+`v4.4.0` 又执行了一次最小真实 API 回归：DeepSeek 生成的新 `mlp_tanh_2x8` 候选在第 1 次 Coding 尝试即通过路径、AST、插件契约、参数预算和 smoke-training gate；ExecutionAgent 随后以固定工具完成独立执行，得到 `-20.1689 dB / 162 params`。WritingAgent 的两次草稿均经过 section-scoped evidence fidelity 检查；即使模型持续输出不合规叙述，确定性保底报告仍只使用已登记引用和可验证事实，使 6 阶段 timeline 最终以 `completed` 收口。该回归证明的是运行时兼容性与故障降级能力，不把单次 NMSE 当作算法质量结论。
+
 [完整 6 页 PDF 报告](docs/reports/v4.0.0-e-deepseek-3x3-report.pdf) · [九次实验 NMSE](docs/assets/results/v4.0.0-e/nine-experiment-nmse.png) · [最终模型架构](docs/assets/results/v4.0.0-e/architecture.png)
 
 ![最终复评 PSD](docs/assets/results/v4.0.0-e/final-psd.png)
@@ -127,6 +129,12 @@ Web 首页默认进入 Multi-Agent。中栏的 Timeline、Console、Raw Events �
 ![v4.2.0 受控模型搜索控制台](docs/assets/ui/v4.2.0-controlled-search.png)
 
 页面还包含受控搜索、Agent Planner、Fixed Workflow、Experiments、Benchmark、Memory、Reports 与 Diagnostics。受控搜索可分别选择模型白名单和可调参数；Knowledge 面板可以启停 Multi-Agent 注入、调整 top-k，并预览白名单来源。Idea/Plan 事件会在 Inspector 中显示 evidence ID、citation、hash、score 和 memory provenance。
+
+`v4.4.0` 统一了两条搜索链路的结果视图：Multi-Agent 显示候选数、Coding gate 通过数、修复尝试、执行成功数、目标命中和独立终评；受控搜索显示实验总数、完成/拒绝/运行失败、目标命中、最优 NMSE、输入基线、增益和参数量。结果行只消费真实 `experiment_end` 或 Multi-Agent execution 事件，不再把 Planner 的待执行计划误画成空白实验。
+
+回归覆盖包括 `508` 项完整测试；另有真实 DeepSeek 最小链路验证 Coding、Execution、Writing 与 terminal 状态，而不是仅依赖 scripted fixture。
+
+实验策略对照以 `random_search` 为参照组，在相同 domain、seed、trial budget、参数上限和目标阈值下比较 Optuna TPE、LLM Direct 与 LLM + Program Reflection；表格给出相对参照组增量，配对区域显示 treatment-control、样本数和显著性。
 
 ## 工程详细图
 

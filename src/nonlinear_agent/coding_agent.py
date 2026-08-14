@@ -104,6 +104,9 @@ class CodeChangePlan:
     @classmethod
     def from_json(cls, response: str, task: CodingTaskSpec) -> "CodeChangePlan":
         stripped = response.strip()
+        fence = re.fullmatch(r"```(?:json)?\s*(\{.*\})\s*```", stripped, re.DOTALL)
+        if fence:
+            stripped = fence.group(1).strip()
         if not stripped.startswith("{") or not stripped.endswith("}"):
             raise ValueError("coding response must be one JSON object without Markdown")
         try:
@@ -128,10 +131,8 @@ class CodeChangePlan:
             raise ValueError(f"coding response has unknown fields: {', '.join(unknown)}")
         if payload["schema_version"] != 1:
             raise ValueError("coding response schema_version must be 1")
-        if payload["task_id"] != task.task_id:
-            raise ValueError("coding response task_id does not match request")
-        if payload["candidate_name"] != task.candidate_name:
-            raise ValueError("coding response candidate_name does not match request")
+        # These identifiers are assigned by the supervisor. Treat the model's
+        # copies as untrusted display metadata and canonicalize them below.
         raw_files = payload["files"]
         if not isinstance(raw_files, dict) or not raw_files:
             raise ValueError("coding response files must be a non-empty object")
@@ -678,7 +679,7 @@ Required JSON schema:
   "manifest_path": "models/candidates/{task.candidate_name}/manifest.json",
   "files": {{
     "models/candidates/{task.candidate_name}/plugin.py": "complete Python source",
-    "models/candidates/{task.candidate_name}/manifest.json": "JSON string"
+    "models/candidates/{task.candidate_name}/manifest.json": "{{\"schema_version\":1,\"name\":\"{task.candidate_name}\",\"entrypoint\":\"models/candidates/{task.candidate_name}/plugin.py:YourPluginClass\"}}"
   }}
 }}
 """

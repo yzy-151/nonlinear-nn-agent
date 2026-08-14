@@ -350,3 +350,23 @@ Web 中“允许模型”决定 Planner 可选的固定实现；“可调参数�
 面试时可表述为：
 
 > 我没有把所有任务都强制交给自由代码生成，而是设计了双轨实验系统。开放式 Multi-Agent 用于新架构探索；受控搜索在经过验证的模型族内优化，用户可以分别锁定模型集合和参数字段。Planner 只看到允许空间，Guard 再做一次确定性校验，两条链路最终进入同一训练和评测内核。
+
+## 20. v4.4.0：Coding 契约修复与运行级统计
+
+真实 Multi-Agent 历史运行中，CodingAgent 的失败发生在训练之前：LLM 返回的 `manifest.name`、候选目录或 `entrypoint` 形式与请求略有差异，严格 parser 在三次修复内重复拒绝。修复没有放开 AST、路径、参数预算和 smoke-training gate，而是把 Supervisor 拥有的 `task_id`、`candidate_name`、manifest name 与候选根目录做确定性 canonicalization，并兼容单一 JSON code fence；prompt 同时给出完整 manifest 示例。安全边界与格式容错被拆开处理。
+
+受控搜索的空表来自前端数据契约错误：`plan_generated.experiments` 只是待执行计划，旧组件却把它当成结果行。现在只有 `experiment_end`、`experiment_rejected`、Multi-Agent execution 和 final-evaluation 能写入结果表。服务端还为 Coding role 投影 `candidate_count / passed_count / failed_count / repair_attempts`，不公开源码或详细 worker state。
+
+受控搜索中的 `output_dir` 是运行时产物路径，不是模型超参数。`FilteredDomain` 现在把它作为经过底层路径规范化的 operational metadata 允许通过，但不把它放进 Planner 可调 design space。模型/超参数锁定能力不受影响。
+
+### 20.1 真实 API 回归结果
+
+`v440-coding-smoke-final` 关闭本地知识注入，仅向 DeepSeek 发送公开目标与任务契约。CodingAgent 第一次调用就生成可执行的 `mlp_tanh_2x8` 插件，固定 gate 复核为 `162` 参数；ExecutionAgent 通过注册工具独立运行，得到 `-20.1689 dB`，无失败事实、无修复尝试。Idea/Plan、Plan Gate、Coding、Execution、Writing、Terminal 六个 timeline 节点均为 `completed`。
+
+WritingAgent 连续调用两次，是因为第一份草稿未满足证据忠实度约束，第二次用于基于具体错误修复。若第二次仍不合规，系统不放宽引用或数字规则，而是生成只包含 evidence registry 已知引用、且不引入未验证数字的确定性保底叙述，再用同一个 `NarrativeFidelityChecker` 复核。这样把“报告模型能力不足”降级为可观测质量事件，而不是让已经完成的实验整体失败。
+
+完整回归为 `508/508` 通过。这里要分清两类证据：单次真实 API run 证明 Agent 间契约、代码执行和报告降级能闭环；固定任务集上的 pass@1/pass@3 与多 seed NMSE 才能证明模型质量，二者不能混写。
+
+面试表达：
+
+> 我把 Planner proposal 与 Execution observation 分成不同事件契约，UI 只从 observation 构建统计，避免把待执行计划误算成实验结果。CodingAgent 对服务端身份字段做 canonicalization，但危险能力、越界路径、参数预算和真实 smoke run 仍由确定性 gate 拦截。最终两条搜索链路都能给出运行级成功率、失败分类、目标命中和最优性能证据。

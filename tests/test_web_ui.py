@@ -28,6 +28,8 @@ class WebUITest(unittest.TestCase):
         self.assertIn("Execution", html)
         self.assertIn("Writing", html)
         self.assertIn('id="multiExperimentTable"', html)
+        self.assertIn('id="runSummary"', html)
+        self.assertIn('id="comparisonBasis"', html)
         self.assertIn('id="resultLinks"', html)
 
     def test_sidebar_exposes_all_runtime_surfaces(self):
@@ -57,6 +59,16 @@ class WebUITest(unittest.TestCase):
         self.assertIn("allowed_models", script)
         self.assertIn("enabled_fields", script)
         self.assertIn("CONTROLLED_DEFAULT_FIELDS", script)
+        self.assertIn("normalizeControlledResult", script)
+        self.assertIn("renderRunSummary", script)
+
+    def test_search_comparison_names_its_reference_and_paired_deltas(self):
+        html = render_home_page()
+        script = read_web_asset("app.js")
+
+        self.assertIn("随机搜索（参照组）", html)
+        self.assertIn('id="cmpPaired"', html)
+        self.assertIn("delta vs random_search", script)
 
     def test_knowledge_interface_is_connected_and_truthful_about_scope(self):
         html = render_home_page()

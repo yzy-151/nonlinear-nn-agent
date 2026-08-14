@@ -14,6 +14,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+_OPERATIONAL_FIELDS = {"output_dir"}
+
 
 class FilteredDomain:
     """Delegate wrapper that limits the optimizable field whitelist."""
@@ -64,20 +66,24 @@ class FilteredDomain:
         self, overrides: dict[str, object], parameter_count_max: int | None = None
     ) -> list[str]:
         # Fields outside the enabled whitelist are rejected outright
-        unsupported = sorted(set(overrides) - self._enabled)
+        accepted = self._enabled | _OPERATIONAL_FIELDS
+        unsupported = sorted(set(overrides) - accepted)
         errors = [f"field not enabled for tuning: {f}" for f in unsupported]
-        allowed_overrides = {k: v for k, v in overrides.items() if k in self._enabled}
+        allowed_overrides = {k: v for k, v in overrides.items() if k in accepted}
         for field, allowed in self._allowed_values.items():
             if field in allowed_overrides and allowed_overrides[field] not in allowed:
                 errors.append(
                     f"{field} must be one of {allowed!r} for this run."
                 )
                 allowed_overrides.pop(field)
-        errors.extend(self._domain.validate_candidate(allowed_overrides, parameter_count_max))
+        limit = parameter_count_max
+        if limit is None:
+            limit = int(self._domain.default_constraints().get("parameter_count_max", 4000))
+        errors.extend(self._domain.validate_candidate(allowed_overrides, limit))
         return errors
 
     def allowed_override_fields(self) -> set[str]:
-        return self._enabled & self._domain.allowed_override_fields()
+        return (self._enabled | _OPERATIONAL_FIELDS) & self._domain.allowed_override_fields()
 
     # ── Everything else is delegated ───────────────────────────
     def build_tool_registry(self, workspace: Path, default_timeout_seconds: float = 300.0):

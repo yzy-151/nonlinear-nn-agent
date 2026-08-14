@@ -64,7 +64,7 @@ class TestFilteredDomain(unittest.TestCase):
         )
         self.assertEqual(
             domain.allowed_override_fields(),
-            {"model_type", "learning_rate", "kernel_size"},
+            {"model_type", "learning_rate", "kernel_size", "output_dir"},
         )
         # A disabled field is rejected by the guard
         errors = domain.validate_candidate({"memory_depth": 999})
@@ -113,11 +113,45 @@ class TestFilteredDomain(unittest.TestCase):
         domain = FilteredDomain(NonlinearModelingDomain(), enabled_fields=[])
 
         self.assertEqual(domain.design_space(), {})
-        self.assertEqual(domain.allowed_override_fields(), set())
+        self.assertEqual(domain.allowed_override_fields(), {"output_dir"})
         self.assertIn(
             "field not enabled for tuning: memory_depth",
             domain.validate_candidate({"memory_depth": 24}),
         )
+
+    def test_filtered_domain_allows_output_dir_as_runtime_metadata(self):
+        from nonlinear_agent.domains.filtered import FilteredDomain
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
+        domain = FilteredDomain(
+            NonlinearModelingDomain(), enabled_fields=["model_type"]
+        )
+
+        self.assertEqual(
+            domain.validate_candidate({
+                "model_type": "complex_lstsq",
+                "output_dir": "reports/controlled-001",
+            }),
+            [],
+        )
+        self.assertNotIn("output_dir", domain.design_space())
+
+    def test_filtered_domain_allows_output_dir_as_runtime_metadata(self):
+        from nonlinear_agent.domains.filtered import FilteredDomain
+        from nonlinear_agent.domains.nonlinear_modeling import NonlinearModelingDomain
+
+        domain = FilteredDomain(
+            NonlinearModelingDomain(), enabled_fields=["model_type"]
+        )
+
+        self.assertEqual(
+            domain.validate_candidate({
+                "model_type": "complex_lstsq",
+                "output_dir": "reports/controlled-001",
+            }),
+            [],
+        )
+        self.assertNotIn("output_dir", domain.design_space())
 
 
 if __name__ == "__main__":

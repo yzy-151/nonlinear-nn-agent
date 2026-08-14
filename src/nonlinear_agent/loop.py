@@ -528,6 +528,7 @@ class ExperimentPlannerLoop:
                         "type": "experiment_rejected",
                         "id": experiment.experiment_id,
                         "error": str(exc),
+                        "config": dict(experiment.overrides),
                     }
                     continue
 
@@ -602,6 +603,8 @@ class ExperimentPlannerLoop:
                     "type": "experiment_end",
                     "id": experiment.experiment_id,
                     "metrics": metrics,
+                    "config": dict(overrides),
+                    "round": rounds,
                 }
 
             # ── 复盘 ──

@@ -1,7 +1,7 @@
 import { classifyEvent, formatConsole, normalizeEvent } from "/ui/event_view_model.js";
 
 const $ = (id) => document.getElementById(id);
-const state = { events: [], selected: null, currentRunId: null, controller: null, experiments: [], finalEvaluation: null, terminalStatus: null };
+const state = { events: [], selected: null, currentRunId: null, controller: null, experiments: [], finalEvaluation: null, terminalStatus: null, runMode: null, runConfig: {}, coding: { candidates: 0, passed: 0, failed: 0, attempts: 0 } };
 const titles = { multiagent: "Multi-Agent 运行", controlled: "受控模型搜索", agent: "Agent Planner", workflow: "Fixed Workflow", experiments: "实验策略对照", benchmark: "Benchmark 评估", memory: "Memory Inspector", reports: "报告与产物", diagnostics: "运行诊断" };
 const CONTROLLED_DEFAULT_FIELDS = new Set(["feature_mode", "memory_depth", "mp_order_count", "hidden_units", "spline_knots", "epochs", "learning_rate", "optimizer"]);
 
@@ -42,6 +42,9 @@ function clearEvents() {
   state.experiments = [];
   state.finalEvaluation = null;
   state.terminalStatus = null;
+  state.runMode = null;
+  state.runConfig = {};
+  state.coding = { candidates: 0, passed: 0, failed: 0, attempts: 0 };
   $("timeline").innerHTML = '<li class="timeline-empty">等待运行事件</li>';
   $("evBox").textContent = "Ready. Select a mode and start a run.";
   $("rawBox").textContent = "[]";
@@ -50,6 +53,8 @@ function clearEvents() {
   $("inspectorEmpty").classList.remove("hidden");
   $("resultPreview").classList.add("hidden");
   $("multiExperimentTable").classList.add("hidden");
+  $("runSummary").classList.add("hidden");
+  $("runSummary").innerHTML = "";
   $("resultLinks").innerHTML = "";
 }
 $("clearBtn").addEventListener("click", clearEvents);
@@ -106,22 +111,78 @@ function bestExperiment() {
   return all.filter((item) => item.status === "completed" && Number.isFinite(Number(item.metrics?.nmse_db))).sort((a, b) => Number(a.metrics.nmse_db) - Number(b.metrics.nmse_db))[0];
 }
 
-function renderMultiAgentResults(raw) {
+function normalizeControlledResult(payload, eventType) {
+  const config = payload.config || {};
+  const metrics = payload.metrics || {};
+  const rawStatus = eventType === "experiment_rejected" ? "rejected" : (metrics.run_status || "completed");
+  return {
+    experiment_id: payload.id || "unknown",
+    evaluation_kind: "controlled-search",
+    model_type: config.model_type || "baseline default",
+    status: rawStatus === "succeeded" ? "completed" : rawStatus,
+    metrics,
+    config,
+    error: payload.error || metrics.error || "",
+  };
+}
+
+function upsertExperiment(row) {
+  const key = `${row.evaluation_kind || "search"}:${row.experiment_id || "unknown"}`;
+  const index = state.experiments.findIndex((item) => `${item.evaluation_kind || "search"}:${item.experiment_id || "unknown"}` === key);
+  if (index >= 0) state.experiments[index] = row; else state.experiments.push(row);
+}
+
+function collectRunResult(raw) {
   const payload = raw.payload || {};
-  if (Array.isArray(payload.experiments)) state.experiments.push(...payload.experiments);
-  if (payload.final_evaluation) state.finalEvaluation = payload.final_evaluation;
+  if (raw.event_type === "multi_agent_role" && payload.role === "execution" && Array.isArray(payload.experiments)) {
+    payload.experiments.forEach(upsertExperiment);
+  }
+  if (raw.event_type === "multi_agent_role" && payload.role === "final_evaluation" && payload.final_evaluation) state.finalEvaluation = payload.final_evaluation;
+  if (raw.event_type === "multi_agent_role" && payload.role === "coding" && payload.coding_summary) {
+    state.coding.candidates += Number(payload.coding_summary.candidate_count || 0);
+    state.coding.passed += Number(payload.coding_summary.passed_count || 0);
+    state.coding.failed += Number(payload.coding_summary.failed_count || 0);
+    state.coding.attempts += Number(payload.coding_summary.repair_attempts || 0);
+  }
+  if (state.runMode === "controlled" && ["experiment_end", "experiment_rejected"].includes(raw.event_type)) {
+    upsertExperiment(normalizeControlledResult(payload, raw.event_type));
+  }
+}
+
+function renderRunSummary() {
+  const rows = [...state.experiments, ...(state.finalEvaluation ? [state.finalEvaluation] : [])];
+  const completed = rows.filter((item) => item.status === "completed");
+  const searchCompleted = state.experiments.filter((item) => item.status === "completed");
+  const rejected = rows.filter((item) => item.status === "rejected").length;
+  const failed = rows.filter((item) => !["completed", "rejected"].includes(item.status)).length;
+  const searchFailed = state.experiments.filter((item) => item.status !== "completed").length;
+  const threshold = Number(state.runConfig.nmse_threshold_db);
+  const hits = completed.filter((item) => Number.isFinite(Number(item.metrics?.nmse_db)) && Number(item.metrics.nmse_db) <= threshold).length;
+  const searchHits = searchCompleted.filter((item) => Number.isFinite(Number(item.metrics?.nmse_db)) && Number(item.metrics.nmse_db) <= threshold).length;
+  const cards = state.runMode === "multiagent"
+    ? [["generated_candidates", state.coding.candidates], ["coding_gate_pass", `${state.coding.passed}/${state.coding.candidates}`], ["search_completed", `${searchCompleted.length}/${state.experiments.length}`], ["search_failed", searchFailed], ["search_target_hits", searchHits], ["repair_attempts", state.coding.attempts], ["final_evaluation", state.finalEvaluation?.status || "pending"]]
+    : [["experiments_total", rows.length], ["completed", completed.length], ["rejected_by_guard", rejected], ["runtime_failed", failed], ["target_hits", hits], ["target_nmse_db", Number.isFinite(threshold) ? threshold : "-"]];
+  $("runSummary").innerHTML = cards.map(([name, value]) => `<div><small>${esc(name)}</small><b>${esc(value)}</b></div>`).join("");
+  $("runSummary").classList.remove("hidden");
+}
+
+function renderRunResults(raw) {
+  const payload = raw.payload || {};
   if (!state.experiments.length && !state.finalEvaluation && raw.event_type !== "multi_agent_terminal") return;
   const rows = [...state.experiments, ...(state.finalEvaluation ? [state.finalEvaluation] : [])];
   if (rows.length) {
-    $("multiExperimentTable").innerHTML = `<table class="r-table"><tr><th>Experiment</th><th>Kind</th><th>Model</th><th>Status</th><th>NMSE</th><th>Params</th></tr>${rows.map((item) => `<tr><td>${esc(item.experiment_id)}</td><td>${esc(item.evaluation_kind)}</td><td>${esc(item.model_type)}</td><td>${esc(item.status)}</td><td>${item.metrics?.nmse_db == null ? "-" : `${Number(item.metrics.nmse_db).toFixed(3)} dB`}</td><td>${esc(item.metrics?.parameter_count ?? "-")}</td></tr>`).join("")}</table>`;
+    $("multiExperimentTable").innerHTML = `<table class="r-table"><tr><th>Experiment</th><th>Stage</th><th>Model</th><th>Status</th><th>NMSE</th><th>Gain vs input</th><th>Params</th></tr>${rows.map((item) => `<tr><td>${esc(item.experiment_id)}</td><td>${esc(item.evaluation_kind)}</td><td>${esc(item.model_type)}</td><td>${esc(item.status)}</td><td>${item.metrics?.nmse_db == null ? "-" : `${Number(item.metrics.nmse_db).toFixed(3)} dB`}</td><td>${item.metrics?.nmse_improvement_db == null ? "-" : `${Number(item.metrics.nmse_improvement_db).toFixed(2)} dB`}</td><td>${esc(item.metrics?.parameter_count ?? "-")}</td></tr>`).join("")}</table>`;
     $("multiExperimentTable").classList.remove("hidden");
   }
   const best = bestExperiment();
   if (best) {
     $("chipNmse").textContent = `${Number(best.metrics.nmse_db).toFixed(2)} dB`;
+    $("chipBase").textContent = best.metrics.baseline_nmse_db == null ? "-" : `${Number(best.metrics.baseline_nmse_db).toFixed(2)} dB`;
+    $("chipGain").textContent = best.metrics.nmse_improvement_db == null ? "-" : `${Number(best.metrics.nmse_improvement_db).toFixed(2)} dB`;
     $("chipParams").textContent = best.metrics.parameter_count ?? "-";
-    $("resultTitle").textContent = state.finalEvaluation ? "终评与实验轨迹" : "实验轨迹";
+    $("resultTitle").textContent = state.runMode === "controlled" ? "受控搜索总体结果" : (state.finalEvaluation ? "Multi-Agent 终评与总体结果" : "Multi-Agent 总体结果");
   }
+  renderRunSummary();
   const paths = Object.entries(payload).filter(([key, value]) => key.endsWith("_path") && typeof value === "string");
   if (paths.length) $("resultLinks").innerHTML = paths.map(([key, path]) => `<a href="${artifactUrl(path)}" target="_blank">${esc(key)}: ${esc(path)}</a>`).join("");
   $("resultPreview").classList.remove("hidden");
@@ -145,7 +206,8 @@ function appendEvent(raw) {
   $("evBox").scrollTop = $("evBox").scrollHeight;
   $("rawBox").textContent = JSON.stringify(state.events.map((item) => item.raw), null, 2);
   $("evCount").textContent = state.events.length;
-  renderMultiAgentResults(raw);
+  collectRunResult(raw);
+  renderRunResults(raw);
   updatePreview(raw);
 }
 
@@ -172,6 +234,8 @@ function applyTerminalStatus() {
 async function streamRun(url, body, button, runId) {
   if (state.controller) return;
   clearEvents();
+  state.runMode = url.startsWith("/multi-agent/") ? "multiagent" : (url.startsWith("/controlled-search/") ? "controlled" : "other");
+  state.runConfig = { ...body };
   setRunControlsDisabled(true);
   const original = button.innerHTML;
   button.textContent = "运行中...";
@@ -281,8 +345,10 @@ $("bmLoadBtn").addEventListener("click", () => loadBenchmarkSummary(true));
 
 function renderCompareSummary(summary) {
   const methods = summary.per_method || {}; const metric = Object.values(methods)[0]?.metric_name || "nmse_db";
-  $("cmpTableWrap").innerHTML = `<table class="r-table"><tr><th>Method</th><th>Best mean</th><th>95% CI</th><th>Hit Rate</th><th>Planner OK</th><th>Rejected</th><th>Failed</th></tr>${Object.entries(methods).map(([name, item]) => `<tr><td>${esc(name)}</td><td>${esc(item[`best_${metric}_mean`])}</td><td>[${esc(item[`best_${metric}_ci_95_low`])}, ${esc(item[`best_${metric}_ci_95_high`])}]</td><td>${esc(item.target_hit_rate_mean)}</td><td>${esc(item.planner_success_rate)}</td><td>${esc(item.rejected_rate_mean)}</td><td>${esc(item.runtime_failure_rate_mean)}</td></tr>`).join("")}</table>`;
-  $("cmpPaired").textContent = Object.keys(summary.paired_comparisons || {}).length ? "Paired comparisons available in Raw Events / saved summary." : "";
+  const reference = methods.random_search?.[`best_${metric}_mean`];
+  $("cmpTableWrap").innerHTML = `<table class="r-table"><tr><th>Method</th><th>Role</th><th>Best mean</th><th>delta vs random_search</th><th>95% CI</th><th>Hit Rate</th><th>Rejected</th><th>Failed</th></tr>${Object.entries(methods).map(([name, item]) => { const best = item[`best_${metric}_mean`]; const delta = Number.isFinite(Number(best)) && Number.isFinite(Number(reference)) ? Number(best) - Number(reference) : null; return `<tr><td>${esc(name)}</td><td>${name === "random_search" ? "reference" : "candidate"}</td><td>${esc(best)}</td><td>${delta == null ? "-" : delta.toPrecision(4)}</td><td>[${esc(item[`best_${metric}_ci_95_low`])}, ${esc(item[`best_${metric}_ci_95_high`])}]</td><td>${esc(item.target_hit_rate_mean)}</td><td>${esc(item.rejected_rate_mean)}</td><td>${esc(item.runtime_failure_rate_mean)}</td></tr>`; }).join("")}</table>`;
+  const paired = summary.paired_comparisons || {};
+  $("cmpPaired").innerHTML = Object.entries(paired).length ? `<div class="paired-grid">${Object.entries(paired).map(([name, item]) => { const deltaKey = Object.keys(item).find((key) => key.endsWith("_delta_mean")); const metricName = deltaKey?.slice(0, -11) || metric; return `<div><small>${esc(name)}</small><b>${esc(item[deltaKey])}</b><span>${esc(metricName)} treatment - control · n=${esc(item.paired_seed_count)} · ${item.significant ? "significant" : "not significant"}</span></div>`; }).join("")}</div>` : '<p class="field-note">当前结果没有可用的同 seed 配对统计。</p>';
   $("cmpResults").classList.remove("hidden");
 }
 async function loadCompareSummary(showError = true) { try { const data = await fetch("/compare/summary").then((response) => response.json()); if (!data.error) renderCompareSummary(data); } catch (error) { if (showError) appendEvent({ event_type: "error", error: String(error) }); } }

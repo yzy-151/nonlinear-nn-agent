@@ -90,6 +90,28 @@ class CodingWorkflowTest(unittest.TestCase):
             "models/candidates/novel_dynamic_model/plugin.py:NovelPlugin",
         )
 
+    def test_plan_parser_normalizes_llm_owned_identity_fields(self):
+        from nonlinear_agent.coding_agent import CodeChangePlan
+
+        payload = json.loads(_response(PLUGIN_SOURCE))
+        payload["task_id"] = "hallucinated-task"
+        payload["candidate_name"] = "NovelDynamicModel"
+
+        plan = CodeChangePlan.from_json(json.dumps(payload), self._task())
+
+        self.assertEqual(plan.task_id, "coding-task-001")
+        self.assertEqual(plan.candidate_name, "novel_dynamic_model")
+
+    def test_plan_parser_accepts_a_single_json_code_fence(self):
+        from nonlinear_agent.coding_agent import CodeChangePlan
+
+        plan = CodeChangePlan.from_json(
+            "```json\n" + _response(PLUGIN_SOURCE) + "\n```",
+            self._task(),
+        )
+
+        self.assertEqual(plan.task_id, "coding-task-001")
+
     def test_plan_parser_infers_unique_plugin_entrypoint_from_returned_ast(self):
         from nonlinear_agent.coding_agent import CodeChangePlan
 
@@ -140,13 +162,8 @@ class CodingWorkflowTest(unittest.TestCase):
         )
         self.assertEqual(manifest["schema_version"], 1)
 
-    def test_plan_parser_rejects_markdown_and_path_escape(self):
+    def test_plan_parser_rejects_path_escape(self):
         from nonlinear_agent.coding_agent import CodeChangePlan
-
-        with self.assertRaisesRegex(ValueError, "JSON object"):
-            CodeChangePlan.from_json(
-                "```json\n" + _response(PLUGIN_SOURCE) + "\n```", self._task()
-            )
 
         payload = json.loads(_response(PLUGIN_SOURCE))
         payload["files"]["../escape.py"] = "VALUE = 1\n"

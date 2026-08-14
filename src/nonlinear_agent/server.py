@@ -555,6 +555,24 @@ async def stream_multi_agent_events(
                                 for item in delta["exploration_outcomes"]
                                 if isinstance(item, dict)
                             ]
+                        if event.get("role") == "coding" and delta.get("code_results"):
+                            code_results = [
+                                item for item in delta["code_results"]
+                                if isinstance(item, dict)
+                            ]
+                            event["coding_summary"] = {
+                                "candidate_count": len(code_results),
+                                "passed_count": sum(
+                                    bool(item.get("passed")) for item in code_results
+                                ),
+                                "failed_count": sum(
+                                    not bool(item.get("passed")) for item in code_results
+                                ),
+                                "repair_attempts": sum(
+                                    int(item.get("attempt_count", 0) or 0)
+                                    for item in code_results
+                                ),
+                            }
                         if event.get("role") == "final_evaluation" and delta.get(
                             "final_evaluation"
                         ):
@@ -790,7 +808,7 @@ def create_app(
         ) from exc
 
     root = Path(workspace)
-    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.2.0")
+    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.4.0")
 
     # v3.6.0: process-local memory inspector backend (LangGraph InMemoryStore).
     # Action-loop runs write through the same MemoryBackend port; this
