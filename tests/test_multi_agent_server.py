@@ -8,6 +8,24 @@ from tests.test_supervisor_e2e import _plan
 
 
 class TestMultiAgentServer(unittest.TestCase):
+    def test_registered_anchor_profile_is_fixed_and_trace_backed(self):
+        from nonlinear_agent.server import _registered_anchor_from_payload
+
+        disabled = _registered_anchor_from_payload({})
+        enabled = _registered_anchor_from_payload(
+            {"registered_anchor_profile": "tiny-mem15-mp3-h80-40db"}
+        )
+
+        self.assertIsNone(disabled)
+        self.assertEqual(enabled["model_type"], "tiny_mlp")
+        self.assertEqual(enabled["config"]["memory_depth"], 15)
+        self.assertEqual(enabled["config"]["mp_order_count"], 3)
+        self.assertEqual(enabled["config"]["epochs"], 1500)
+        self.assertEqual(enabled["parameter_count_max"], 8000)
+
+        with self.assertRaisesRegex(ValueError, "unsupported registered anchor profile"):
+            _registered_anchor_from_payload({"registered_anchor_profile": "arbitrary-code"})
+
     def test_knowledge_sources_endpoint_lists_whitelisted_chunks(self):
         try:
             from fastapi.testclient import TestClient

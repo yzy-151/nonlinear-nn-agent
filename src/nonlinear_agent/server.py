@@ -752,6 +752,7 @@ def _build_default_multi_agent_graph(
         planner_namespace=namespace,
         planner_context_top_k=int(payload.get("knowledge_top_k", 3)),
         memory_backend=memory_backend,
+        registered_anchor=_registered_anchor_from_payload(payload),
     )
     graph = build_multi_agent_graph(
         runtime.workers(),
@@ -763,6 +764,41 @@ def _build_default_multi_agent_graph(
         final_evaluation=bool(payload.get("final_evaluation", False)),
     )
     return graph
+
+
+def _registered_anchor_from_payload(
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Resolve a named, trace-backed model profile without accepting code paths."""
+    profile = str(payload.get("registered_anchor_profile", "")).strip()
+    if not profile:
+        return None
+    if profile != "tiny-mem15-mp3-h80-40db":
+        raise ValueError(f"unsupported registered anchor profile: {profile}")
+    return {
+        "profile": profile,
+        "model_type": "tiny_mlp",
+        "config": {
+            "model_type": "tiny_mlp",
+            "feature_mode": "complex_mp",
+            "target_mode": "direct",
+            "memory_depth": 15,
+            "mp_order_count": 3,
+            "hidden_units": 80,
+            "activation": "relu",
+            "epochs": 1500,
+            "batch_size": 512,
+            "learning_rate": 8.0e-4,
+            "optimizer": "adam",
+            "scheduler_step_size": 1000,
+            "scheduler_gamma": 1.0,
+            "seed": 42,
+        },
+        "parameter_count_max": 8000,
+        "epochs_max": 1500,
+        "timeout_seconds": 900.0,
+        "evidence": "reports/tiny_mlp_relu_mem15_mp3_h80_epochs1500/metrics.json",
+    }
 
 
 def _configure_multi_agent_client(
@@ -808,7 +844,7 @@ def create_app(
         ) from exc
 
     root = Path(workspace)
-    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.4.1")
+    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.5.0")
 
     # v3.6.0: process-local memory inspector backend (LangGraph InMemoryStore).
     # Action-loop runs write through the same MemoryBackend port; this

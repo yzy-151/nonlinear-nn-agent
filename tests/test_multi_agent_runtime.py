@@ -10,6 +10,232 @@ from tests.test_supervisor_e2e import _plan, _three_candidate_plan
 
 
 class TestMultiAgentRuntime(unittest.TestCase):
+    def test_idea_plan_contract_exposes_verified_registered_anchor(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+
+        class Router:
+            def __init__(self):
+                self.prompt = ""
+
+            def complete(self, role, prompt):
+                self.prompt = prompt
+                return json.dumps(plan)
+
+        router = Router()
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            router,
+            object(),
+            object(),
+            registered_anchor={
+                "model_type": "tiny_mlp",
+                "config": {
+                    "memory_depth": 5,
+                    "mp_order_count": 5,
+                    "hidden_units": 80,
+                    "epochs": 12000,
+                },
+                "parameter_count_max": 6000,
+                "timeout_seconds": 1800,
+            },
+        )
+
+        result = runtime._idea_plan(
+            {
+                "run_id": "anchor-plan",
+                "goal": "reach -40 dB",
+                "round_index": 1,
+                "rounds_total": 1,
+                "experiments_per_round": 3,
+                "available_fact_refs": [],
+                "round_records": [],
+            }
+        )
+
+        self.assertIn('"implementation_source": "registered_model"', router.prompt)
+        self.assertIn('"epochs": 12000', router.prompt)
+        self.assertIn("include this exact verified anchor", router.prompt)
+        anchor = result["candidate_experiments"][0]
+        self.assertEqual(anchor["implementation_source"], "registered_model")
+        self.assertEqual(anchor["config"]["epochs"], 12000)
+
+    def test_registered_anchor_coding_returns_validated_config_without_llm_code(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        class Coding:
+            def generate_candidate(self, task):
+                raise AssertionError("registered anchors must not generate replacement code")
+
+        runtime = MultiAgentRuntime(Path.cwd(), object(), Coding(), object())
+        candidate = {
+            "experiment_id": "anchor-1",
+            "implementation_source": "registered_model",
+            "model_type": "tiny_mlp",
+            "config": {
+                "model_type": "tiny_mlp",
+                "feature_mode": "complex_mp",
+                "memory_depth": 5,
+                "mp_order_count": 5,
+                "hidden_units": 80,
+                "activation": "relu",
+                "epochs": 12000,
+            },
+            "budget": {
+                "parameter_count_max": 6000,
+                "epochs_max": 12000,
+                "timeout_seconds": 1800,
+            },
+        }
+
+        result = runtime._coding_worker(
+            {
+                "run_id": "anchor-run",
+                "goal": "reach -40 dB",
+                "round_index": 1,
+                "experiment_id": "anchor-1",
+                "candidate": candidate,
+                "plan": {"plan_id": "anchor-plan"},
+                "prior_facts": [],
+            }
+        )
+
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["implementation_source"], "registered_model")
+        self.assertEqual(result["validation"]["estimated_parameter_count"], 5042)
+        self.assertEqual(result["applied_files"], ())
+
+    def test_registered_anchor_execution_uses_config_and_training_tools(self):
+        from nonlinear_agent.execution_agent import ExecutionResult
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        class Execution:
+            def __init__(self):
+                self.calls = []
+
+            async def execute(self, tool_name, arguments, cancelled=False):
+                self.calls.append((tool_name, arguments))
+                if tool_name == "generate_config":
+                    return ExecutionResult(
+                        status="completed",
+                        classification="ok",
+                        tool_name=tool_name,
+                        output={"config_path": "runs/anchor/configs/anchor.yaml"},
+                        artifacts=("runs/anchor/configs/anchor.yaml",),
+                    )
+                return ExecutionResult(
+                    status="completed",
+                    classification="ok",
+                    tool_name=tool_name,
+                    metrics={"nmse_db": -40.8, "parameter_count": 5042},
+                    output={"metrics": {"nmse_db": -40.8, "parameter_count": 5042}},
+                    artifacts=(
+                        "reports/anchor/execution/metrics.json",
+                        "reports/anchor/execution/psd.png",
+                    ),
+                )
+
+        execution = Execution()
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            object(),
+            object(),
+            object(),
+            execution_agent_factory=lambda workspace: execution,
+        )
+        runtime._publish_file = lambda workspace, value, run_id: value
+        candidate = {
+            "experiment_id": "anchor-1",
+            "implementation_source": "registered_model",
+            "model_type": "tiny_mlp",
+            "config": {
+                "model_type": "tiny_mlp",
+                "feature_mode": "complex_mp",
+                "memory_depth": 5,
+                "mp_order_count": 5,
+                "hidden_units": 80,
+                "activation": "relu",
+                "epochs": 12000,
+                "output_dir": "reports/ignored",
+            },
+            "budget": {
+                "parameter_count_max": 6000,
+                "epochs_max": 12000,
+                "timeout_seconds": 1800,
+            },
+        }
+
+        result = runtime._execution_worker(
+            {
+                "run_id": "anchor-run",
+                "goal": "reach -40 dB",
+                "round_index": 1,
+                "experiment_id": "anchor-1",
+                "candidate": candidate,
+                "plan": {"plan_id": "anchor-plan"},
+                "code_result": {
+                    "passed": True,
+                    "implementation_source": "registered_model",
+                    "worktree": str(Path.cwd()),
+                },
+            }
+        )
+
+        self.assertEqual([item[0] for item in execution.calls], ["generate_config", "run_training"])
+        generated = execution.calls[0][1]
+        self.assertEqual(generated["base_config_path"], "configs/baselines/mlp64-complexmp-direct-adam-400-lr2e3.yaml")
+        self.assertEqual(generated["overrides"]["output_dir"], "reports/anchor-run-anchor-1/execution")
+        self.assertEqual(result["metrics"]["nmse_db"], -40.8)
+        descriptor = result["output"]["descriptor"]
+        self.assertEqual(descriptor["name"], "tiny_mlp")
+        self.assertEqual(
+            [node["label"] for node in descriptor["nodes"]],
+            ["Complex MP features", "Dense 80 + ReLU", "Complex output"],
+        )
+
+    def test_batch_report_reproduce_command_matches_actual_search_shape(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        class Router:
+            def total_cost(self):
+                return 0.0
+
+        runtime = MultiAgentRuntime(Path.cwd(), Router(), object(), object())
+        candidate = {
+            "model_type": "tiny_mlp",
+            "config": {"hidden_units": 80},
+            "budget": {"parameter_count_max": 8000},
+        }
+        source = runtime._batch_report_source(
+            {
+                "run_id": "shape-1x3",
+                "goal": "reach target",
+                "plan": {"hypotheses": [], "candidate_experiments": []},
+                "round_records": [{"round_index": 1, "outcomes": []}],
+                "exploration_outcomes": [
+                    {
+                        "experiment_id": f"candidate-{index}",
+                        "candidate": candidate,
+                        "status": "completed",
+                        "metrics": {"nmse_db": -30.0 - index},
+                        "artifacts": [],
+                    }
+                    for index in range(1, 4)
+                ],
+                "final_evaluation": {
+                    "status": "completed",
+                    "source_experiment_id": "candidate-3",
+                    "candidate": candidate,
+                    "metrics": {"nmse_db": -33.0},
+                    "artifacts": [],
+                },
+            }
+        )
+
+        self.assertIn("--rounds 1 --experiments-per-round 3", source["reproduce_command"])
+        self.assertIn("--final-evaluation", source["reproduce_command"])
+
     def test_idea_plan_contract_uses_requested_experiment_count(self):
         from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
 
