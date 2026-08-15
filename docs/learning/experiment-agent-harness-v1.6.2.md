@@ -463,3 +463,57 @@ WritingAgent 连续调用两次，是因为第一份草稿未满足证据忠实�
 面试时可以这样总结：
 
 > 这次故障不是训练算法问题，而是控制面同时存在模型推理模式和实验预算契约不一致。我先从六份空响应 trace 定位到 V4 thinking，再通过真实 1 x 1 SSE 找到 prompt 写死三候选。最终保持 PlanGate 严格，只在请求源头关闭结构化任务的 thinking 并动态生成 contract；修复后用默认 V4 完成 Coding、训练、独立终评和报告全链路。
+
+## 23. 多轮真实 API 诊断：为什么能收口但结果仍差
+
+### 23.1 固定连接的 3 x 3 诊断结果
+
+运行 `codex-diagnose-3x3-20260815` 使用 `deepseek-v4-flash`，关闭知识注入以单独检查 Multi-Agent runtime，配置为三轮、每轮三个候选、目标 `-41 dB`、参数上限 4000，并执行独立终评。SSE 连接一直保持到 terminal，约 11 分钟后完整收口。
+
+| 轮次 | Coding 通过 | 有效 NMSE / dB | 当轮最佳 |
+| --- | ---: | --- | ---: |
+| Round 1 | 2/3 | MLP `-17.52`；PolyNet `-26.28` | `-26.28` |
+| Round 2 | 3/3 | PolyNetV2 `-27.97`；MLPv2 `-26.57`；FourierMLPv2 `-22.03` | `-27.97` |
+| Round 3 | 2/3 | PolyNetV3 `-25.28`；FourierMLPv3 `-14.15` | `-25.28` |
+| Final | completed | PolyNetV2 `-27.97 / 202 params` | `-27.97` |
+
+累计 Coding/Execution 成功 `7/9`，终评与 Writing 均完成，terminal 为 `completed`。三次 Plan 调用、十五次 Coding 调用和一次 Writing 调用总计约 74.5k token，记录成本约 `$0.053`。因此当前准确结论不是“Multi-Agent 完全跑不通”，而是“运行时能完成，但开放代码生成通过率约 78%，且算法质量离目标较远”。
+
+### 23.2 失败集中在哪里
+
+FourierMLP 三次尝试依次出现矩阵形状错误、构造函数缺少 config、参数量报告与验证估计不一致。PolyNet 前两次出现 descriptor schema 错误和未定义变量，第三次通过。ResMLP 三次都属于 residual/broadcast 维度不一致。失败呈现两个簇：
+
+1. **插件契约与计量口径**：config schema、构造函数、parameter count；
+2. **张量形状推理**：Fourier 特征维度、residual projection、输入输出通道。
+
+失败不是同一个错误机械重复。LLM 往往已经修复上一项，却在第三次暴露下一项，固定三次尝试刚好耗尽。因此后续应优先把 gate 错误改成带阶段、expected、actual 和相关 contract 的结构化 FailureSpec，并评测 Coding pass@1/pass@4；只把重试次数无限增大既浪费 token，也不能解决形状推理质量。
+
+### 23.3 Reflection 是否真正生效
+
+生效。第二轮 Idea/Plan 的 input refs 包含第一轮三个 experiment facts 和 best fact；第三轮包含前两轮全部完成/失败/best facts。Planner 也据此完成了 `PolyNet -> PolyNetV2 -> PolyNetV3`、失败 Fourier 修复和 residual 探索。第二轮最佳比第一轮改善约 `1.69 dB`，说明反馈链路有因果作用。
+
+但 Reflection 只能提供事实，不能自动补足领域知识。第三轮把 polynomial degree 从 5 增到 7 后反而退化，Fourier 扩展也退化，说明 Planner 进入局部试错平台期。它没有凭空重建项目中经过验证的 complex least-squares、memory polynomial 或 LUT/spline 实现。
+
+### 23.4 为什么历史受控搜索能到约 -42 dB，而开放 Multi-Agent 只有 -28 dB
+
+两者不能直接视为同一种算法能力。受控搜索调用仓库中成熟、调试过的模型实现，并在白名单参数空间里优化；开放 Multi-Agent 只拿到文字先验，必须从零生成完整插件、训练逻辑和网络维度。知识文档能告诉它“complex memory polynomial、LUT/spline 值得尝试”，却没有把成熟实现本身交给 CodingAgent，因此同名方案也可能只是质量较差的重新实现。
+
+合理的下一阶段不是删除开放 Multi-Agent，而是建立三候选组合：一条经过验证的 anchor baseline、一条基于 best fact 的受控变体、一条真正开放的新架构。这样每轮既保留探索能力，也有稳定性能下界，并能直接测量 LLM 新方案相对 anchor 的增益。
+
+### 23.5 截图中的 10 x 5 为什么在第二轮附近停止
+
+用户 run `ui-multi-1786778689604` 实际完成了前两轮 10 个 Coding 候选，其中 8 个通过；第一轮最佳 `-23.48 dB`，第二轮最佳 `-28.14 dB`。之后没有继续产生第三轮文件。
+
+没有持久化的父级 terminal，无法把停止原因当作已证实事实。但固定 3 x 3 实测 9 个候选消耗约 74.5k token，平均约 8.3k token/候选；按同一量级估算，50 个候选约需 410k token。截图预算只有 100k，理论容量约 12 个候选，与在 10 个候选后停止高度一致。因此首要怀疑是 token budget exceeded，而不是轮次循环失效。Web 后续应显示基于轮次、候选数和历史均值的预算预估，并持久化 terminal 原因，刷新后仍可诊断。
+
+### 23.6 当前结论与后续优先级
+
+1. 已解决 V4 空正文和候选数量写死问题；3 x 3 主链能够完整收口。
+2. Coding 可靠性下一步测 pass@1/pass@4，并增强 FailureSpec 的 expected/actual/phase 信息。
+3. 算法质量下一步加入 anchor baseline + controlled mutation + open exploration 三候选策略。
+4. 控制面下一步增加 token 预算预估、terminal/result 持久化和断线后的运行状态恢复。
+5. 不应直接跑 10 x 5。先用 3 x 3 验证策略收益，再依据实测约 8.3k token/候选配置预算。
+
+面试表达：
+
+> 我没有把“Agent 流程完成”和“算法效果好”混为一谈。真实 3 x 3 中系统以 7/9 的候选成功率完成三轮和独立终评，证明 Supervisor、跨轮 facts、Coding 修复、Execution 与 Writing 能闭环；但最佳只有 -27.97 dB。进一步分析发现，工程失败集中在插件契约和张量维度，算法上则陷入局部架构变体。于是下一步不是盲目增加轮次，而是增强结构化失败反馈，并用成熟 anchor、受控变体和开放探索组成可比较的候选集。
