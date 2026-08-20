@@ -1,7 +1,7 @@
 import { classifyEvent, formatConsole, normalizeEvent } from "/ui/event_view_model.js";
 
 const $ = (id) => document.getElementById(id);
-const state = { events: [], selected: null, currentRunId: null, controller: null, experiments: [], finalEvaluation: null, terminalStatus: null, runMode: null, runConfig: {}, coding: { candidates: 0, passed: 0, failed: 0, attempts: 0 } };
+const state = { events: [], selected: null, currentRunId: null, controller: null, approvalTimer: null, currentApproval: null, experiments: [], finalEvaluation: null, terminalStatus: null, runMode: null, runConfig: {}, coding: { candidates: 0, passed: 0, failed: 0, attempts: 0 } };
 const titles = { multiagent: "Multi-Agent 运行", controlled: "受控模型搜索", agent: "Agent Planner", workflow: "Fixed Workflow", experiments: "实验策略对照", benchmark: "Benchmark 评估", memory: "Memory Inspector", reports: "报告与产物", diagnostics: "运行诊断" };
 const CONTROLLED_DEFAULT_FIELDS = new Set(["feature_mode", "memory_depth", "mp_order_count", "hidden_units", "spline_knots", "epochs", "learning_rate", "optimizer"]);
 
@@ -18,6 +18,9 @@ function setView(view) {
     if (active) item.setAttribute("aria-current", "page"); else item.removeAttribute("aria-current");
   });
   document.querySelectorAll(".control-view").forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === view));
+  document.querySelectorAll(".mode-node").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
+  document.querySelectorAll(".graph-start-node").forEach((item) => item.dataset.view = view);
+  $("graphModeTitle").textContent = titles[view]?.replace(" 运行", "") || view;
   $("viewTitle").textContent = titles[view] || view;
   $("sidebar").classList.remove("open");
   if (view === "memory") loadMemory();
@@ -25,6 +28,7 @@ function setView(view) {
 }
 
 document.querySelectorAll(".nav-item").forEach((item) => item.addEventListener("click", () => setView(item.dataset.view)));
+document.querySelectorAll(".mode-node, .graph-start-node").forEach((item) => item.addEventListener("click", () => setView(item.dataset.view || "multiagent")));
 $("menuBtn").addEventListener("click", () => $("sidebar").classList.toggle("open"));
 $("closeInspectorBtn").addEventListener("click", () => $("inspector").classList.remove("open"));
 $("newRunBtn").addEventListener("click", clearEvents);
@@ -56,6 +60,7 @@ function clearEvents() {
   $("runSummary").classList.add("hidden");
   $("runSummary").innerHTML = "";
   $("resultLinks").innerHTML = "";
+  resetAgentGraph();
 }
 $("clearBtn").addEventListener("click", clearEvents);
 
@@ -110,6 +115,107 @@ function bestExperiment() {
   const all = [...state.experiments, ...(state.finalEvaluation ? [state.finalEvaluation] : [])];
   return all.filter((item) => item.status === "completed" && Number.isFinite(Number(item.metrics?.nmse_db))).sort((a, b) => Number(a.metrics.nmse_db) - Number(b.metrics.nmse_db))[0];
 }
+
+const ROLE_ORDER = ["idea_plan", "coding", "execution", "writing"];
+const ROLE_WIRES = ["start-idea", "idea-coding", "coding-execution", "execution-writing", "writing-result"];
+
+function resetAgentGraph() {
+  document.querySelectorAll(".agent-node").forEach((node) => {
+    node.classList.remove("running", "complete", "failed", "rejected", "review");
+    node.classList.add("pending");
+    node.querySelector(".node-state").textContent = "PENDING";
+    node.querySelector(".node-runtime").textContent = "waiting";
+    node.querySelector(".node-cost").textContent = node.dataset.agentNode === "execution" ? "runtime" : "$0.0000";
+  });
+  document.querySelectorAll("[data-wire]").forEach((wire) => wire.classList.remove("active", "complete"));
+  $("writingArtifacts").innerHTML = "";
+}
+
+function setGraphRunning(role) {
+  const index = ROLE_ORDER.indexOf(role);
+  document.querySelectorAll(".agent-node").forEach((node) => node.classList.remove("running"));
+  const node = document.querySelector(`[data-agent-node="${role}"]`);
+  if (node) {
+    node.classList.remove("pending");
+    node.classList.add("running");
+    node.querySelector(".node-state").textContent = "RUNNING";
+  }
+  ROLE_WIRES.forEach((name, wireIndex) => {
+    const wire = document.querySelector(`[data-wire="${name}"]`);
+    wire?.classList.toggle("complete", wireIndex < index);
+    wire?.classList.toggle("active", wireIndex === index);
+  });
+}
+
+function updateAgentGraph(raw) {
+  const payload = raw.payload || {};
+  if (raw.event_type === "multi_agent_terminal") {
+    document.querySelectorAll("[data-wire]").forEach((wire) => { wire.classList.remove("active"); wire.classList.add("complete"); });
+    return;
+  }
+  if (raw.event_type !== "multi_agent_role" || !ROLE_ORDER.includes(payload.role)) return;
+  const node = document.querySelector(`[data-agent-node="${payload.role}"]`);
+  if (!node) return;
+  const usage = payload.model_usage || [];
+  const latency_ms = Number(payload.latency_ms || usage.reduce((sum, item) => sum + Number(item.latency_ms || 0), 0));
+  const cost_usd = Number(payload.cost_usd || usage.reduce((sum, item) => sum + Number(item.cost_usd || 0), 0));
+  const failed = ["failed", "error", "budget_exceeded", "rejected"].includes(payload.status);
+  node.classList.remove("pending", "running", "complete", "failed", "rejected", "review");
+  node.classList.add(failed ? payload.status : "complete");
+  node.querySelector(".node-state").textContent = String(payload.status || "complete").toUpperCase();
+  node.querySelector(".node-runtime").textContent = latency_ms ? `${(latency_ms / 1000).toFixed(2)}s` : "local runtime";
+  node.querySelector(".node-cost").textContent = cost_usd ? `$${cost_usd.toFixed(4)}` : (payload.role === "execution" ? "tool runtime" : "$0.0000");
+  const outputs = payload.output_refs || [];
+  if (payload.role === "writing") {
+    const reports = outputs.filter((item) => String(item).startsWith("report:"));
+    $("writingArtifacts").innerHTML = reports.map((ref) => { const path = String(ref).slice(7); return `<a href="${artifactUrl(path)}" target="_blank">${esc(path.toLowerCase().endsWith(".pdf") ? "PDF" : "REPORT")}</a>`; }).join("");
+  }
+  const next = ROLE_ORDER[ROLE_ORDER.indexOf(payload.role) + 1];
+  if (!failed && next) setGraphRunning(next);
+}
+
+document.querySelectorAll(".agent-node").forEach((node) => node.addEventListener("click", () => {
+  const found = [...state.events].reverse().find((event) => (event.raw.payload || {}).role === node.dataset.agentNode);
+  if (found) inspectEvent(found, null);
+}));
+
+async function pollApprovals() {
+  if (!state.currentRunId || state.runConfig.approval_mode !== "review") return;
+  try {
+    const data = await fetch(`/approvals/${encodeURIComponent(state.currentRunId)}`).then((response) => response.json());
+    const pending = (data.pending || [])[0];
+    if (!pending || state.currentApproval?.approval_id === pending.approval_id) return;
+    state.currentApproval = pending;
+    const payload = pending.payload || {};
+    $("approvalTitle").textContent = `${pending.role} · ${pending.phase}`;
+    $("approvalRole").textContent = pending.role;
+    $("approvalReason").textContent = payload.reason || "请检查该 Agent 的输入、输出和继续执行的必要性。";
+    $("approvalRisk").textContent = payload.risk || "确认内容符合目标、预算和证据约束。";
+    $("approvalPayload").textContent = JSON.stringify(payload, null, 2);
+    $("approvalFeedback").value = "";
+    const node = document.querySelector(`[data-agent-node="${pending.role}"]`);
+    node?.classList.remove("pending", "running", "complete", "failed", "rejected");
+    node?.classList.add("review");
+    if (node) node.querySelector(".node-state").textContent = "REVIEW";
+    $("approvalDialog").showModal();
+  } catch {}
+}
+
+async function decideApproval(approved) {
+  const pending = state.currentApproval;
+  if (!pending || !state.currentRunId) return;
+  const reason = $("approvalFeedback").value.trim();
+  if (!approved && !reason) { $("approvalFeedback").focus(); return; }
+  await fetch(`/approvals/${encodeURIComponent(state.currentRunId)}/${encodeURIComponent(pending.approval_id)}/decision`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approved, reason }),
+  });
+  document.querySelector(`[data-agent-node="${pending.role}"]`)?.classList.remove("review");
+  state.currentApproval = null;
+  $("approvalDialog").close();
+}
+
+$("approvalApprove").addEventListener("click", () => decideApproval(true));
+$("approvalReject").addEventListener("click", () => decideApproval(false));
 
 function normalizeControlledResult(payload, eventType) {
   const config = payload.config || {};
@@ -209,6 +315,7 @@ function appendEvent(raw) {
   collectRunResult(raw);
   renderRunResults(raw);
   updatePreview(raw);
+  updateAgentGraph(raw);
 }
 
 function setRunning(runId, running) {
@@ -242,6 +349,8 @@ async function streamRun(url, body, button, runId) {
   const controller = new AbortController();
   state.controller = controller;
   setRunning(runId, true);
+  if (state.runMode === "multiagent") setGraphRunning("idea_plan");
+  if (body.approval_mode === "review") state.approvalTimer = setInterval(pollApprovals, 700);
   try {
     const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal });
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
@@ -271,6 +380,10 @@ async function streamRun(url, body, button, runId) {
     if (error.name !== "AbortError") { appendEvent({ event_type: "error", error: String(error) }); setStatus("error", "失败"); }
     else setStatus("idle", "已停止");
   } finally {
+    if (state.approvalTimer) clearInterval(state.approvalTimer);
+    state.approvalTimer = null;
+    state.currentApproval = null;
+    if ($("approvalDialog").open) $("approvalDialog").close();
     setRunControlsDisabled(false);
     button.innerHTML = original;
     $("stopBtn").disabled = true;
@@ -288,7 +401,7 @@ $("stopBtn").addEventListener("click", async () => {
 
 $("maBtn").addEventListener("click", () => {
   const runId = `ui-multi-${Date.now()}`;
-  streamRun(`/multi-agent/${runId}/events`, { provider: "deepseek", goal: $("maGoal").value, idea_plan_model: $("maPlanModel").value, coding_model: $("maCodeModel").value, writing_model: $("maWriteModel").value, max_replans: number("maReplans"), nmse_threshold_db: number("maThreshold"), token_budget: number("maTokens"), cost_budget_usd: number("maCost"), rounds: number("maRounds"), experiments_per_round: number("maExperiments"), final_evaluation: $("maFinalEvaluation").checked, knowledge_context_enabled: $("knowledgeContextEnabled").checked, knowledge_top_k: number("knowledgeTopK"), domain: "nonlinear-modeling", dataset_hash: "default", model_family: "mixed" }, $("maBtn"), runId);
+  streamRun(`/multi-agent/${runId}/events`, { provider: "deepseek", approval_mode: $("approvalMode").value, goal: $("maGoal").value, idea_plan_model: $("maPlanModel").value, coding_model: $("maCodeModel").value, writing_model: $("maWriteModel").value, max_replans: number("maReplans"), nmse_threshold_db: number("maThreshold"), token_budget: number("maTokens"), cost_budget_usd: number("maCost"), rounds: number("maRounds"), experiments_per_round: number("maExperiments"), final_evaluation: $("maFinalEvaluation").checked, knowledge_context_enabled: $("knowledgeContextEnabled").checked, knowledge_top_k: number("knowledgeTopK"), domain: "nonlinear-modeling", dataset_hash: "default", model_family: "mixed" }, $("maBtn"), runId);
 });
 $("csBtn").addEventListener("click", () => {
   const runId = `ui-controlled-${Date.now()}`;
@@ -305,7 +418,7 @@ $("agBtn").addEventListener("click", () => {
 $("wfBtn").addEventListener("click", () => { const runId = $("wfSid").value.trim() || "ui-demo-001"; streamRun(`/runs/${encodeURIComponent(runId)}/events`, { goal: $("wfGoal").value, epochs: number("wfEp"), nmse_threshold_db: number("wfThr"), timeout_seconds: number("wfTo") }, $("wfBtn"), runId); });
 $("bmBtn").addEventListener("click", () => streamRun("/benchmark/events", { timeout_seconds: number("bmTo"), nmse_threshold_db: number("bmThr") }, $("bmBtn"), "benchmark"));
 $("agentTaskBtn").addEventListener("click", () => streamRun("/agent-benchmark/events", { attempts: 1 }, $("agentTaskBtn"), "agent-benchmark"));
-$("cmpBtn").addEventListener("click", () => { const count = number("cmpSeeds"); const seeds = Array.from({ length: count }, (_, index) => [7, 17, 29, 43, 61][index] || 7 + index * 10); streamRun("/compare/events", { domain: $("cmpDom").value, workspace: ".", timeout_seconds: number("cmpTo"), parameter_count_max: number("cmpPm"), nmse_threshold_db: number("cmpThr"), seeds, trial_budget: number("cmpBudget"), methods: ["random_search", "optuna_tpe", "llm_direct", "llm_program_reflection"], plan: $("cmpPlan").value }, $("cmpBtn"), "comparison"); });
+$("cmpBtn").addEventListener("click", () => { const count = number("cmpSeeds"); const seeds = Array.from({ length: count }, (_, index) => [7, 17, 29, 43, 61][index] || 7 + index * 10); streamRun("/compare/events", { domain: $("cmpDom").value, workspace: ".", llm_provider: "deepseek", timeout_seconds: number("cmpTo"), parameter_count_max: number("cmpPm"), nmse_threshold_db: number("cmpThr"), seeds, trial_budget: number("cmpBudget"), methods: ["random_search", "optuna_tpe", "llm_direct", "llm_program_reflection"], plan: $("cmpPlan").value }, $("cmpBtn"), "comparison"); });
 
 $("agProv").addEventListener("change", () => { $("noteFake").classList.toggle("hidden", $("agProv").value !== "fake"); $("noteDp").classList.toggle("hidden", $("agProv").value !== "deepseek"); });
 async function loadTuneFields(domain) { try { const data = await fetch(`/domains/${encodeURIComponent(domain)}/fields`).then((response) => response.json()); $("agTune").innerHTML = (data.fields || []).map((field) => `<label title="${esc((field.values || []).join(", "))}"><input type="checkbox" class="tune-f" value="${esc(field.name)}" checked>${esc(field.name)}</label>`).join(""); } catch { $("agTune").innerHTML = '<span class="ev-failure">failed to load fields</span>'; } }

@@ -24,7 +24,11 @@ class NovelPlugin:
         training_mode="custom",
         config_schema={
             "type": "object",
-            "properties": {"width": {"type": "integer", "minimum": 1}},
+            "properties": {
+                "width": {"type": "integer", "minimum": 1},
+                "train_ratio": {"type": "number"},
+                "seed": {"type": "integer"},
+            },
             "required": ["width"],
             "additionalProperties": False,
         },
@@ -45,7 +49,12 @@ class NovelPlugin:
     def train(self, request):
         out = Path(request.workspace) / request.output_dir
         out.mkdir(parents=True, exist_ok=True)
-        metrics = {"nmse_db": -36.5, "parameter_count": self.estimate_parameters(request.config)}
+        metrics = {
+            "nmse_db": -36.5,
+            "parameter_count": self.estimate_parameters(request.config),
+            "observed_train_ratio": request.train_ratio,
+            "observed_seed": request.seed,
+        }
         metrics_path = out / "metrics.json"
         metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
         png_path = out / "psd.png"
@@ -184,6 +193,22 @@ class CandidateExecutionTest(unittest.TestCase):
         for artifact in result["artifacts"]:
             self.assertTrue((self.root / artifact).is_file())
         self.assertNotIn("command", result)
+
+    def test_runner_uses_candidate_split_and_seed_in_fixed_request(self):
+        from nonlinear_agent.model_plugins.execution import run_candidate_model_tool
+
+        result = run_candidate_model_tool(
+            workspace=self.root,
+            manifest_path="models/candidates/novel.json",
+            run_id="candidate-config-contract",
+            config={"width": 8, "train_ratio": 0.9, "seed": 7},
+            output_dir="reports/candidate-config-contract",
+            parameter_count_max=100,
+            timeout_seconds=30,
+        )
+
+        self.assertEqual(result["metrics"]["observed_train_ratio"], 0.9)
+        self.assertEqual(result["metrics"]["observed_seed"], 7.0)
 
     def test_rejects_nan_metric(self):
         self._replace('"nmse_db": -36.5', '"nmse_db": float("nan")')

@@ -10,6 +10,440 @@ from tests.test_supervisor_e2e import _plan, _three_candidate_plan
 
 
 class TestMultiAgentRuntime(unittest.TestCase):
+    def test_generated_candidate_has_a_separate_epoch_ceiling(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+        candidate = plan["candidate_experiments"][0]
+        candidate["implementation_source"] = "generated_plugin"
+        candidate["config"] = {"epochs": 300, "width": 16}
+        candidate["budget"] = {"parameter_count_max": 13000, "epochs_max": 300}
+        runtime = MultiAgentRuntime(
+            Path.cwd(), object(), object(), object(),
+            candidate_epochs_max=10000,
+            generated_candidate_epochs_max=50,
+        )
+
+        with self.assertRaisesRegex(ValueError, "generated model epochs 300 exceeds"):
+            runtime._apply_run_policy(plan)
+
+    def test_run_policy_can_require_open_coding_candidates(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+        for candidate in plan["candidate_experiments"]:
+            candidate.update(
+                {
+                    "implementation_source": "registered_model",
+                    "model_type": "tiny_mlp",
+                    "config": {
+                        "model_type": "tiny_mlp",
+                        "feature_mode": "complex_mp",
+                        "memory_depth": 4,
+                        "mp_order_count": 2,
+                        "hidden_units": 16,
+                        "activation": "relu",
+                        "epochs": 10,
+                    },
+                }
+            )
+        runtime = MultiAgentRuntime(
+            Path.cwd(), object(), object(), object(),
+            registered_model_catalog={"tiny_mlp": {"description": "known"}},
+            min_generated_candidates_per_round=2,
+        )
+
+        with self.assertRaisesRegex(ValueError, "generated_plugin candidate minimum"):
+            runtime._apply_run_policy(plan)
+
+    def test_run_policy_allows_only_one_high_fidelity_candidate_in_selected_round(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+        for candidate in plan["candidate_experiments"]:
+            candidate.update(
+                {
+                    "implementation_source": "registered_model",
+                    "model_type": "tiny_mlp",
+                    "config": {
+                        "model_type": "tiny_mlp",
+                        "feature_mode": "complex_mp",
+                        "memory_depth": 8,
+                        "mp_order_count": 2,
+                        "hidden_units": 32,
+                        "activation": "relu",
+                        "epochs": 10000,
+                    },
+                    "budget": {"parameter_count_max": 13000, "epochs_max": 10000},
+                }
+            )
+        runtime = MultiAgentRuntime(
+            Path.cwd(), object(), object(), object(),
+            registered_model_catalog={"tiny_mlp": {"description": "known"}},
+            candidate_parameter_count_max=13000,
+            candidate_epochs_max=10000,
+            screening_epochs_max=300,
+            high_fidelity_rounds=(1,),
+            max_high_fidelity_candidates_per_round=1,
+        )
+
+        with self.assertRaisesRegex(ValueError, "high-fidelity candidate limit"):
+            runtime._apply_run_policy(plan, round_index=1)
+        with self.assertRaisesRegex(ValueError, "screening epoch limit"):
+            runtime._apply_run_policy(plan, round_index=2)
+
+    def test_planner_repairs_multiple_registered_tool_policy_errors(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        over_budget = _three_candidate_plan(1)
+        over_budget["candidate_experiments"][0].update(
+            {
+                "implementation_source": "registered_model",
+                "model_type": "missing_spline_tool",
+                "config": {
+                    "model_type": "missing_spline_tool",
+                    "feature_mode": "complex_mp",
+                    "memory_depth": 20,
+                    "mp_order_count": 3,
+                    "hidden_units": 96,
+                    "spline_knots": 16,
+                    "spline_range": 3.0,
+                    "epochs": 100,
+                },
+                "budget": {"parameter_count_max": 13000, "epochs_max": 100},
+            }
+        )
+        over_budget["candidate_experiments"][1].update(
+            {
+                "implementation_source": "registered_model",
+                "model_type": "missing_cnn_tool",
+                "config": {
+                    "model_type": "missing_cnn_tool",
+                    "feature_mode": "complex_mp",
+                    "memory_depth": 20,
+                    "mp_order_count": 3,
+                    "kernel_size": 3,
+                    "num_layers": 2,
+                    "epochs": 100,
+                },
+                "budget": {"parameter_count_max": 13000, "epochs_max": 100},
+            }
+        )
+        repaired = json.loads(json.dumps(over_budget))
+        repaired["candidate_experiments"][0].update(
+            {
+                "model_type": "tiny_mlp",
+                "config": {
+                    "model_type": "tiny_mlp",
+                    "feature_mode": "complex_mp",
+                    "memory_depth": 8,
+                    "mp_order_count": 2,
+                    "hidden_units": 32,
+                    "activation": "relu",
+                    "epochs": 100,
+                },
+            }
+        )
+        repaired["candidate_experiments"][1].update(
+            {
+                "model_type": "tiny_mlp",
+                "config": {
+                    "model_type": "tiny_mlp",
+                    "feature_mode": "complex_mp",
+                    "memory_depth": 8,
+                    "mp_order_count": 2,
+                    "hidden_units": 32,
+                    "activation": "relu",
+                    "epochs": 100,
+                },
+            }
+        )
+
+        class Router:
+            def __init__(self):
+                self.responses = [over_budget, repaired]
+                self.prompts = []
+
+            def complete(self, role, prompt):
+                self.prompts.append(prompt)
+                return json.dumps(self.responses.pop(0))
+
+        router = Router()
+        runtime = MultiAgentRuntime(
+            Path.cwd(), router, object(), object(),
+            registered_model_catalog={
+                "spline_mlp": {"description": "known"},
+                "complex_cnn": {"description": "known"},
+                "tiny_mlp": {"description": "known"},
+            },
+            candidate_parameter_count_max=13000,
+            candidate_epochs_max=100,
+        )
+
+        result = runtime._idea_plan(
+            {
+                "run_id": "repair-budget-plan",
+                "goal": "reach target",
+                "round_index": 1,
+                "rounds_total": 1,
+                "experiments_per_round": 3,
+                "available_fact_refs": [],
+                "round_records": [],
+            }
+        )
+
+        self.assertEqual(len(router.prompts), 2)
+        self.assertGreaterEqual(router.prompts[1].count("not in the registered model catalog"), 2)
+        candidate = result["candidate_experiments"][0]
+        self.assertEqual(candidate["config"]["hidden_units"], 32)
+
+    def test_planner_uses_configured_repairs_until_plan_passes_policy(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        invalid = _three_candidate_plan(1)
+        invalid["candidate_experiments"][1]["implementation_source"] = "invalid_source"
+        repaired = json.loads(json.dumps(invalid))
+        repaired["candidate_experiments"][1]["implementation_source"] = "generated_plugin"
+
+        class Router:
+            def __init__(self):
+                self.responses = [invalid, invalid, repaired]
+                self.prompts = []
+
+            def complete(self, role, prompt):
+                self.prompts.append(prompt)
+                return json.dumps(self.responses.pop(0))
+
+        router = Router()
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            router,
+            object(),
+            object(),
+            registered_model_catalog={"tiny_mlp": {"description": "known"}},
+            candidate_parameter_count_max=13000,
+            candidate_epochs_max=100,
+            planner_max_repairs=2,
+        )
+
+        result = runtime._idea_plan(
+            {
+                "run_id": "repair-plan-twice",
+                "goal": "reach target",
+                "round_index": 2,
+                "rounds_total": 10,
+                "experiments_per_round": 3,
+                "available_fact_refs": ["fact:round-1:best:r1-candidate-1"],
+                "round_records": [],
+            }
+        )
+
+        self.assertEqual(len(router.prompts), 3)
+        self.assertEqual(
+            result["candidate_experiments"][1]["implementation_source"],
+            "generated_plugin",
+        )
+
+    def test_registered_candidate_is_projected_into_parameter_budget(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+        from nonlinear_agent.planner_validation import estimate_parameter_count
+
+        plan = _three_candidate_plan(1)
+        plan["candidate_experiments"][0].update(
+            {
+                "implementation_source": "registered_model",
+                "model_type": "tiny_mlp",
+                "config": {
+                    "model_type": "tiny_mlp",
+                    "feature_mode": "complex_mp",
+                    "memory_depth": 20,
+                    "mp_order_count": 3,
+                    "hidden_units": 112,
+                    "activation": "relu",
+                    "epochs": 100,
+                },
+                "budget": {"parameter_count_max": 13000, "epochs_max": 100},
+            }
+        )
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            object(),
+            object(),
+            object(),
+            registered_model_catalog={"tiny_mlp": {"description": "known"}},
+            candidate_parameter_count_max=13000,
+            candidate_epochs_max=100,
+        )
+
+        result = runtime._apply_run_policy(plan, round_index=1)
+        candidate = result["candidate_experiments"][0]
+
+        self.assertLessEqual(estimate_parameter_count(candidate["config"]), 13000)
+        self.assertLess(candidate["config"]["hidden_units"], 112)
+        self.assertEqual(candidate["runtime_policy_repairs"][0]["field"], "hidden_units")
+        self.assertEqual(candidate["runtime_policy_repairs"][0]["original"], 112)
+
+    def test_registered_candidate_vocabulary_is_canonicalized(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+        plan["candidate_experiments"][0].update(
+            {
+                "implementation_source": "registered_model",
+                "model_type": "tiny_mlp",
+                "config": {
+                    "model_type": "tiny_mlp",
+                    "feature_mode": "real_imag",
+                    "memory_depth": 8,
+                    "mp_order_count": 2,
+                    "hidden_units": 32,
+                    "activation": "relu",
+                    "epochs": 20,
+                },
+                "budget": {"parameter_count_max": 13000, "epochs_max": 20},
+            }
+        )
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            object(),
+            object(),
+            object(),
+            registered_model_catalog={"tiny_mlp": {"description": "known"}},
+            candidate_parameter_count_max=13000,
+            candidate_epochs_max=20,
+        )
+
+        result = runtime._apply_run_policy(plan, round_index=1)
+        candidate = result["candidate_experiments"][0]
+
+        self.assertEqual(candidate["config"]["feature_mode"], "complex_mp")
+        repair = candidate["runtime_policy_repairs"][0]
+        self.assertEqual(repair["kind"], "vocabulary_canonicalization")
+        self.assertEqual(repair["original"], "real_imag")
+
+    def test_failed_candidate_report_marks_architecture_unverified_not_unknown(self):
+        from nonlinear_agent.multi_agent_runtime import _outcome_report_record
+
+        record = _outcome_report_record(
+            {
+                "experiment_id": "r1-candidate-2",
+                "candidate_name": "ResMLP",
+                "candidate": {"model_type": "ResMLP", "config": {"width": 16}},
+                "status": "failed",
+                "metrics": {},
+                "execution_result": {"status": "failed", "classification": "coding_error"},
+            },
+            -41.0,
+        )
+
+        self.assertEqual(record["model_type"], "ResMLP")
+        self.assertEqual(record["architecture_status"], "unverified")
+        self.assertEqual(record["model_descriptor"]["name"], "unverified:ResMLP")
+        self.assertEqual(
+            record["model_descriptor"]["nodes"][0]["operation"],
+            "no_executable_architecture",
+        )
+
+    def test_planner_can_autonomously_select_catalog_model_with_run_limits(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+        plan["candidate_experiments"][0].update(
+            {
+                "implementation_source": "registered_model",
+                "model_type": "tiny_mlp",
+                "config": {
+                    "model_type": "tiny_mlp",
+                    "feature_mode": "complex_mp",
+                    "target_mode": "direct",
+                    "memory_depth": 20,
+                    "mp_order_count": 3,
+                    "hidden_units": 96,
+                    "activation": "relu",
+                    "epochs": 10000,
+                },
+                "budget": {
+                    "parameter_count_max": 999999,
+                    "epochs_max": 999999,
+                    "timeout_seconds": 999999,
+                },
+            }
+        )
+
+        class Router:
+            def __init__(self):
+                self.prompt = ""
+
+            def complete(self, role, prompt):
+                self.prompt = prompt
+                return json.dumps(plan)
+
+        router = Router()
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            router,
+            object(),
+            object(),
+            registered_model_catalog={
+                "tiny_mlp": {
+                    "description": "registered compact MLP over complex MP features",
+                    "config_fields": ["memory_depth", "mp_order_count", "hidden_units"],
+                }
+            },
+            candidate_parameter_count_max=13000,
+            candidate_epochs_max=10000,
+            candidate_timeout_seconds=1800,
+        )
+
+        result = runtime._idea_plan(
+            {
+                "run_id": "catalog-plan",
+                "goal": "reach -41 dB",
+                "round_index": 1,
+                "rounds_total": 10,
+                "experiments_per_round": 3,
+                "available_fact_refs": [],
+                "round_records": [],
+            }
+        )
+
+        self.assertIn("registered compact MLP", router.prompt)
+        self.assertIn('"parameter_count_max": 13000', router.prompt)
+        selected = result["candidate_experiments"][0]
+        self.assertEqual(selected["implementation_source"], "registered_model")
+        self.assertEqual(selected["budget"]["parameter_count_max"], 13000)
+        self.assertEqual(selected["budget"]["epochs_max"], 10000)
+        self.assertEqual(selected["budget"]["timeout_seconds"], 1800.0)
+
+    def test_planner_rejects_unregistered_model_tool_selection(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+        plan["candidate_experiments"][0]["implementation_source"] = "registered_model"
+        plan["candidate_experiments"][0]["model_type"] = "invented_backend"
+
+        class Router:
+            def complete(self, role, prompt):
+                return json.dumps(plan)
+
+        runtime = MultiAgentRuntime(
+            Path.cwd(), Router(), object(), object(),
+            registered_model_catalog={"tiny_mlp": {"description": "known"}},
+        )
+
+        with self.assertRaisesRegex(ValueError, "not in the registered model catalog"):
+            runtime._idea_plan(
+                {
+                    "run_id": "bad-catalog-plan",
+                    "goal": "reach target",
+                    "round_index": 1,
+                    "rounds_total": 1,
+                    "experiments_per_round": 3,
+                    "available_fact_refs": [],
+                    "round_records": [],
+                }
+            )
+
     def test_idea_plan_contract_exposes_verified_registered_anchor(self):
         from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
 
@@ -352,6 +786,57 @@ class TestMultiAgentRuntime(unittest.TestCase):
             {"knowledge:prior-001", "memory:memory-001"},
         )
 
+    def test_idea_plan_injects_budget_filtered_historical_priors_in_round_one(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = _three_candidate_plan(1)
+        prior_id = "prior:tiny-mem20-h96"
+        for candidate in plan["candidate_experiments"]:
+            candidate["citation"] = prior_id
+        plan["hypotheses"][0]["citation"] = prior_id
+
+        class Router:
+            def __init__(self):
+                self.prompt = ""
+
+            def complete(self, role, prompt):
+                self.prompt = prompt
+                return json.dumps(plan)
+
+        router = Router()
+        runtime = MultiAgentRuntime(
+            Path.cwd(),
+            router,
+            object(),
+            object(),
+            historical_priors=[
+                {
+                    "id": "tiny-mem20-h96",
+                    "known_nmse_db": -42.2643,
+                    "parameter_count": 12386,
+                    "config": {"model_type": "tiny_mlp", "hidden_units": 96},
+                    "source": "reports/verified/metrics.json",
+                }
+            ],
+        )
+
+        result = runtime._idea_plan(
+            {
+                "run_id": "prior-plan",
+                "goal": "reach -41 dB",
+                "round_index": 1,
+                "rounds_total": 1,
+                "experiments_per_round": 3,
+                "available_fact_refs": [],
+                "round_records": [],
+            }
+        )
+
+        self.assertIn(prior_id, router.prompt)
+        self.assertIn("-42.2643", router.prompt)
+        self.assertIn(prior_id, result["_planner_context"]["allowed_citation_ids"])
+        self.assertEqual(result["_planner_context"]["evidence"][0]["kind"], "prior")
+
     def test_execution_writes_verified_result_to_typed_memory(self):
         from nonlinear_agent.execution_agent import ExecutionResult
         from nonlinear_agent.memory.ports import MemoryKind
@@ -547,9 +1032,11 @@ class TestMultiAgentRuntime(unittest.TestCase):
         class Coding:
             def __init__(self):
                 self.tasks = []
+                self.max_repairs = []
 
-            def generate_candidate(self, task):
+            def generate_candidate(self, task, max_repairs=2):
                 self.tasks.append(task)
+                self.max_repairs.append(max_repairs)
                 return CodingResult(
                     task_id=task.task_id,
                     candidate_name=task.candidate_name,
@@ -562,6 +1049,7 @@ class TestMultiAgentRuntime(unittest.TestCase):
             model_router=router,
             coding_agent=coding,
             writing_agent=object(),
+            coding_max_repairs=4,
         )
 
         planned = runtime._idea_plan(
@@ -604,6 +1092,7 @@ class TestMultiAgentRuntime(unittest.TestCase):
         self.assertEqual(coding.tasks[0].candidate_name, "compact_sin_mlp")
         self.assertIn("candidate-2", coding.tasks[0].task_id)
         self.assertEqual(result["candidate_name"], "compact_sin_mlp")
+        self.assertEqual(coding.max_repairs, [4])
         self.assertIn("unexpected keyword id", coding.tasks[0].objective)
         self.assertIn("adapt architecture", coding.tasks[0].objective)
         self.assertTrue(
@@ -656,7 +1145,7 @@ class TestMultiAgentRuntime(unittest.TestCase):
                 self.root = root
                 self.tasks = []
 
-            def generate_candidate(self, task):
+            def generate_candidate(self, task, max_repairs=2):
                 self.tasks.append(task)
                 return CodingResult(
                     worktree=str(self.root),

@@ -38,6 +38,13 @@ class WebUITest(unittest.TestCase):
         self.assertIn('rounds: number("maRounds")', script)
         self.assertIn('experiments_per_round: number("maExperiments")', script)
         self.assertNotIn("rounds: 3, experiments_per_round: 3", script)
+        self.assertIn('id="agentGraph"', html)
+        self.assertIn('data-agent-node="idea_plan"', html)
+        self.assertIn('data-agent-node="coding"', html)
+        self.assertIn('data-agent-node="execution"', html)
+        self.assertIn('data-agent-node="writing"', html)
+        self.assertIn('id="approvalMode"', html)
+        self.assertIn('value="review"', html)
 
     def test_sidebar_exposes_all_runtime_surfaces(self):
         html = render_home_page()
@@ -134,15 +141,29 @@ class WebUITest(unittest.TestCase):
         self.assertIn("experiments", script)
         self.assertIn("final_evaluation", script)
 
-    def test_styles_define_dark_responsive_three_column_console(self):
+    def test_styles_define_dark_responsive_node_console(self):
         css = read_web_asset("styles.css")
 
         self.assertIn("--bg: #090b10", css)
-        self.assertIn("grid-template-columns: 232px", css)
-        self.assertIn("grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(280px, 360px)", css)
+        self.assertIn(".agent-graph", css)
+        self.assertIn("stroke-dasharray", css)
+        self.assertIn("flowPulse", css)
+        self.assertIn(".agent-node.running", css)
         self.assertIn("overflow-wrap: anywhere", css)
         self.assertIn("overflow-x: auto", css)
         self.assertNotIn("linear-gradient", css)
+
+    def test_node_runtime_exposes_cost_latency_report_and_approval_actions(self):
+        html = render_home_page()
+        script = read_web_asset("app.js")
+
+        self.assertIn('id="approvalDialog"', html)
+        self.assertIn('id="approvalReject"', html)
+        self.assertIn("/approvals/", script)
+        self.assertIn("updateAgentGraph", script)
+        self.assertIn("latency_ms", script)
+        self.assertIn("cost_usd", script)
+        self.assertIn("report:", script)
 
 
 if __name__ == "__main__":

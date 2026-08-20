@@ -169,13 +169,102 @@ class TestSupervisorE2E(unittest.TestCase):
         self.assertIn("metrics", str(plan_requests[1]["round_records"]))
         self.assertIn("prior_facts", coding_requests[3])
         self.assertIn("nmse_db", str(coding_requests[3]["prior_facts"]))
+        self.assertIn("config", str(coding_requests[3]["prior_facts"]))
         self.assertNotIn("code_result", str(coding_requests[3]["prior_facts"]))
+        self.assertIn("historical_best", execution_ids and writing_requests[0])
         self.assertEqual(len(writing_requests), 1)
         self.assertEqual(len(writing_requests[0]["round_records"]), 3)
         self.assertEqual(len(writing_requests[0]["exploration_outcomes"]), 9)
         self.assertEqual(
             writing_requests[0]["final_evaluation"]["evaluation_kind"], "final"
         )
+
+    def test_batch_invalid_plan_replans_with_validation_facts(self):
+        from nonlinear_agent.supervisor_graph import (
+            MultiAgentWorkers,
+            build_multi_agent_graph,
+            run_multi_agent_graph,
+        )
+
+        requests = []
+
+        def idea_plan(request):
+            requests.append(request)
+            plan = _three_candidate_plan(1)
+            if len(requests) == 1:
+                plan["candidate_experiments"] = plan["candidate_experiments"][:2]
+            return plan
+
+        graph = build_multi_agent_graph(
+            MultiAgentWorkers(
+                idea_plan=idea_plan,
+                coding=lambda request: {"passed": True},
+                execution=lambda request: {
+                    "status": "completed",
+                    "metrics": {"nmse_db": -36.0},
+                },
+                writing=lambda request: {"pdf_path": "reports/replanned/report.pdf"},
+            ),
+            rounds=1,
+            experiments_per_round=3,
+            max_replans=2,
+        )
+
+        result = run_multi_agent_graph(graph, "repair invalid plan", "batch-replan")
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[1]["plan_failure_facts"]["classification"], "invalid_plan")
+        self.assertIn("exactly 3", requests[1]["plan_failure_facts"]["error"])
+
+    def test_human_rejection_is_returned_to_planner_as_a_fact(self):
+        from nonlinear_agent.supervisor_graph import (
+            MultiAgentWorkers,
+            build_multi_agent_graph,
+            run_multi_agent_graph,
+        )
+
+        plan_requests = []
+        reviews = []
+
+        def idea_plan(request):
+            plan_requests.append(request)
+            return _three_candidate_plan(1)
+
+        def approval_gate(role, phase, payload):
+            reviews.append((role, phase, payload))
+            if role == "idea_plan" and len(plan_requests) == 1:
+                return {"approved": False, "reason": "Explain why this plan beats the prior."}
+            return {"approved": True, "reason": ""}
+
+        result = run_multi_agent_graph(
+            build_multi_agent_graph(
+                MultiAgentWorkers(
+                    idea_plan=idea_plan,
+                    coding=lambda request: {"passed": True},
+                    execution=lambda request: {
+                        "status": "completed",
+                        "metrics": {"nmse_db": -36.0},
+                    },
+                    writing=lambda request: {"pdf_path": "reports/review/report.pdf"},
+                ),
+                rounds=1,
+                experiments_per_round=3,
+                max_replans=2,
+                approval_gate=approval_gate,
+            ),
+            "reviewed run",
+            "reviewed-run",
+        )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(plan_requests), 2)
+        self.assertEqual(
+            plan_requests[1]["plan_failure_facts"]["classification"],
+            "human_rejected",
+        )
+        self.assertIn("beats the prior", plan_requests[1]["plan_failure_facts"]["error"])
+        self.assertIn(("execution", "input"), [(r, p) for r, p, _ in reviews])
 
     def test_success_path_records_role_timeline_and_unique_terminal(self):
         from nonlinear_agent.supervisor_graph import (

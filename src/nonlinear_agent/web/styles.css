@@ -202,3 +202,62 @@ details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12
   .brand strong { font-size: 12px; }.brand small { display: none; }.topbar { height: 56px; }.app-shell { min-height: calc(100vh - 56px); }.sidebar, .inspector-column { top: 56px; height: calc(100vh - 56px); }
   .config-column, .activity-column { padding: 16px 12px; }.form-grid.two, .button-row { grid-template-columns: minmax(0, 1fr); }.role-chain { font-size: 8px; }.metric-strip, .run-summary, .paired-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.timeline-event { grid-template-columns: 44px 14px minmax(0, 1fr); }.event-role { display: none; }.timeline-event::after { left: 64px; }
 }
+
+/* v4.6 node-oriented operations surface */
+.app-shell { display: block; }
+.sidebar { display: none; }
+.workspace { grid-template-columns: minmax(270px, 320px) minmax(620px, 1fr) minmax(290px, 350px); }
+.agent-graph { margin-top: 16px; border: 1px solid var(--border); background: #0b0f16; min-width: 0; overflow: hidden; }
+.mode-node-row { min-height: 74px; padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; border-bottom: 1px solid var(--border); background: #0e131b; }
+.mode-node { min-width: 0; padding: 9px 10px; display: flex; align-items: center; gap: 9px; color: var(--muted); background: #111720; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; text-align: left; }
+.mode-node:hover { color: var(--text); border-color: var(--border-strong); }
+.mode-node.active { color: #d9efff; border-color: #347db2; background: #102235; }
+.mode-node span, .mode-node b, .mode-node small { display: block; min-width: 0; }
+.mode-node b { font-size: 11px; overflow-wrap: anywhere; }
+.mode-node small { margin-top: 2px; color: var(--faint); font: 8px var(--mono); overflow-wrap: anywhere; }
+.graph-stage { height: 310px; position: relative; min-width: 760px; }
+.graph-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.graph-wires path { fill: none; stroke: #34404f; stroke-width: 2; vector-effect: non-scaling-stroke; transition: stroke .2s, opacity .2s; }
+.graph-wires path.active { stroke: #55b7ff; stroke-width: 3; stroke-dasharray: 9 9; animation: flowPulse 1s linear infinite; filter: drop-shadow(0 0 4px rgba(69,169,255,.75)); }
+.graph-wires path.complete { stroke: #3f9d76; }
+@keyframes flowPulse { to { stroke-dashoffset: -18; } }
+.graph-start-node, .agent-node { position: absolute; color: var(--text); background: #121923; border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer; text-align: left; }
+.graph-start-node { width: 168px; height: 58px; top: 12px; left: calc(50% - 84px); padding: 8px 12px; border-color: #347db2; background: #102235; text-align: center; }
+.graph-start-node span, .graph-start-node b, .graph-start-node small { display: block; }
+.graph-start-node span { color: var(--accent); font: 8px var(--mono); }
+.graph-start-node b { margin-top: 1px; font-size: 12px; }
+.graph-start-node small { color: var(--muted); font-size: 8px; }
+.agent-node { width: 18%; min-width: 145px; height: 132px; top: 112px; padding: 11px; overflow: hidden; }
+.agent-node[data-agent-node="idea_plan"] { left: 2%; }
+.agent-node[data-agent-node="coding"] { left: 27%; }
+.agent-node[data-agent-node="execution"] { left: 52%; }
+.agent-node[data-agent-node="writing"] { left: 77%; }
+.agent-node .node-index { color: var(--faint); font: 9px var(--mono); }
+.agent-node .node-runtime { position: absolute; right: 10px; top: 10px; color: var(--faint); font: 9px var(--mono); }
+.agent-node b { display: block; margin-top: 8px; font-size: 13px; }
+.agent-node p { min-height: 32px; margin-top: 5px; color: var(--muted); font: 9px/1.45 var(--mono); overflow-wrap: anywhere; }
+.agent-node footer { margin-top: 8px; display: flex; justify-content: space-between; color: var(--faint); font: 9px var(--mono); }
+.agent-node.running { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(69,169,255,.25), 0 0 18px rgba(69,169,255,.2); }
+.agent-node.running::before { content: ""; position: absolute; inset: -1px; border: 1px dashed #77c8ff; border-radius: 5px; animation: nodeFlow 1.2s linear infinite; }
+@keyframes nodeFlow { 50% { border-color: transparent #77c8ff transparent #77c8ff; } }
+.agent-node.complete { border-color: #367c61; background: #101c19; }
+.agent-node.failed, .agent-node.rejected { border-color: #843e48; background: #211318; }
+.agent-node.review { border-color: var(--warning); box-shadow: 0 0 14px rgba(224,168,75,.2); }
+.node-artifacts { margin-top: 6px; display: flex; gap: 4px; overflow: hidden; }
+.node-artifacts a { color: #9bd5ff; font: 7px var(--mono); text-decoration: none; }
+.approval-dialog { width: min(680px, calc(100vw - 28px)); color: var(--text); background: #10151e; border: 1px solid #586678; border-radius: 6px; padding: 18px; box-shadow: 0 24px 80px rgba(0,0,0,.65); }
+.approval-dialog::backdrop { background: rgba(3,5,8,.74); }
+.approval-head { display: flex; justify-content: space-between; gap: 14px; }
+.approval-dialog > p { margin-top: 14px; color: #cbd7e5; }
+.approval-risk { margin-top: 14px; padding: 11px; border-left: 3px solid var(--warning); background: #1d1911; }
+.approval-risk p { margin-top: 5px; color: #d6b774; font-size: 11px; }
+.approval-dialog pre { max-height: 260px; white-space: pre-wrap; overflow: auto; color: #abc0d5; font: 10px/1.55 var(--mono); }
+
+@media (max-width: 1280px) {
+  .workspace { grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .agent-graph { overflow-x: auto; }
+  .mode-node-row { min-width: 760px; }
+}
