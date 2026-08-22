@@ -62,10 +62,17 @@ class ComplexConv2d(nn.Module):
 
 
 class ComplexCNN(nn.Module):
-    def __init__(self, memory_depth: int, kernel_size: int = 3, num_layers: int = 3):
+    def __init__(
+        self,
+        memory_depth: int,
+        feature_rows: int = 4,
+        kernel_size: int = 3,
+        num_layers: int = 3,
+    ):
         super().__init__()
         width = memory_depth + 1
         self.memory_depth = memory_depth
+        self.feature_rows = feature_rows
         self.kernel_size = kernel_size
         self.num_layers = num_layers
         channels = [16 * (2 ** i) for i in range(num_layers)]
@@ -76,12 +83,12 @@ class ComplexCNN(nn.Module):
             self.convs.append(ComplexConv2d(in_ch, out_ch, kernel_size))
             self.rels.append(nn.ReLU())
             in_ch = out_ch
-        self.fc = nn.Linear(channels[-1] * 4 * width * 2, 2)
+        self.fc = nn.Linear(channels[-1] * feature_rows * width * 2, 2)
 
     def forward(self, real: torch.Tensor, imag: torch.Tensor) -> torch.Tensor:
         width = self.memory_depth + 1
-        real = real.view(-1, 1, 4, width)
-        imag = imag.view(-1, 1, 4, width)
+        real = real.view(-1, 1, self.feature_rows, width)
+        imag = imag.view(-1, 1, self.feature_rows, width)
         for conv, relu in zip(self.convs, self.rels):
             real, imag = conv(real, imag)
             real = relu(real)
@@ -166,6 +173,9 @@ def build_model(config: ExperimentConfig) -> nn.Module:
     if config.model_type == "complex_cnn":
         return ComplexCNN(
             config.memory_depth,
+            feature_rows=(
+                config.mp_order_count if config.feature_mode == "complex_mp" else 4
+            ),
             kernel_size=config.kernel_size,
             num_layers=config.num_layers,
         )

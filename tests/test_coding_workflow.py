@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from tests.test_candidate_execution import PLUGIN_SOURCE
@@ -68,6 +69,38 @@ class CodingWorkflowTest(unittest.TestCase):
         self.assertEqual(plan.candidate_name, "novel_dynamic_model")
         self.assertEqual(len(plan.files), 2)
         self.assertTrue(plan.manifest_path.endswith("manifest.json"))
+
+    def test_scaffold_required_task_rejects_full_training_plugin_and_accepts_architecture(self):
+        from nonlinear_agent.coding_agent import CodeChangePlan
+
+        task = replace(self._task(), scaffold_required=True)
+        with self.assertRaisesRegex(ValueError, "TorchArchitecturePlugin"):
+            CodeChangePlan.from_json(_response(PLUGIN_SOURCE), task)
+
+        source = '''
+from torch import nn
+from nonlinear_agent.model_plugins.contracts import ArchitectureNode, ModelDescriptor
+from nonlinear_agent.model_plugins.torch_scaffold import TorchArchitecturePlugin
+
+class NovelPlugin(TorchArchitecturePlugin):
+    descriptor = ModelDescriptor(
+        name="novel_dynamic_model", version="1.0", training_mode="gradient",
+        config_schema={"type": "object", "properties": {}},
+        nodes=(ArchitectureNode("model", "Dense", "linear"),), edges=(),
+    )
+    def build_model(self, input_dim, config):
+        return nn.Sequential(nn.Linear(input_dim, 8), nn.Tanh(), nn.Linear(8, 2))
+'''
+        plan = CodeChangePlan.from_json(_response(source), task)
+
+        self.assertEqual(plan.candidate_name, "novel_dynamic_model")
+
+        wrong_entrypoint = source.replace(
+            "class NovelPlugin(TorchArchitecturePlugin):",
+            "class ArchitecturePlugin(TorchArchitecturePlugin):",
+        ) + "\nclass NovelPlugin(nn.Module):\n    pass\n"
+        with self.assertRaisesRegex(ValueError, "manifest entrypoint class"):
+            CodeChangePlan.from_json(_response(wrong_entrypoint), task)
 
     def test_plan_parser_normalizes_bounded_manifest_metadata(self):
         from nonlinear_agent.coding_agent import CodeChangePlan
@@ -195,13 +228,11 @@ class CodingWorkflowTest(unittest.TestCase):
 
         self.assertIn('manifest "schema_version" must be the JSON number 1', prompt)
         self.assertIn("Do not import nonlinear_agent.contracts", prompt)
-        self.assertIn('matplotlib.use("Agg")', prompt)
-        self.assertIn("inside train", prompt)
-        self.assertIn("request.data_file", prompt)
-        self.assertIn("request.train_ratio", prompt)
-        self.assertIn('MAT keys "x" and "d"', prompt)
-        self.assertIn("never cast a complex array directly to float", prompt)
-        self.assertIn('status must be "completed"', prompt)
+        self.assertIn("TorchArchitecturePlugin", prompt)
+        self.assertIn("build_model(self, input_dim, config)", prompt)
+        self.assertIn("Do not implement train", prompt)
+        self.assertIn("[batch, input_dim]", prompt)
+        self.assertIn("[batch, 2]", prompt)
 
     def test_llm_repairs_invalid_code_then_runner_executes_complete_plugin(self):
         from nonlinear_agent.coding_agent import CodingAgent

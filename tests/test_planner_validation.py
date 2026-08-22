@@ -85,6 +85,20 @@ class PlannerValidationTest(unittest.TestCase):
                 parameter_count_max=4000,
             )
 
+    def test_complex_cnn_estimate_matches_runtime_and_enforces_budget(self):
+        config = {
+            "model_type": "complex_cnn",
+            "feature_mode": "complex_mp",
+            "memory_depth": 20,
+            "mp_order_count": 3,
+            "kernel_size": 3,
+            "num_layers": 2,
+        }
+
+        self.assertEqual(estimate_parameter_count(config), 17666)
+        with self.assertRaisesRegex(ValueError, "exceeds parameter budget"):
+            validate_planned_overrides(config, parameter_count_max=13000)
+
     def test_validate_rejects_invalid_spline_range_before_training(self):
         for invalid_value in (None, [1.0, 3.0]):
             with self.subTest(invalid_value=invalid_value):

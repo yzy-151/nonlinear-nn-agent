@@ -39,6 +39,7 @@ TERMINAL_STATUSES = (
 
 
 Worker = Callable[[dict[str, Any]], dict[str, Any]]
+ApprovalGate = Callable[[str, str, dict[str, Any]], Any]
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,7 @@ class MultiAgentRunState(TypedDict, total=False):
     execution_results: list[dict[str, Any]]
     final_evaluation: dict[str, Any]
     planner_context: dict[str, Any]
+    plan_failure_facts: dict[str, Any]
 
 
 def build_supervisor_graph(
@@ -144,6 +146,7 @@ def build_multi_agent_graph(
     rounds: int = 1,
     experiments_per_round: int = 1,
     final_evaluation: bool = False,
+    approval_gate: ApprovalGate | None = None,
 ) -> Any:
     """Build the Idea -> Code -> Execute -> Write supervisor graph.
 
@@ -156,7 +159,7 @@ def build_multi_agent_graph(
         raise ValueError("rounds must be positive")
     if experiments_per_round < 1:
         raise ValueError("experiments_per_round must be positive")
-    if rounds > 1 or experiments_per_round > 1 or final_evaluation:
+    if rounds > 1 or experiments_per_round > 1 or final_evaluation or approval_gate:
         return _build_batch_multi_agent_graph(
             workers=workers,
             plan_gate=plan_gate,
@@ -165,6 +168,8 @@ def build_multi_agent_graph(
             rounds=rounds,
             experiments_per_round=experiments_per_round,
             final_evaluation=final_evaluation,
+            max_replans=max_replans,
+            approval_gate=approval_gate,
         )
     from langgraph.graph import END, START, StateGraph
 
@@ -484,6 +489,8 @@ def _build_batch_multi_agent_graph(
     rounds: int,
     experiments_per_round: int,
     final_evaluation: bool,
+    max_replans: int,
+    approval_gate: ApprovalGate | None,
 ) -> Any:
     """Build the round-aware batch search graph used by real 3x3 runs."""
     from langgraph.graph import END, START, StateGraph
@@ -503,6 +510,7 @@ def _build_batch_multi_agent_graph(
             "round_records": _planner_round_records(
                 list(state.get("round_records", []))
             ),
+            "plan_failure_facts": dict(state.get("plan_failure_facts", {})),
         }
         usage_start = len(model_router.usage()) if model_router else 0
         try:
@@ -513,6 +521,24 @@ def _build_batch_multi_agent_graph(
             return _terminal_update(state, "error", str(exc), "idea_plan")
         usage = _usage_since(model_router, usage_start)
         planner_context = dict(plan.pop("_planner_context", {}) or {})
+        review = _review(
+            approval_gate,
+            "idea_plan",
+            "output",
+            {
+                "goal": state["goal"],
+                "round_index": state.get("round_index", 1),
+                "reason": plan.get("decision_rationale") or plan.get("risk", ""),
+                "risk": plan.get("risk", ""),
+                "hypotheses": plan.get("hypotheses", []),
+                "plan": plan,
+                "historical_best": _historical_best(
+                    list(state.get("exploration_outcomes", []))
+                ),
+            },
+        )
+        if not review["approved"]:
+            return _replan_from_review(state, "idea_plan", review, max_replans)
         if model_router is not None and model_router.budget_exceeded():
             return {
                 "status": "budget_exceeded",
@@ -532,6 +558,7 @@ def _build_batch_multi_agent_graph(
                 "completed",
                 input_refs=(
                     list(state.get("available_fact_refs", []))
+                    + _failure_refs(state.get("plan_failure_facts", {}))
                     + list(planner_context.get("allowed_citation_ids", []))
                 ),
                 output_refs=[f"plan:{plan.get('plan_id', 'unknown')}"],
@@ -555,9 +582,31 @@ def _build_batch_multi_agent_graph(
             ),
         )
         if errors:
-            return _terminal_update(state, "invalid_plan", "; ".join(errors), "plan_gate")
+            error = "; ".join(errors)
+            failure = {
+                "classification": "invalid_plan",
+                "error": error,
+                "retryable": True,
+            }
+            if state.get("replan_count", 0) < max_replans:
+                return {
+                    "status": "replanning",
+                    "plan_failure_facts": failure,
+                    "replan_count": state.get("replan_count", 0) + 1,
+                    "failures": [failure],
+                    "timeline": [_role_event(
+                        state,
+                        "plan_gate",
+                        "failed",
+                        input_refs=[f"plan:{state['plan'].get('plan_id', 'unknown')}"],
+                        output_refs=["failure:invalid_plan"],
+                        failure_facts=failure,
+                    )],
+                }
+            return _terminal_update(state, "invalid_plan", error, "plan_gate")
         return {
             "status": "running",
+            "plan_failure_facts": {},
             "timeline": [_role_event(
                 state,
                 "plan_gate",
@@ -587,6 +636,9 @@ def _build_batch_multi_agent_graph(
                         "prior_facts": _coding_prior_facts(
                             list(state.get("round_records", []))
                         ),
+                        "historical_best": _historical_best(
+                            list(state.get("exploration_outcomes", []))
+                        ),
                     }
                 )
                 if not isinstance(result, dict):
@@ -597,6 +649,29 @@ def _build_batch_multi_agent_graph(
             result["experiment_id"] = experiment_id
             results.append(result)
         usage = _usage_since(model_router, usage_start)
+        review = _review(
+            approval_gate,
+            "coding",
+            "output",
+            {
+                "goal": state["goal"],
+                "round_index": round_index,
+                "reason": state["plan"].get("decision_rationale", ""),
+                "risk": state["plan"].get("risk", ""),
+                "candidate_count": len(results),
+                "output": [
+                    {
+                        "experiment_id": item.get("experiment_id"),
+                        "passed": item.get("passed"),
+                        "candidate_name": item.get("candidate_name"),
+                        "failure_facts": item.get("failure_facts", []),
+                    }
+                    for item in results
+                ],
+            },
+        )
+        if not review["approved"]:
+            return _replan_from_review(state, "coding", review, max_replans)
         return {
             "status": "running",
             "code_results": results,
@@ -615,6 +690,24 @@ def _build_batch_multi_agent_graph(
         if _is_cancelled(state, cancel_check):
             return _terminal_update(state, "cancelled", "cancelled by user", "execution")
         round_index = state.get("round_index", 1)
+        review = _review(
+            approval_gate,
+            "execution",
+            "input",
+            {
+                "goal": state["goal"],
+                "round_index": round_index,
+                "reason": state["plan"].get("decision_rationale", ""),
+                "risk": state["plan"].get("risk", ""),
+                "hypotheses": state["plan"].get("hypotheses", []),
+                "candidates": state["plan"].get("candidate_experiments", []),
+                "historical_best": _historical_best(
+                    list(state.get("exploration_outcomes", []))
+                ),
+            },
+        )
+        if not review["approved"]:
+            return _replan_from_review(state, "execution", review, max_replans)
         outcomes: list[dict[str, Any]] = []
         executions: list[dict[str, Any]] = []
         code_by_id = {
@@ -649,6 +742,10 @@ def _build_batch_multi_agent_graph(
                             "candidate": dict(candidate),
                             "plan": state["plan"],
                             "code_result": code_result,
+                            "hypotheses": list(state["plan"].get("hypotheses", [])),
+                            "historical_best": _historical_best(
+                                list(state.get("exploration_outcomes", []))
+                            ),
                         }
                     )
                     if not isinstance(result, dict):
@@ -761,6 +858,10 @@ def _build_batch_multi_agent_graph(
                         "candidate": dict(best["candidate"]),
                         "plan": state["plan"],
                         "code_result": dict(best["code_result"]),
+                        "hypotheses": list(state["plan"].get("hypotheses", [])),
+                        "historical_best": _historical_best(
+                            list(state.get("exploration_outcomes", []))
+                        ),
                     }
                 )
                 if not isinstance(result, dict):
@@ -805,6 +906,10 @@ def _build_batch_multi_agent_graph(
             "exploration_outcomes": list(state.get("exploration_outcomes", [])),
             "final_evaluation": dict(state.get("final_evaluation", {})),
             "failures": list(state.get("failures", [])),
+            "historical_best": _historical_best(
+                list(state.get("exploration_outcomes", []))
+            ),
+            "usage_summary": _usage_summary(model_router),
         }
         usage_start = len(model_router.usage()) if model_router else 0
         try:
@@ -813,6 +918,22 @@ def _build_batch_multi_agent_graph(
                 raise TypeError("writing worker must return an object")
         except Exception as exc:
             return _terminal_update(state, "error", str(exc), "writing")
+        review = _review(
+            approval_gate,
+            "writing",
+            "output",
+            {
+                "goal": state["goal"],
+                "reason": "Verify report evidence, attribution, cost and downloadable artifacts.",
+                "risk": "The report must not claim unsupported model performance.",
+                "metrics": request.get("historical_best", {}).get("metrics", {}),
+                "usage_summary": request.get("usage_summary", {}),
+                "output": result,
+                "artifacts": _report_refs(result),
+            },
+        )
+        if not review["approved"]:
+            return _replan_from_review(state, "writing", review, max_replans)
         return {
             "status": "completed",
             "report_result": result,
@@ -861,23 +982,37 @@ def _build_batch_multi_agent_graph(
     graph.add_edge(START, "idea_plan")
     graph.add_conditional_edges(
         "idea_plan",
-        lambda state: "plan_gate" if state.get("status") == "running" else "terminal",
+        lambda state: (
+            "plan_gate" if state.get("status") == "running"
+            else "idea_plan" if state.get("status") == "replanning"
+            else "terminal"
+        ),
     )
     graph.add_conditional_edges(
         "plan_gate",
-        lambda state: "coding" if state.get("status") == "running" else "terminal",
+        lambda state: (
+            "coding" if state.get("status") == "running"
+            else "idea_plan" if state.get("status") == "replanning"
+            else "terminal"
+        ),
     )
-    graph.add_edge("coding", "execution")
+    graph.add_conditional_edges(
+        "coding",
+        lambda state: "execution" if state.get("status") == "running" else "idea_plan",
+    )
     graph.add_conditional_edges(
         "execution",
         lambda state: (
             "idea_plan"
-            if state.get("status") == "next_round"
+            if state.get("status") in {"next_round", "replanning"}
             else "final_evaluation" if final_evaluation else "writing"
         ),
     )
     graph.add_edge("final_evaluation", "writing")
-    graph.add_edge("writing", "terminal")
+    graph.add_conditional_edges(
+        "writing",
+        lambda state: "terminal" if state.get("status") == "completed" else "idea_plan",
+    )
     graph.add_edge("terminal", END)
     return graph.compile()
 
@@ -953,6 +1088,9 @@ def _context_trace_evidence(
         "confidence",
         "evidence_refs",
         "metrics",
+        "known_nmse_db",
+        "parameter_count",
+        "config",
     }
     return [
         {key: value for key, value in item.items() if key in allowed}
@@ -1047,12 +1185,89 @@ def _coding_prior_facts(
             "candidate_name": str(outcome.get("candidate_name", "")),
             "status": str(outcome.get("status", "")),
             "metrics": dict(outcome.get("metrics") or {}),
+            "config": dict(dict(outcome.get("candidate") or {}).get("config") or {}),
             "failure_facts": list(outcome.get("failure_facts", [])),
         }
         for record in records
         for outcome in record.get("outcomes", [])
         if isinstance(outcome, dict)
     ]
+
+
+def _historical_best(outcomes: list[dict[str, Any]]) -> dict[str, Any]:
+    best = _select_best_outcome(outcomes)
+    if best is None:
+        return {}
+    return {
+        "experiment_id": str(best.get("experiment_id", "")),
+        "model_type": str(best.get("candidate_name", "")),
+        "config": dict(dict(best.get("candidate") or {}).get("config") or {}),
+        "metrics": dict(best.get("metrics") or {}),
+    }
+
+
+def _usage_summary(router: ModelRouter | None) -> dict[str, Any]:
+    records = router.usage() if router is not None else []
+    return {
+        "calls": len(records),
+        "prompt_tokens": sum(item.prompt_tokens for item in records),
+        "completion_tokens": sum(item.completion_tokens for item in records),
+        "cost_usd": sum(item.cost_usd for item in records),
+        "latency_ms": sum(item.latency_ms for item in records),
+    }
+
+
+def _review(
+    gate: ApprovalGate | None,
+    role: str,
+    phase: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    if gate is None:
+        return {"approved": True, "reason": "auto mode"}
+    raw = gate(role, phase, payload)
+    if isinstance(raw, dict):
+        return {
+            "approved": bool(raw.get("approved")),
+            "reason": str(raw.get("reason") or ""),
+            "approval_id": str(raw.get("approval_id") or ""),
+        }
+    return {
+        "approved": bool(getattr(raw, "approved", False)),
+        "reason": str(getattr(raw, "reason", "")),
+        "approval_id": str(getattr(raw, "approval_id", "")),
+    }
+
+
+def _replan_from_review(
+    state: MultiAgentRunState,
+    role: str,
+    review: dict[str, Any],
+    max_replans: int,
+) -> dict[str, Any]:
+    reason = review.get("reason") or f"human rejected {role} output"
+    failure = {
+        "classification": "human_rejected",
+        "error": str(reason),
+        "retryable": True,
+        "role": role,
+        "approval_id": review.get("approval_id", ""),
+    }
+    if state.get("replan_count", 0) >= max_replans:
+        return _terminal_update(state, "error", str(reason), role)
+    return {
+        "status": "replanning",
+        "plan_failure_facts": failure,
+        "replan_count": state.get("replan_count", 0) + 1,
+        "failures": [failure],
+        "timeline": [_role_event(
+            state,
+            role,
+            "rejected",
+            output_refs=["failure:human_rejected"],
+            failure_facts=failure,
+        )],
+    }
 
 
 def _scoped_candidate(

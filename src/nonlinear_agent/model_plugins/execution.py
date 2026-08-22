@@ -81,7 +81,8 @@ def run_candidate_model_tool(
         workspace=str(root),
         config=dict(config),
         output_dir=output_relative,
-        seed=int(seed),
+        train_ratio=float(config.get("train_ratio", 0.8)),
+        seed=int(config.get("seed", seed)),
     )
     payload, elapsed, process = _invoke_candidate_runner(
         root=root,

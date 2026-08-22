@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = subparsers.add_parser("run", help="Run an LLM-planned experiment loop.")
     run.add_argument("--workspace", default=str(PROJECT_ROOT))
-    run.add_argument("--provider", choices=["fake", "deepseek"], default="fake")
+    run.add_argument("--provider", choices=["fake", "deepseek"], default="deepseek")
     run.add_argument(
         "--mode", choices=["fixed", "action"], default="fixed",
         help="fixed plans an experiment batch; action chooses one tool after each observation.",
@@ -151,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON protocol file (methods/seeds/trial_budget). Takes precedence over --methods/--seeds/--trial-budget.")
     compare.add_argument("--domain", choices=["nonlinear", "synthetic", "synthetic-large", "synthetic-hard"], default="nonlinear",
         help="Which DomainPlugin to execute (default: nonlinear).")
-    compare.add_argument("--llm-provider", choices=["simulated", "deepseek"], default="simulated",
+    compare.add_argument("--llm-provider", choices=["simulated", "deepseek"], default="deepseek",
         help="LLM strategy backend: simulated (offline neighborhood sampling) or deepseek (real chat API).")
     compare.add_argument("--timeout-seconds", type=float, default=300.0,
         help="Per-trial training timeout (default 300s).")

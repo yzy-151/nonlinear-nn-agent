@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional
@@ -538,6 +539,7 @@ async def stream_multi_agent_events(
     }
 
     def produce() -> None:
+        last_event_at = time.perf_counter()
         try:
             for update in graph.stream(initial, stream_mode="updates"):
                 for node, delta in update.items():
@@ -547,6 +549,23 @@ async def stream_multi_agent_events(
                         if event.get("role") == "terminal":
                             continue
                         event = dict(event)
+                        now = time.perf_counter()
+                        event.setdefault(
+                            "latency_ms", round((now - last_event_at) * 1000.0, 3)
+                        )
+                        last_event_at = now
+                        usage = event.get("model_usage") or []
+                        event.setdefault(
+                            "cost_usd",
+                            round(
+                                sum(
+                                    float(item.get("cost_usd", 0.0) or 0.0)
+                                    for item in usage
+                                    if isinstance(item, dict)
+                                ),
+                                8,
+                            ),
+                        )
                         if event.get("role") == "execution" and delta.get(
                             "exploration_outcomes"
                         ):
@@ -683,6 +702,7 @@ def _build_default_multi_agent_graph(
     from nonlinear_agent.memory.planner_context import PlannerContextBuilder
     from nonlinear_agent.supervisor_graph import build_multi_agent_graph
     from nonlinear_agent.writing_agent import WritingAgent
+    from nonlinear_agent.priors import load_historical_priors
 
     default_model = str(payload.get("model", "deepseek-v4-flash"))
     roles = {
@@ -752,6 +772,48 @@ def _build_default_multi_agent_graph(
         planner_namespace=namespace,
         planner_context_top_k=int(payload.get("knowledge_top_k", 3)),
         memory_backend=memory_backend,
+        registered_anchor=_registered_anchor_from_payload(payload),
+        registered_model_catalog=_registered_model_catalog(),
+        candidate_parameter_count_max=int(
+            payload.get("candidate_parameter_count_max", 4000)
+        ),
+        candidate_epochs_max=int(payload.get("candidate_epochs_max", 50)),
+        candidate_timeout_seconds=float(
+            payload.get("candidate_timeout_seconds", 300.0)
+        ),
+        coding_max_repairs=int(payload.get("coding_max_repairs", 3)),
+        planner_max_repairs=int(payload.get("max_replans", 1)),
+        screening_epochs_max=int(payload.get("screening_epochs_max", 300)),
+        high_fidelity_rounds=tuple(
+            int(value) for value in payload.get("high_fidelity_rounds", [])
+        ),
+        max_high_fidelity_candidates_per_round=int(
+            payload.get("max_high_fidelity_candidates_per_round", 1)
+        ),
+        min_generated_candidates_per_round=int(
+            payload.get("min_generated_candidates_per_round", 0)
+        ),
+        generated_candidate_epochs_max=int(
+            payload.get(
+                "generated_candidate_epochs_max",
+                payload.get("candidate_epochs_max", 50),
+            )
+        ),
+        historical_priors=[
+            {
+                "id": prior.id,
+                "known_nmse_db": prior.known_nmse_db,
+                "parameter_count": prior.parameter_count,
+                "config": dict(prior.overrides),
+                "source": prior.source,
+            }
+            for prior in load_historical_priors(
+                workspace / "configs" / "priors" / "nonlinear-modeling.json",
+                parameter_count_max=int(
+                    payload.get("candidate_parameter_count_max", 4000)
+                ),
+            )
+        ],
     )
     graph = build_multi_agent_graph(
         runtime.workers(),
@@ -761,8 +823,136 @@ def _build_default_multi_agent_graph(
         rounds=int(payload.get("rounds", 1)),
         experiments_per_round=int(payload.get("experiments_per_round", 1)),
         final_evaluation=bool(payload.get("final_evaluation", False)),
+        approval_gate=(
+            payload["_approval_controller"].review
+            if payload.get("_approval_controller") is not None
+            else None
+        ),
     )
     return graph
+
+
+def _registered_model_catalog() -> dict[str, dict[str, Any]]:
+    """Describe stable experiment tools that the Planner may select directly."""
+    shared = [
+        "feature_mode",
+        "target_mode",
+        "memory_depth",
+        "mp_order_count",
+        "train_ratio",
+        "seed",
+    ]
+    training = [
+        "epochs",
+        "batch_size",
+        "learning_rate",
+        "optimizer",
+        "scheduler_step_size",
+        "scheduler_gamma",
+    ]
+    return {
+        "tiny_mlp": {
+            "implementation_source": "registered_model",
+            "description": (
+                "One hidden-layer real-valued MLP over explicit real/imaginary "
+                "complex memory-polynomial features, with complex output."
+            ),
+            "config_fields": shared + training + ["hidden_units", "activation"],
+            "allowed_values": {
+                "feature_mode": ["complex_mp", "legacy_abs"],
+                "target_mode": ["direct", "residual"],
+                "activation": ["relu", "tanh", "silu", "gelu"],
+                "optimizer": ["adam", "adamw", "sgd"],
+            },
+        },
+        "spline_mlp": {
+            "implementation_source": "registered_model",
+            "description": (
+                "Compact MLP with a learnable one-dimensional LUT/spline activation."
+            ),
+            "config_fields": shared
+            + training
+            + ["hidden_units", "activation", "spline_knots", "spline_range"],
+        },
+        "complex_lstsq": {
+            "implementation_source": "registered_model",
+            "description": (
+                "Closed-form complex least-squares memory-polynomial baseline; "
+                "use epochs=0."
+            ),
+            "config_fields": shared + ["epochs"],
+        },
+        "linear": {
+            "implementation_source": "registered_model",
+            "description": "Trainable complex-output linear baseline over selected features.",
+            "config_fields": shared + training,
+        },
+        "complex_cnn": {
+            "implementation_source": "registered_model",
+            "description": "Compact convolutional baseline for causal memory features.",
+            "config_fields": shared + training + ["kernel_size", "num_layers"],
+        },
+    }
+
+
+def _registered_anchor_from_payload(
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Resolve a named, trace-backed model profile without accepting code paths."""
+    profile = str(payload.get("registered_anchor_profile", "")).strip()
+    if not profile:
+        return None
+    profiles = {
+        "tiny-mem15-mp3-h80-40db": {
+            "model_type": "tiny_mlp",
+            "config": {
+                "model_type": "tiny_mlp",
+                "feature_mode": "complex_mp",
+                "target_mode": "direct",
+                "memory_depth": 15,
+                "mp_order_count": 3,
+                "hidden_units": 80,
+                "activation": "relu",
+                "epochs": 1500,
+                "batch_size": 512,
+                "learning_rate": 8.0e-4,
+                "optimizer": "adam",
+                "scheduler_step_size": 1000,
+                "scheduler_gamma": 1.0,
+                "seed": 42,
+            },
+            "parameter_count_max": 8000,
+            "epochs_max": 1500,
+            "timeout_seconds": 900.0,
+            "evidence": "reports/tiny_mlp_relu_mem15_mp3_h80_epochs1500/metrics.json",
+        },
+        "tiny-mem20-mp3-h96-42db": {
+            "model_type": "tiny_mlp",
+            "config": {
+                "model_type": "tiny_mlp",
+                "feature_mode": "complex_mp",
+                "target_mode": "direct",
+                "memory_depth": 20,
+                "mp_order_count": 3,
+                "hidden_units": 96,
+                "activation": "relu",
+                "epochs": 10000,
+                "batch_size": 512,
+                "learning_rate": 8.0e-4,
+                "optimizer": "adam",
+                "scheduler_step_size": 1000,
+                "scheduler_gamma": 1.0,
+                "seed": 42,
+            },
+            "parameter_count_max": 13000,
+            "epochs_max": 10000,
+            "timeout_seconds": 1800.0,
+            "evidence": "reports/tiny_mlp_md20_mp3_hu96_relu_ep10000/metrics.json",
+        },
+    }
+    if profile not in profiles:
+        raise ValueError(f"unsupported registered anchor profile: {profile}")
+    return {"profile": profile, **profiles[profile]}
 
 
 def _configure_multi_agent_client(
@@ -808,7 +998,8 @@ def create_app(
         ) from exc
 
     root = Path(workspace)
-    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.4.1")
+    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.6.0")
+    app.state.approval_controllers = {}
 
     # v3.6.0: process-local memory inspector backend (LangGraph InMemoryStore).
     # Action-loop runs write through the same MemoryBackend port; this
@@ -1049,7 +1240,7 @@ def create_app(
         Agent Loop 完成后自动刷新 dashboard（MD + HTML）。
         """
         payload = body or {}
-        provider = str(payload.get("provider", "fake"))
+        provider = str(payload.get("provider", "deepseek"))
         goal = str(payload.get(
             "goal", "Find a low-NMSE nonlinear model under 4000 parameters."
         ))
@@ -1133,7 +1324,7 @@ def create_app(
             async for chunk in stream_agent_events(
                 root,
                 session_id,
-                provider=str(payload.get("provider", "fake")),
+                provider=str(payload.get("provider", "deepseek")),
                 goal=str(payload.get(
                     "goal",
                     "Optimize a validated nonlinear model under the selected controls.",
@@ -1167,6 +1358,15 @@ def create_app(
         )
         cancel_evt = asyncio.Event()
         _cancel_events[session_id] = cancel_evt
+        from nonlinear_agent.approval import ApprovalController
+
+        approval = ApprovalController(
+            session_id,
+            mode=str(payload.get("approval_mode", "auto")),
+            timeout_seconds=float(payload.get("approval_timeout_seconds", 3600.0)),
+        )
+        app.state.approval_controllers[session_id] = approval
+        payload["_approval_controller"] = approval
         try:
             if multi_agent_graph_factory is not None:
                 graph = multi_agent_graph_factory(payload)
@@ -1179,6 +1379,7 @@ def create_app(
                 )
         except Exception as exc:
             _cancel_events.pop(session_id, None)
+            app.state.approval_controllers.pop(session_id, None)
             from fastapi import HTTPException
 
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1190,10 +1391,41 @@ def create_app(
                     yield chunk
             finally:
                 _cancel_events.pop(session_id, None)
+                app.state.approval_controllers.pop(session_id, None)
 
         return StreamingResponse(
             multi_agent_stream(), media_type="text/event-stream"
         )
+
+    @app.get("/approvals/{session_id}")
+    async def pending_approvals(session_id: str):
+        controller = app.state.approval_controllers.get(session_id)
+        return {
+            "session_id": session_id,
+            "mode": controller.mode if controller is not None else "auto",
+            "pending": controller.pending() if controller is not None else [],
+        }
+
+    @app.post("/approvals/{session_id}/{approval_id}/decision")
+    async def decide_approval(
+        session_id: str,
+        approval_id: str,
+        body: Optional[Dict[str, Any]] = None,
+    ):
+        from fastapi import HTTPException
+
+        controller = app.state.approval_controllers.get(session_id)
+        if controller is None:
+            raise HTTPException(status_code=404, detail="run approval controller not found")
+        decision = dict(body or {})
+        try:
+            return controller.decide(
+                approval_id,
+                approved=bool(decision.get("approved")),
+                reason=str(decision.get("reason") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     # ── POST /benchmark/events — Benchmark 评估 ──────────
     @app.post("/benchmark/events")
@@ -1273,6 +1505,7 @@ def create_app(
         proto = EvaluationProtocol(
             methods=methods, seeds=seeds, trial_budget=trial_budget,
             parameter_count_max=param_count_max, nmse_threshold_db=nmse_threshold,
+            llm_provider=str(payload.get("llm_provider", "deepseek")),
         )
 
         if domain_name == "synthetic":

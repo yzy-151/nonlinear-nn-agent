@@ -11,6 +11,13 @@ from nonlinear_agent.cli import build_parser, main
 
 
 class CliTest(unittest.TestCase):
+    def test_llm_commands_default_to_real_api_providers(self):
+        parser = build_parser()
+
+        self.assertEqual(parser.parse_args(["run"]).provider, "deepseek")
+        self.assertEqual(parser.parse_args(["multi-agent"]).provider, "deepseek")
+        self.assertEqual(parser.parse_args(["compare-search"]).llm_provider, "deepseek")
+
     def test_multi_agent_parser_exposes_three_by_three_final_evaluation_defaults(self):
         args = build_parser().parse_args(["multi-agent", "--provider", "deepseek"])
 

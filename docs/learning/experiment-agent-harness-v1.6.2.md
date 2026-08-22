@@ -517,3 +517,70 @@ FourierMLP 三次尝试依次出现矩阵形状错误、构造函数缺少 confi
 面试表达：
 
 > 我没有把“Agent 流程完成”和“算法效果好”混为一谈。真实 3 x 3 中系统以 7/9 的候选成功率完成三轮和独立终评，证明 Supervisor、跨轮 facts、Coding 修复、Execution 与 Writing 能闭环；但最佳只有 -27.97 dB。进一步分析发现，工程失败集中在插件契约和张量维度，算法上则陷入局部架构变体。于是下一步不是盲目增加轮次，而是增强结构化失败反馈，并用成熟 anchor、受控变体和开放探索组成可比较的候选集。
+
+## 24. v4.5.0：混合 Multi-Agent 达到 -40 dB
+
+### 24.1 为什么不能只增加开放搜索轮次
+
+上一节的真实 3 x 3 运行已经证明 Supervisor 和跨轮事实链能够收口，但最佳只有 `-27.97 dB`。根因是开放 CodingAgent 必须从零重写特征工程、模型、训练和绘图代码，而历史 `-40~-42 dB` 结果来自经过长期调试的 complex-MP 特征与成熟训练实现。继续增加开放候选只会扩大 token 和训练成本，不能保证跨越实现质量差距。
+
+v4.5.0 将候选分成两类：
+
+1. `registered_model`：Supervisor 注入固定名称的、带历史指标证据的模型 profile；Coding 阶段执行 schema、参数量和 epoch 预算校验，不伪造“新生成模型”；Execution 仍只能调用注册的 `generate_config` 与 `run_training` 工具。
+2. `generated_plugin`：Idea/Plan 与 CodingAgent 自由提出并实现新架构，继续经过路径、AST、插件契约、参数预算和 smoke-training gate。
+
+两类候选进入同一个 Execution、事实提取、全局排序、最终独立复评和 Writing 链路。注册 profile 只接受固定名称，不接受任意源码或路径，因此没有把安全边界退化为 shell 执行。
+
+### 24.2 真实 DeepSeek 运行
+
+运行 ID 为 `codex-multiagent-40db-20260815`，使用 `deepseek-v4-flash`，配置为 `1 round x 3 candidates + final evaluation`，目标 `NMSE <= -40 dB`。知识库正文未发送给外部 API；模型只收到实验目标、结构化计划契约、固定锚点参数和本轮运行事实。
+
+| 候选 | 来源 | Coding gate | NMSE / dB | 参数量 | 目标 |
+| --- | --- | ---: | ---: | ---: | --- |
+| `tiny_mlp` | 注册锚点 | PASS | **-40.5434** | 7922 | PASS |
+| `volterra_nn` | CodingAgent 生成 | PASS | -10.0993 | 3906 | MISS |
+| `gru_nl` | CodingAgent 生成 | PASS | -25.0672 | 2466 | MISS |
+| `tiny_mlp-final` | 独立复评 | completed | **-40.5434** | 7922 | PASS |
+
+锚点使用 causal complex-MP 特征，`memory_depth=15`、`mp_order_count=3`、单隐藏层 `80`、ReLU、Adam、`1500 epochs`、`seed=42`。输入 No-DPD 基线为 `-21.8258 dB`，改善量为 `18.7176 dB`。最终评测重新生成配置并再次训练，而不是复制首轮 metrics；配置、resolved config、模型、PSD、summary 与 metrics 均保存在对应 run evidence 目录。
+
+三个候选全部完成，说明本轮 Coding 可执行率是 `3/3`；但只有锚点达标，目标命中率是 `1/3`。这两个指标必须同时报告：前者衡量 Harness 工程可靠性，后者衡量候选算法质量。
+
+### 24.3 这次新增了哪些工程能力
+
+- Plan contract 显式区分 `registered_model` 与 `generated_plugin`，首轮由 Supervisor 注入可追溯锚点，其余候选保持开放探索。
+- 注册锚点 Coding 阶段复用现有 `validate_planned_overrides` 与参数估计，不调用 LLM 重写成熟代码。
+- 注册锚点 Execution 严格经过 ToolRegistry 中的 `generate_config -> run_training`，并把配置与训练 artifact 发布到统一 evidence 目录。
+- 注册模型补充真实 `ModelDescriptor`，报告可以画出 complex-MP features、Dense+ReLU 与 complex output，而不是显示 `Descriptor unavailable`。
+- 报告复现命令根据实际 round、每轮候选数和 final-evaluation 动态生成，不再写死为 3 x 3。
+- v4.5.0 修改后完整离线回归为 `516/516`；真实 API run 的 terminal 为 `completed`。
+
+### 24.4 如何在面试中解释
+
+> 我先用真实 3 x 3 证明开放 Multi-Agent 能闭环，但最佳只有 -27.97 dB。分析后发现这不是 Reflection 没传回去，而是 LLM 从零实现的算法质量和成熟通信模型存在明显差距。我没有用更多轮次掩盖问题，而是设计了混合候选策略：一个 trace-backed 注册锚点保证性能下界，两个开放候选衡量探索增益；它们共享同一执行、事实、终评和报告链。真实 DeepSeek 1 x 3 中三个候选全部跑通，锚点搜索与独立复评都达到 -40.5434 dB，而开放候选只有 -10.10 和 -25.07 dB。这个结果既证明系统能稳定交付，也诚实暴露了 CodingAgent 的算法质量上限。
+
+需要主动说明：本次 `-40.5434 dB` 来自 LLM 选择和执行经过验证的 profile，不是 LLM 从零发明的新网络。Agent 的贡献是把稳定基线、开放探索、执行隔离、独立复评和证据交付统一进一条可审计链路。
+
+## 25. v4.6.0：先验、失败回滚、人工审核与节点式控制台
+
+### 25.1 为什么四个 Agent 不能只看自己的当前任务
+
+多 Agent 不等于把一个长 prompt 拆成四段。每个角色需要不同的最小充分上下文：PlanAgent 第一轮读取带来源和已知指标的 historical priors，后续读取计划校验失败、人工驳回和执行事实；CodingAgent 读取 hypothesis、候选 config、设计空间、参数预算、历史候选指标和失败事实；ExecutionAgent 读取 goal、hypothesis、历史最优 metric 和经过 gate 的执行描述；WritingAgent 读取最终评测、每轮证据、模型用量与成本摘要。Supervisor 只传结构化摘要，不传播原始 prompt、密钥或不受控源码，从而同时控制 token 和权限边界。
+
+此前 batch PlanGate 校验失败会直接收口为 invalid plan，PlanAgent 看不到自己的失败。v4.6.0 把校验错误变成 `plan_failure_facts`，在 `max_replans` 内重新路由到 Idea/Plan；新计划必须基于这些事实修正。历史先验也不再只存在于独立搜索器，而是在第 1 轮作为 `prior:<id>` evidence 注入，并由 citation allowlist 约束引用。
+
+### 25.2 为什么审核应位于角色边界
+
+审核开关分为 `auto` 和 `review`。Auto 模式没有额外阻塞；Review 模式在 Idea/Plan 输出、Coding 输出、Execution 输入和 Writing 输出处创建待审核项，展示角色、阶段、裁剪后的输入输出、继续执行原因与风险。批准后继续当前链路；驳回必须填写原因，该原因会转成 `human_rejected` 事实并回到 PlanAgent，而不是把一次人工否决当成无解释的终态。
+
+实现上由线程安全的 `ApprovalController` 管理 pending/decision，Web 通过 `/approvals/{session_id}` 轮询，并向 decision endpoint 提交批准或驳回。审核 payload 使用字段 allowlist，明确排除 API key、原始 source 和内部 worker state。审核超时、最大重规划次数与 token/cost 预算仍由运行时控制，因此 Human-in-the-loop 没有绕过原有安全边界。
+
+### 25.3 节点式 UI 如何映射真实运行
+
+节点图不是静态演示动画。四个模式是可点击起点，Multi-Agent 的四张角色卡片消费与 Timeline 相同的 SSE：未运行、运行中、待审核、完成、失败和驳回分别映射到不同状态；曲线连接按阶段点亮。每个角色事件由服务端补充端到端墙钟 `latency_ms`，并汇总该角色 `model_usage` 的 `cost_usd`。点击卡片仍进入统一 Inspector 查看输入引用、输出引用、failure facts 和 provenance；Writing 节点从 `report:` 引用生成可下载的 HTML/PDF 链接。
+
+默认产品入口改为 DeepSeek API，避免用户以为 UI 正在调用 LLM、实际却跑离线 FakeClient；测试和演示仍可显式选择 fake/simulated 保持可重复性。视觉验收同时检查桌面与窄屏无页面级横向溢出；节点画布在窄屏内部滚动，不挤压参数面板和事件 Inspector。
+
+### 25.4 面试表达
+
+> 我发现 Multi-Agent 初始轮没有利用项目历史，计划校验失败又直接终止，导致角色数量增加了但决策质量没有形成闭环。我把可验证历史候选作为带 citation 的 prior evidence 注入第一轮，把 PlanGate、执行失败和人工驳回统一成结构化事实，在有界预算内回传 PlanAgent。不同角色只拿到完成职责所需的上下文。为了让链路既能自动跑也能受控上线，我在四个角色边界增加 Auto/Review 审核门，并把驳回理由继续送回规划，而不是直接结束。Web 端使用同一 SSE 构建节点图，展示每个角色的输入输出、状态、耗时、费用和最终报告，因此页面不是另写一套演示状态，而是运行时的可观测投影。

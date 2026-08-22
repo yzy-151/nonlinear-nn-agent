@@ -159,7 +159,7 @@ def validate_planned_overrides(
     else:
         # 向后兼容：没有 domain 时使用内置检查
         _validate_field_values(normalized)
-        if parameter_count_max is not None:
+        if parameter_count_max is not None and "model_type" in normalized:
             parameter_count = estimate_parameter_count(normalized)
             if parameter_count is not None and parameter_count > parameter_count_max:
                 raise ValueError(
@@ -187,9 +187,6 @@ def estimate_parameter_count(overrides: dict[str, Any]) -> int | None:
       实际参数量取决于训练脚本的具体实现（偏置项、归一化层等），
       Guard 的估计不需要 100% 精确——只要在预算边界附近足够判断是否超限。
 
-    返回 None 的情况：
-      complex_cnn 的参数量无法简单估计（取决于 dataset 和网络结构）
-
     各模型的估计公式（考虑复数特征 = 2× 实数维度）：
       complex_lstsq  — 2 × (feature_width + 1)           闭式解，参数 = 特征数
       linear         — input_dim×2 + 2                    线性层 → 2 输出
@@ -202,6 +199,8 @@ def estimate_parameter_count(overrides: dict[str, Any]) -> int | None:
     mp_order_count = int(overrides.get("mp_order_count", 4))
     hidden_units = int(overrides.get("hidden_units", 64))
     spline_knots = int(overrides.get("spline_knots", 16))
+    kernel_size = int(overrides.get("kernel_size", 3))
+    num_layers = int(overrides.get("num_layers", 3))
 
     feature_width = _feature_width(feature_mode, memory_depth, mp_order_count)
     input_dim = 2 * feature_width  # 复数 → 实部+虚部，维度翻倍
@@ -230,7 +229,20 @@ def estimate_parameter_count(overrides: dict[str, Any]) -> int | None:
         )
 
     if model_type == "complex_cnn":
-        return None  # CNN 参数不可简单估计
+        feature_rows = mp_order_count if feature_mode == "complex_mp" else 4
+        channels = [16 * (2 ** index) for index in range(num_layers)]
+        convolution_parameters = 0
+        in_channels = 1
+        for out_channels in channels:
+            one_real_conv = (
+                out_channels * in_channels * kernel_size * kernel_size
+                + out_channels
+            )
+            convolution_parameters += 2 * one_real_conv
+            in_channels = out_channels
+        flattened_width = channels[-1] * feature_rows * (memory_depth + 1) * 2
+        output_parameters = flattened_width * 2 + 2
+        return convolution_parameters + output_parameters
 
     raise ValueError(f"Unsupported model_type: {model_type}")
 

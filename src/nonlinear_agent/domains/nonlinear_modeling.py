@@ -167,16 +167,22 @@ class NonlinearModelingDomain:
             if field in overrides and not _is_number(overrides[field]):
                 errors.append(f"{field} must be a number.")
 
-        # Parameter budget
-        param_count = _estimate_parameter_count(
-            model_type, feature_mode, memory_depth,
-            mp_order_count, hidden_units, spline_knots,
-        )
-        if param_count is not None and param_count > parameter_count_max:
-            errors.append(
-                f"Estimated parameter count {param_count} "
-                f"exceeds parameter budget {parameter_count_max}."
+        # Budget checks require an explicit architecture. An omitted model_type
+        # means "inherit the baseline" and is resolved after the planner guard.
+        if "model_type" in overrides and not any(
+            error.startswith("model_type must be one of") for error in errors
+        ):
+            param_count = _estimate_parameter_count(
+                model_type, feature_mode, memory_depth,
+                mp_order_count, hidden_units, spline_knots,
+                int(overrides.get("kernel_size", 3)),
+                int(overrides.get("num_layers", 3)),
             )
+            if param_count is not None and param_count > parameter_count_max:
+                errors.append(
+                    f"Estimated parameter count {param_count} "
+                    f"exceeds parameter budget {parameter_count_max}."
+                )
 
         return errors
 
@@ -320,6 +326,8 @@ def _estimate_parameter_count(
     mp_order_count: int,
     hidden_units: int = 64,
     spline_knots: int = 16,
+    kernel_size: int = 3,
+    num_layers: int = 3,
 ) -> int | None:
     """Estimate parameter count for a given model configuration."""
     feature_width = _feature_width(feature_mode, memory_depth, mp_order_count)
@@ -340,7 +348,19 @@ def _estimate_parameter_count(
             + 2
         )
     if model_type == "complex_cnn":
-        return None
+        feature_rows = mp_order_count if feature_mode == "complex_mp" else 4
+        channels = [16 * (2 ** index) for index in range(num_layers)]
+        convolution_parameters = 0
+        in_channels = 1
+        for out_channels in channels:
+            one_real_conv = (
+                out_channels * in_channels * kernel_size * kernel_size
+                + out_channels
+            )
+            convolution_parameters += 2 * one_real_conv
+            in_channels = out_channels
+        flattened_width = channels[-1] * feature_rows * (memory_depth + 1) * 2
+        return convolution_parameters + flattened_width * 2 + 2
     raise ValueError(f"Unsupported model_type: {model_type}")
 
 

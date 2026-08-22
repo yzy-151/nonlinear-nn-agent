@@ -15,6 +15,15 @@ from typing import Any, Callable
 from nonlinear_agent.coding_agent import CodingTaskSpec
 from nonlinear_agent.execution_agent import ExecutionAgent
 from nonlinear_agent.experiment_tools import build_experiment_tool_registry
+from nonlinear_agent.model_plugins.contracts import (
+    ArchitectureEdge,
+    ArchitectureNode,
+    ModelDescriptor,
+)
+from nonlinear_agent.planner_validation import (
+    estimate_parameter_count,
+    validate_planned_overrides,
+)
 from nonlinear_agent.reporting.tool import write_task_report_tool
 from nonlinear_agent.supervisor_graph import MultiAgentWorkers
 from nonlinear_agent.writing_agent import EvidenceBundle
@@ -47,6 +56,19 @@ class MultiAgentRuntime:
         ),
         planner_context_top_k: int = 3,
         memory_backend: Any | None = None,
+        registered_anchor: dict[str, Any] | None = None,
+        registered_model_catalog: dict[str, dict[str, Any]] | None = None,
+        candidate_parameter_count_max: int = 4000,
+        candidate_epochs_max: int = 50,
+        candidate_timeout_seconds: float = 300.0,
+        coding_max_repairs: int = 2,
+        planner_max_repairs: int = 1,
+        screening_epochs_max: int = 300,
+        high_fidelity_rounds: tuple[int, ...] = (),
+        max_high_fidelity_candidates_per_round: int = 1,
+        min_generated_candidates_per_round: int = 0,
+        generated_candidate_epochs_max: int | None = None,
+        historical_priors: list[dict[str, Any]] | None = None,
     ):
         self._root = Path(repo_root).resolve()
         self._router = model_router
@@ -65,6 +87,32 @@ class MultiAgentRuntime:
         self._namespace = tuple(planner_namespace)
         self._context_top_k = max(1, min(int(planner_context_top_k), 10))
         self._memory_backend = memory_backend
+        self._registered_anchor = dict(registered_anchor or {})
+        self._registered_model_catalog = dict(registered_model_catalog or {})
+        self._candidate_parameter_count_max = max(1, int(candidate_parameter_count_max))
+        self._candidate_epochs_max = max(1, int(candidate_epochs_max))
+        self._candidate_timeout_seconds = max(1.0, float(candidate_timeout_seconds))
+        self._coding_max_repairs = max(0, min(int(coding_max_repairs), 5))
+        self._planner_max_repairs = max(0, min(int(planner_max_repairs), 5))
+        self._screening_epochs_max = max(1, int(screening_epochs_max))
+        self._high_fidelity_rounds = tuple(
+            sorted({max(1, int(value)) for value in high_fidelity_rounds})
+        )
+        self._max_high_fidelity_candidates_per_round = max(
+            0, int(max_high_fidelity_candidates_per_round)
+        )
+        self._min_generated_candidates_per_round = max(
+            0, int(min_generated_candidates_per_round)
+        )
+        self._generated_candidate_epochs_max = max(
+            1,
+            int(
+                self._candidate_epochs_max
+                if generated_candidate_epochs_max is None
+                else generated_candidate_epochs_max
+            ),
+        )
+        self._historical_priors = [dict(item) for item in (historical_priors or [])]
 
     def workers(self) -> MultiAgentWorkers:
         return MultiAgentWorkers(
@@ -76,19 +124,23 @@ class MultiAgentRuntime:
 
     def _idea_plan(self, request: dict[str, Any]) -> dict[str, Any]:
         context_payload = self._build_planner_context(request)
+        use_registered_anchor = bool(self._registered_anchor) and int(
+            request.get("round_index", 1)
+        ) == 1
         experiment_count = max(1, int(request.get("experiments_per_round", 1)))
         candidate_ids = [
             f"candidate-{index}" for index in range(1, experiment_count + 1)
         ]
         candidate_contract = {
             "experiment_id": "unique ID within this round",
+            "implementation_source": "generated_plugin or registered_model",
             "model_type": "new candidate plugin name",
             "config": {"candidate-specific field": "value"},
             "params_estimate": 1,
             "budget": {
-                "parameter_count_max": 4000,
-                "epochs_max": 50,
-                "timeout_seconds": 300,
+                "parameter_count_max": self._candidate_parameter_count_max,
+                "epochs_max": self._candidate_epochs_max,
+                "timeout_seconds": self._candidate_timeout_seconds,
             },
             "stop_condition": f"nmse_db <= {self._threshold}",
             "rationale": "why this experiment is informative",
@@ -139,27 +191,246 @@ class MultiAgentRuntime:
             + json.dumps(request, ensure_ascii=False, sort_keys=True)
             + "\nRetrieved context evidence (cite only these IDs):\n"
             + json.dumps(context_payload["evidence"], ensure_ascii=False, sort_keys=True)
-        )
-        raw = str(self._router.complete("idea_plan", prompt)).strip()
-        try:
-            plan = _parse_json_object(raw, "idea_plan response")
-        except ValueError as exc:
-            repair_prompt = (
-                prompt
-                + "\nPrevious response failed validation: "
-                + str(exc)
-                + "\nRepair it now. Return exactly one complete JSON object and no prose."
+            + "\nRegistered model tools available to the Planner. Select "
+            "implementation_source=registered_model only for an exact catalog key; "
+            "otherwise use generated_plugin:\n"
+            + json.dumps(self._registered_model_catalog, ensure_ascii=False, sort_keys=True)
+            + "\nSupervisor multi-fidelity policy:\n"
+            + json.dumps(
+                {
+                    "screening_epochs_max": self._screening_epochs_max,
+                    "high_fidelity_rounds": list(self._high_fidelity_rounds),
+                    "max_high_fidelity_candidates_per_round": (
+                        self._max_high_fidelity_candidates_per_round
+                    ),
+                    "min_generated_candidates_per_round": (
+                        self._min_generated_candidates_per_round
+                    ),
+                    "generated_candidate_epochs_max": (
+                        self._generated_candidate_epochs_max
+                    ),
+                    "rule": (
+                        "Candidates above screening_epochs_max are allowed only in "
+                        "high_fidelity_rounds and only up to the per-round limit."
+                    ),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
             )
-            repaired = str(self._router.complete("idea_plan", repair_prompt)).strip()
-            plan = _parse_json_object(repaired, "idea_plan response")
-        if not isinstance(plan, dict):
-            raise ValueError("idea_plan response must be an object")
+        )
+        if use_registered_anchor:
+            prompt_anchor = {
+                **self._registered_anchor,
+                "implementation_source": "registered_model",
+            }
+            prompt += (
+                "\nSupervisor policy: include this exact verified anchor as the first "
+                "candidate with implementation_source=registered_model; use generated_plugin "
+                "for the remaining candidates. Do not weaken or rewrite its config:\n"
+                + json.dumps(prompt_anchor, ensure_ascii=False, sort_keys=True)
+            )
+        validation_error = ""
+        for attempt in range(self._planner_max_repairs + 1):
+            request_prompt = prompt
+            if validation_error:
+                request_prompt += (
+                    "\nPrevious response failed validation: "
+                    + validation_error
+                    + "\nRepair every reported violation. Return exactly one complete "
+                    "JSON object and no prose."
+                )
+            raw = str(self._router.complete("idea_plan", request_prompt)).strip()
+            try:
+                plan = _parse_json_object(raw, "idea_plan response")
+                if not isinstance(plan, dict):
+                    raise ValueError("idea_plan response must be an object")
+                plan = self._apply_run_policy(
+                    plan, round_index=int(request.get("round_index", 1))
+                )
+                break
+            except ValueError as exc:
+                validation_error = str(exc)
+                if attempt >= self._planner_max_repairs:
+                    raise
+        if use_registered_anchor:
+            plan = self._inject_registered_anchor(plan)
         plan["_planner_context"] = context_payload
         return plan
 
+    def _apply_run_policy(
+        self, plan: dict[str, Any], round_index: int = 1
+    ) -> dict[str, Any]:
+        """Apply supervisor-owned ceilings and validate registered tool selection."""
+        candidates = list(plan.get("candidate_experiments") or [])
+        normalized: list[Any] = []
+        errors: list[str] = []
+        for index, raw in enumerate(candidates):
+            if not isinstance(raw, dict):
+                normalized.append(raw)
+                continue
+            try:
+                normalized.append(self._normalize_candidate_policy(raw))
+            except (TypeError, ValueError) as exc:
+                experiment_id = str(raw.get("experiment_id") or f"candidate-{index + 1}")
+                errors.append(
+                    f"candidate_experiments[{index}] {experiment_id}: {exc}"
+                )
+                normalized.append(dict(raw))
+        if self._high_fidelity_rounds:
+            high_fidelity_indexes = []
+            for index, candidate in enumerate(normalized):
+                if not isinstance(candidate, dict):
+                    continue
+                epochs = _candidate_config(candidate).get("epochs")
+                if isinstance(epochs, int) and epochs > self._screening_epochs_max:
+                    high_fidelity_indexes.append(index)
+            if round_index not in self._high_fidelity_rounds:
+                for index in high_fidelity_indexes:
+                    errors.append(
+                        f"candidate_experiments[{index}] exceeds screening epoch limit "
+                        f"{self._screening_epochs_max} in round {round_index}"
+                    )
+            elif (
+                len(high_fidelity_indexes)
+                > self._max_high_fidelity_candidates_per_round
+            ):
+                errors.append(
+                    "high-fidelity candidate limit exceeded: "
+                    f"{len(high_fidelity_indexes)} > "
+                    f"{self._max_high_fidelity_candidates_per_round} in round {round_index}"
+                )
+        generated_count = sum(
+            1
+            for candidate in normalized
+            if isinstance(candidate, dict)
+            and candidate.get("implementation_source") == "generated_plugin"
+        )
+        if generated_count < self._min_generated_candidates_per_round:
+            errors.append(
+                "generated_plugin candidate minimum not met: "
+                f"{generated_count} < {self._min_generated_candidates_per_round}"
+            )
+        if errors:
+            raise ValueError("; ".join(errors))
+        return {**plan, "candidate_experiments": normalized}
+
+    def _normalize_candidate_policy(self, raw: dict[str, Any]) -> dict[str, Any]:
+        candidate = dict(raw)
+        source = str(candidate.get("implementation_source") or "generated_plugin")
+        candidate["implementation_source"] = source
+        if source == "registered_model":
+            model_type = str(candidate.get("model_type") or "")
+            if model_type not in self._registered_model_catalog:
+                raise ValueError(
+                    f"registered model {model_type!r} is not in the registered model catalog"
+                )
+        elif source != "generated_plugin":
+            raise ValueError(f"unsupported implementation_source: {source}")
+        raw_budget = dict(candidate.get("budget") or {})
+        epoch_ceiling = (
+            self._generated_candidate_epochs_max
+            if source == "generated_plugin"
+            else self._candidate_epochs_max
+        )
+        candidate["budget"] = {
+            **raw_budget,
+            "parameter_count_max": min(
+                max(1, int(raw_budget.get("parameter_count_max", self._candidate_parameter_count_max))),
+                self._candidate_parameter_count_max,
+            ),
+            "epochs_max": min(
+                max(1, int(raw_budget.get("epochs_max", self._candidate_epochs_max))),
+                epoch_ceiling,
+            ),
+            "timeout_seconds": min(
+                max(1.0, float(raw_budget.get("timeout_seconds", self._candidate_timeout_seconds))),
+                self._candidate_timeout_seconds,
+            ),
+        }
+        if source == "registered_model":
+            config = _candidate_config(candidate)
+            config["model_type"] = str(candidate.get("model_type") or "")
+            parameter_limit = int(candidate["budget"]["parameter_count_max"])
+            projected, repairs = _project_registered_config_to_budget(
+                config, parameter_limit
+            )
+            validated = validate_planned_overrides(projected, parameter_limit)
+            epochs_limit = int(candidate["budget"]["epochs_max"])
+            if int(validated.get("epochs", 0)) > epochs_limit:
+                raise ValueError(
+                    f"registered model epochs {validated['epochs']} exceeds "
+                    f"run epoch budget {epochs_limit}"
+                )
+            candidate["config"] = validated
+            candidate["params_estimate"] = int(
+                estimate_parameter_count(validated) or 0
+            )
+            if repairs:
+                candidate["runtime_policy_repairs"] = repairs
+        else:
+            epochs = _candidate_config(candidate).get("epochs")
+            if isinstance(epochs, int) and epochs > int(candidate["budget"]["epochs_max"]):
+                raise ValueError(
+                    f"generated model epochs {epochs} exceeds run epoch budget "
+                    f"{candidate['budget']['epochs_max']}"
+                )
+        return candidate
+
+
+    def _inject_registered_anchor(self, plan: dict[str, Any]) -> dict[str, Any]:
+        candidates = list(plan.get("candidate_experiments") or [])
+        if not candidates or not isinstance(candidates[0], dict):
+            raise ValueError("registered anchor requires at least one planned candidate")
+        anchor = dict(self._registered_anchor)
+        config = dict(anchor.get("config") or {})
+        model_type = str(anchor.get("model_type") or config.get("model_type") or "")
+        config["model_type"] = model_type
+        parameter_count_max = int(anchor.get("parameter_count_max", 20000))
+        validated = validate_planned_overrides(config, parameter_count_max)
+        parameter_count = estimate_parameter_count(validated)
+        original = dict(candidates[0])
+        candidates[0] = {
+            **original,
+            "implementation_source": "registered_model",
+            "model_type": model_type,
+            "config": validated,
+            "params_estimate": int(parameter_count or 0),
+            "budget": {
+                "parameter_count_max": parameter_count_max,
+                "epochs_max": int(
+                    anchor.get("epochs_max", validated.get("epochs", 0))
+                ),
+                "timeout_seconds": float(anchor.get("timeout_seconds", 1800.0)),
+            },
+            "stop_condition": f"nmse_db <= {self._threshold}",
+            "rationale": (
+                "Exploit a trace-verified registered implementation as an auditable "
+                "performance anchor; compare open generated candidates against it."
+            ),
+            "exploration_role": "exploit",
+        }
+        return {**plan, "candidate_experiments": candidates}
+
     def _build_planner_context(self, request: dict[str, Any]) -> dict[str, Any]:
+        prior_evidence = [
+            {
+                "evidence_id": f"prior:{item['id']}",
+                "kind": "prior",
+                "citation": f"historical-prior:{item['id']}",
+                "known_nmse_db": item.get("known_nmse_db"),
+                "parameter_count": item.get("parameter_count"),
+                "config": dict(item.get("config") or {}),
+                "source_path": str(item.get("source") or ""),
+            }
+            for item in self._historical_priors[:8]
+            if item.get("id")
+        ]
         if not self._context_enabled or self._context_builder is None:
-            return {"enabled": False, "allowed_citation_ids": [], "evidence": []}
+            return {
+                "enabled": bool(prior_evidence),
+                "allowed_citation_ids": [item["evidence_id"] for item in prior_evidence],
+                "evidence": prior_evidence,
+            }
         round_records = list(request.get("round_records") or [])
         query_parts = [
             str(request.get("goal", "")),
@@ -172,7 +443,7 @@ class MultiAgentRuntime:
             namespace=self._namespace,
             top_k=self._context_top_k,
         )
-        evidence: list[dict[str, Any]] = []
+        evidence: list[dict[str, Any]] = list(prior_evidence)
         for scored in context.knowledge:
             chunk = scored.chunk
             source = Path(chunk.source_path)
@@ -218,6 +489,39 @@ class MultiAgentRuntime:
         candidate = _requested_candidate(request)
         budget = dict(candidate.get("budget") or {})
         task_id = _child_run_id(request)
+        if candidate.get("implementation_source") == "registered_model":
+            config = _candidate_config(candidate)
+            config["model_type"] = str(candidate.get("model_type") or config.get("model_type"))
+            parameter_limit = int(budget.get("parameter_count_max", 4000))
+            validated = validate_planned_overrides(config, parameter_limit)
+            epochs_max = int(budget.get("epochs_max", validated.get("epochs", 0)))
+            if int(validated.get("epochs", 0)) > epochs_max:
+                raise ValueError(
+                    f"registered anchor epochs {validated['epochs']} exceeds budget {epochs_max}"
+                )
+            return {
+                "passed": True,
+                "status": "completed",
+                "task_id": task_id,
+                "candidate_name": _candidate_plugin_name(candidate.get("model_type", "candidate")),
+                "implementation_source": "registered_model",
+                "worktree": str(self._root),
+                "manifest_path": "",
+                "applied_files": (),
+                "attempt_count": 0,
+                "failure_facts": (),
+                "validation": {
+                    "implementation_source": "registered_model",
+                    "model_type": validated["model_type"],
+                    "config": validated,
+                    "estimated_parameter_count": int(
+                        estimate_parameter_count(validated) or 0
+                    ),
+                },
+                "metrics": {},
+                "artifacts": (),
+                "trace_path": "",
+            }
         prior_facts = list(request.get("prior_facts") or [])
         decision_rationale = str(request["plan"].get("decision_rationale", ""))
         candidate_rationale = str(candidate.get("rationale", ""))
@@ -245,13 +549,18 @@ class MultiAgentRuntime:
                 )
                 if value
             ),
+            scaffold_required=True,
         )
         coding_agent = (
             self._coding_factory()
             if self._coding_factory is not None and request.get("candidate") is not None
             else self._coding
         )
-        result = asdict(coding_agent.generate_candidate(task))
+        result = asdict(
+            coding_agent.generate_candidate(
+                task, max_repairs=self._coding_max_repairs
+            )
+        )
         trace_path = result.get("trace_path")
         if trace_path:
             published = self._publish_file(
@@ -267,6 +576,11 @@ class MultiAgentRuntime:
         candidate = _requested_candidate(request)
         code = dict(request.get("code_result") or {})
         workspace = Path(code.get("worktree") or self._root).resolve()
+        if (
+            candidate.get("implementation_source") == "registered_model"
+            or code.get("implementation_source") == "registered_model"
+        ):
+            return self._execute_registered_candidate(request, candidate, workspace)
         manifest = code.get("manifest_path") or candidate.get("manifest_path")
         if not manifest:
             raise ValueError("execution requires a gated candidate manifest")
@@ -292,6 +606,68 @@ class MultiAgentRuntime:
                 )
             ]
         )
+        self._write_execution_memory(request, payload)
+        return payload
+
+    def _execute_registered_candidate(
+        self,
+        request: dict[str, Any],
+        candidate: dict[str, Any],
+        workspace: Path,
+    ) -> dict[str, Any]:
+        budget = dict(candidate.get("budget") or {})
+        child_run_id = _child_run_id(request)
+        output_dir = f"reports/{child_run_id}/execution"
+        overrides = _candidate_config(candidate)
+        overrides["model_type"] = str(
+            candidate.get("model_type") or overrides.get("model_type")
+        )
+        overrides["output_dir"] = output_dir
+        overrides = validate_planned_overrides(
+            overrides,
+            int(budget.get("parameter_count_max", 4000)),
+        )
+        agent = self._execution_factory(workspace)
+        generated = asyncio.run(
+            agent.execute(
+                "generate_config",
+                {
+                    "base_config_path": (
+                        "configs/baselines/mlp64-complexmp-direct-adam-400-lr2e3.yaml"
+                    ),
+                    "experiment_id": child_run_id,
+                    "overrides": overrides,
+                },
+            )
+        )
+        if generated.status != "completed":
+            payload = asdict(generated)
+            self._write_execution_memory(request, payload)
+            return payload
+        config_path = str(generated.output.get("config_path") or "")
+        if not config_path:
+            raise ValueError("generate_config did not return config_path")
+        trained = asyncio.run(
+            agent.execute(
+                "run_training",
+                {
+                    "config_path": config_path,
+                    "timeout_seconds": float(budget.get("timeout_seconds", 1800.0)),
+                },
+            )
+        )
+        payload = asdict(trained)
+        published = []
+        for artifact in tuple(generated.artifacts) + tuple(trained.artifacts):
+            value = self._publish_file(workspace, str(artifact), child_run_id)
+            if value:
+                published.append(value)
+        payload["artifacts"] = tuple(published)
+        payload.setdefault("output", {})["generated_config_path"] = config_path
+        payload["output"]["implementation_source"] = "registered_model"
+        payload["output"]["descriptor"] = _registered_model_descriptor(
+            overrides
+        ).to_dict()
         self._write_execution_memory(request, payload)
         return payload
 
@@ -481,6 +857,11 @@ class MultiAgentRuntime:
             if isinstance(item, dict)
         ]
         run_id = _identifier(request["run_id"])
+        round_count = max(1, len(request.get("round_records", [])))
+        experiments_per_round = max(
+            1, (len(executions) + round_count - 1) // round_count
+        )
+        final_flag = " --final-evaluation" if final else ""
         return {
             "task_id": run_id,
             "goal": request.get("goal", ""),
@@ -503,14 +884,112 @@ class MultiAgentRuntime:
             "cost_usd": self._router.total_cost(),
             "trace_refs": sorted(set(trace_refs)),
             "reproduce_command": (
-                f"python agent.py multi-agent --run-id {run_id} --rounds 3 "
-                "--experiments-per-round 3 --final-evaluation"
+                f"python agent.py multi-agent --run-id {run_id} "
+                f"--rounds {round_count} --experiments-per-round "
+                f"{experiments_per_round}{final_flag}"
             ),
             "limits": (
                 "Only the nonlinear-modeling domain and supplied verified evidence "
                 "are covered; search and final-evaluation scores are reported separately."
             ),
         }
+
+
+def _project_registered_config_to_budget(
+    config: dict[str, Any], parameter_limit: int
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Project trusted model capacity into budget without changing its family."""
+    projected = dict(config)
+    vocabulary_repairs: list[dict[str, Any]] = []
+    aliases = {
+        "feature_mode": {
+            "real_imag": "complex_mp",
+            "complex": "complex_mp",
+            "memory_polynomial": "complex_mp",
+            "iq_abs": "legacy_abs",
+        },
+        "target_mode": {"output": "direct", "error": "residual"},
+        "optimizer": {"adam_w": "adamw"},
+    }
+    for field, mapping in aliases.items():
+        original = projected.get(field)
+        canonical = mapping.get(str(original).lower()) if original is not None else None
+        if canonical and canonical != original:
+            projected[field] = canonical
+            vocabulary_repairs.append(
+                {
+                    "kind": "vocabulary_canonicalization",
+                    "field": field,
+                    "original": original,
+                    "projected": canonical,
+                }
+            )
+    projected = validate_planned_overrides(projected, None)
+    parameter_count = estimate_parameter_count(projected)
+    if parameter_count is None or parameter_count <= parameter_limit:
+        return projected, vocabulary_repairs
+
+    model_type = str(projected.get("model_type", ""))
+    field_order = {
+        "tiny_mlp": ("hidden_units", "memory_depth", "mp_order_count"),
+        "spline_mlp": (
+            "hidden_units",
+            "spline_knots",
+            "memory_depth",
+            "mp_order_count",
+        ),
+        "complex_cnn": (
+            "num_layers",
+            "memory_depth",
+            "mp_order_count",
+            "kernel_size",
+        ),
+        "linear": ("memory_depth", "mp_order_count"),
+        "complex_lstsq": ("memory_depth", "mp_order_count"),
+    }.get(model_type, ())
+    minimums = {"spline_knots": 2, "kernel_size": 1}
+    repairs: list[dict[str, Any]] = list(vocabulary_repairs)
+
+    for field in field_order:
+        original = int(projected.get(field, 1))
+        minimum = minimums.get(field, 1)
+        if original <= minimum:
+            continue
+        before = int(estimate_parameter_count(projected) or 0)
+        minimum_trial = {**projected, field: minimum}
+        if int(estimate_parameter_count(minimum_trial) or 0) <= parameter_limit:
+            low, high, best = minimum, original, minimum
+            while low <= high:
+                middle = (low + high) // 2
+                trial = {**projected, field: middle}
+                if int(estimate_parameter_count(trial) or 0) <= parameter_limit:
+                    best = middle
+                    low = middle + 1
+                else:
+                    high = middle - 1
+            projected[field] = best
+        else:
+            projected[field] = minimum
+        after = int(estimate_parameter_count(projected) or 0)
+        if projected[field] != original:
+            repairs.append(
+                {
+                    "kind": "parameter_budget_projection",
+                    "field": field,
+                    "original": original,
+                    "projected": int(projected[field]),
+                    "estimated_parameters_before": before,
+                    "estimated_parameters_after": after,
+                    "parameter_count_max": int(parameter_limit),
+                }
+            )
+        if after <= parameter_limit:
+            return projected, repairs
+
+    raise ValueError(
+        f"Estimated parameter count {estimate_parameter_count(projected)} exceeds "
+        f"parameter budget {parameter_limit} after deterministic projection."
+    )
 
 
 def _first_candidate(plan: dict[str, Any]) -> dict[str, Any]:
@@ -558,18 +1037,22 @@ def _outcome_report_record(
     metrics = dict(outcome.get("metrics") or execution.get("metrics") or {})
     artifacts = [str(item) for item in outcome.get("artifacts", execution.get("artifacts", []))]
     nmse = metrics.get("nmse_db")
-    descriptor = dict(execution.get("output") or {}).get("descriptor") or dict(
-        code.get("validation") or {}
-    ).get("descriptor")
+    model_type = str(
+        outcome.get("candidate_name") or candidate.get("model_type") or "unnamed_candidate"
+    )
+    descriptor, architecture_status = _report_descriptor(
+        execution, code, model_type
+    )
     return {
         "run_id": str(outcome.get("experiment_id", "unknown")),
-        "model_type": str(outcome.get("candidate_name") or candidate.get("model_type", "unknown")),
+        "model_type": model_type,
         "nmse_db": nmse,
         "parameter_count": metrics.get("parameter_count"),
         "baseline_nmse_db": candidate.get("baseline_nmse_db"),
         "psd_path": next((item for item in artifacts if Path(item).name.lower() == "psd.png"), None),
         "target_hit": nmse is not None and float(nmse) <= threshold,
         "model_descriptor": descriptor,
+        "architecture_status": architecture_status,
         "config": _candidate_config(candidate),
         "evaluation_kind": "search",
     }
@@ -585,24 +1068,53 @@ def _final_report_record(
     metrics = dict(final.get("metrics") or {})
     artifacts = [str(item) for item in final.get("artifacts", [])]
     nmse = metrics.get("nmse_db")
-    descriptor = dict(final.get("output") or {}).get("descriptor") or dict(
-        code.get("validation") or {}
-    ).get("descriptor")
+    model_type = str(candidate.get("model_type") or "unnamed_candidate")
+    descriptor, architecture_status = _report_descriptor(final, code, model_type)
     source_id = str(final.get("source_experiment_id", "unknown"))
     return {
         "run_id": f"{source_id}-final",
         "source_experiment_id": source_id,
         "evaluation_kind": "final",
         "status": str(final.get("status", "failed")),
-        "model_type": str(candidate.get("model_type", "unknown")),
+        "model_type": model_type,
         "nmse_db": nmse,
         "parameter_count": metrics.get("parameter_count"),
         "baseline_nmse_db": candidate.get("baseline_nmse_db"),
         "psd_path": next((item for item in artifacts if Path(item).name.lower() == "psd.png"), None),
         "target_hit": nmse is not None and float(nmse) <= threshold,
         "model_descriptor": descriptor,
+        "architecture_status": architecture_status,
         "config": _candidate_config(candidate),
     }
+
+
+def _report_descriptor(
+    execution: dict[str, Any], code: dict[str, Any], model_type: str
+) -> tuple[dict[str, Any], str]:
+    descriptor = dict(execution.get("output") or {}).get("descriptor") or dict(
+        code.get("validation") or {}
+    ).get("descriptor")
+    if isinstance(descriptor, dict) and descriptor.get("nodes"):
+        return dict(descriptor), "verified"
+    explicit_name = model_type or "unnamed_candidate"
+    return (
+        ModelDescriptor(
+            name=f"unverified:{explicit_name}",
+            version="not-executable",
+            training_mode="custom",
+            config_schema={"type": "object", "properties": {}},
+            nodes=(
+                ArchitectureNode(
+                    "unverified",
+                    f"{explicit_name} did not pass the code/execution gate",
+                    "no_executable_architecture",
+                    {"planned_model_type": explicit_name},
+                ),
+            ),
+            edges=(),
+        ).to_dict(),
+        "unverified",
+    )
 
 
 def _sanitized_round_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -644,6 +1156,53 @@ def _candidate_plugin_name(value: Any) -> str:
     if not cleaned or not cleaned[0].isalpha():
         cleaned = f"candidate_{cleaned or 'unknown'}"
     return cleaned[:64]
+
+
+def _registered_model_descriptor(config: dict[str, Any]) -> ModelDescriptor:
+    model_type = str(config.get("model_type", "registered_model"))
+    hidden_units = int(config.get("hidden_units", 0))
+    activation = str(config.get("activation", "linear")).lower()
+    activation_label = {
+        "relu": "ReLU",
+        "silu": "SiLU",
+        "gelu": "GELU",
+        "tanh": "Tanh",
+    }.get(activation, activation.title())
+    memory_depth = int(config.get("memory_depth", 0))
+    mp_order_count = int(config.get("mp_order_count", 1))
+    return ModelDescriptor(
+        name=model_type,
+        version="registered-v1",
+        training_mode="gradient",
+        config_schema={"type": "object", "properties": {}},
+        nodes=(
+            ArchitectureNode(
+                "features",
+                "Complex MP features",
+                "causal_complex_memory_polynomial",
+                {
+                    "memory_depth": memory_depth,
+                    "mp_order_count": mp_order_count,
+                },
+            ),
+            ArchitectureNode(
+                "hidden",
+                f"Dense {hidden_units} + {activation_label}",
+                "dense_activation",
+                {"hidden_units": hidden_units, "activation": activation},
+            ),
+            ArchitectureNode(
+                "output",
+                "Complex output",
+                "dense_real_imaginary",
+                {"outputs": 2},
+            ),
+        ),
+        edges=(
+            ArchitectureEdge("features", "hidden", "feature vector"),
+            ArchitectureEdge("hidden", "output", "I/Q prediction"),
+        ),
+    )
 
 
 def _parse_json_object(value: str, label: str) -> dict[str, Any]:

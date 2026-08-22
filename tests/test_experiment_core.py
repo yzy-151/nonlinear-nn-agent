@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 
 import numpy as np
 import scipy.io as scio
+import torch
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -113,6 +114,22 @@ class ExperimentCoreTest(unittest.TestCase):
         model = build_model(config)
 
         self.assertGreater(count_trainable_parameters(model), 4000)
+
+    def test_complex_cnn_preserves_batch_for_three_complex_mp_orders(self):
+        config = ExperimentConfig(
+            model_type="complex_cnn",
+            feature_mode="complex_mp",
+            memory_depth=20,
+            mp_order_count=3,
+            kernel_size=3,
+            num_layers=2,
+        )
+        model = build_model(config)
+        width = config.mp_order_count * (config.memory_depth + 1)
+
+        output = model(torch.randn(7, width), torch.randn(7, width))
+
+        self.assertEqual(tuple(output.shape), (7, 2))
 
     def test_generate_targets_can_use_residual_mode(self):
         x = np.array([1 + 1j, 2 + 0j, 3 - 1j])

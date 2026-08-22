@@ -2,7 +2,7 @@
 
 面向真实机器学习实验的 Agent Harness：让 LLM 设计实验、生成候选代码并根据验证事实迭代，同时由确定性运行时负责安全校验、真实训练、指标复核、过程观测和证据报告。
 
-当前版本：`v4.4.1`。系统同时提供开放式 Multi-Agent 研究链路、稳定的受控模型搜索链路与可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、行为评估和证据交付的完整过程。
+当前版本：`v4.6.0`。系统同时提供开放式 Multi-Agent 研究链路、验证锚点与开放探索结合的混合链路、稳定的受控模型搜索链路，以及可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、人工审核、行为评估和证据交付的完整过程。
 
 ## 项目总览
 
@@ -16,6 +16,8 @@
 2. **确定性护栏**：PlanGate、Schema/AST/path gate、ToolRegistry、隔离 worktree、预算和超时共同约束模型行为。
 3. **证据闭环**：Evaluator 复核 NMSE、参数量与 PSD；Reflection 只提取事实，下一轮 LLM 再选择策略；报告只能引用已有 `evidence_id`。
 4. **双轨搜索**：开放式 Multi-Agent 负责探索新模型；受控搜索在成熟模型白名单内优化，模型与参数字段均可锁定。
+5. **混合候选策略**：首轮可注入一个带历史证据的注册模型锚点，其余候选仍由 CodingAgent 自主实现；所有候选共用 Execution、Reflection、最终复评与报告链路。
+6. **人在回路**：Auto 模式自动放行；Review 模式可在 Idea/Plan、Coding、Execution、Writing 边界检查裁剪后的输入输出、理由与风险，并将带原因的驳回作为下一轮规划事实。
 
 ## 当前能力
 
@@ -30,6 +32,9 @@
 | Knowledge / typed Memory | 已接通 | Multi-Agent 每轮只注入白名单 top-k evidence；PlanGate 拒绝伪造引用；执行结果写回 typed episodic memory |
 | 受控模型搜索 | 已接通 | 可选择允许的固定模型族和可调参数；未开放字段继承 baseline，越权覆盖由 Guard 拒绝 |
 | 开放模型探索 | 已验证 | 真实 3×3 run 完成跨轮代码生成与独立终评，为后续知识增强和模型路由优化提供可复现实验基线 |
+| 混合 Multi-Agent | 已验证 | 固定 profile 只提供模型配置和成熟实现入口，不接受任意代码路径；真实 1×3 run 的搜索与独立终评均达到 `-40.5434 dB` |
+| Human-in-the-loop | 已接通 | 四个角色边界均可审核；驳回理由结构化回传 Planner，审核 API 不暴露密钥、原始 prompt 或候选源码 |
+| 节点式 Operations Console | 已接通 | 起点与 Agent 卡片可点击；曲线连线和节点状态随 SSE 更新，并展示墙钟耗时、模型费用、输入输出引用和报告下载 |
 
 ## 量化证据
 
@@ -100,6 +105,8 @@ SQLite 控制面在 `concurrency=8`、300请求和15%故障注入下完成测试
 
 `v4.4.1` 使用 Web 同源 SSE 接口和默认 `deepseek-v4-flash` 完成 `1 round x 1 experiment + final evaluation`。修复后 Idea/Plan、Plan Gate、Coding、Execution、Final Evaluation、Writing 与 Terminal 全部完成；生成的 `mlp_tanh_16_8` 在第 2 次 Coding 尝试通过，搜索与独立终评均复现 `-21.0804 dB / 266 params`。该版本修复了 V4 thinking 模式耗尽结构化输出预算后正文为空，以及 Idea/Plan contract 固定要求三个候选导致小规模请求必然被拒绝的问题。
 
+`v4.5.0` 增加验证锚点与开放探索并行的混合 Multi-Agent。真实 run `codex-multiagent-40db-20260815` 使用 `deepseek-v4-flash` 完成 `1 round × 3 candidates + final evaluation`：注册 `tiny_mlp` 锚点达到 `-40.5434 dB / 7922 params`，相对 No-DPD 输入基线改善 `18.7176 dB`；两个由 CodingAgent 从零生成的候选 `volterra_nn` 与 `gru_nl` 分别得到 `-10.0993 dB` 和 `-25.0672 dB`。三个候选均通过 Coding gate 并完成执行，最终复评重新训练锚点并得到相同 `-40.5434 dB`。该结果证明混合链路能提供稳定性能下界，也同时量化了开放代码生成与成熟实现之间的算法质量差距；`-40.54 dB` 不归因于 LLM 从零设计。
+
 [完整 6 页 PDF 报告](docs/reports/v4.0.0-e-deepseek-3x3-report.pdf) · [九次实验 NMSE](docs/assets/results/v4.0.0-e/nine-experiment-nmse.png) · [最终模型架构](docs/assets/results/v4.0.0-e/architecture.png)
 
 ![最终复评 PSD](docs/assets/results/v4.0.0-e/final-psd.png)
@@ -128,6 +135,14 @@ python scripts/run_tests.py fast
 
 Web 首页默认进入 Multi-Agent。中栏的 Timeline、Console、Raw Events 来自同一 SSE 事件流；点击事件后，右侧 Inspector 展示 role、model、token、cost、latency、输入/输出引用和失败事实。
 
+`v4.6.0` 将运行面重构为节点式编排图。Multi-Agent、受控搜索、Agent Planner 和 Fixed Workflow 是可点击起点；Multi-Agent 的 Idea/Plan、Coding、Execution、Writing 卡片由曲线连接，运行中节点和连线显示动态高亮，完成后保留状态、端到端耗时和费用。Writing 节点直接发布 HTML/PDF 报告入口。所有 LLM 入口默认使用 DeepSeek API，离线测试仍可显式指定 `--provider fake`。
+
+历史 priors、白名单 Knowledge 和有效 typed Memory 会在第一轮进入 PlanAgent；后续轮次还会加入计划校验失败、人工驳回和执行事实。CodingAgent 获得候选 config、设计空间约束和历史指标，ExecutionAgent 获得 goal、hypothesis 与当前历史最优，WritingAgent 获得完整证据链、成本摘要和最终复评结果。PlanGate 失败不再直接进入终态，而是在有界重规划预算内回到 Idea/Plan。
+
+v4.6.0 完整离线验收为 `540/540`，并使用 Playwright + Edge 检查 `1600×1000` 与 `1000×900` 视口；两者页面级 `scrollWidth == clientWidth`。
+
+![v4.6.0 节点式 Multi-Agent 控制台](docs/assets/ui/v4.6.0-node-console.png)
+
 ![v4.2.0 受控模型搜索控制台](docs/assets/ui/v4.2.0-controlled-search.png)
 
 页面还包含受控搜索、Agent Planner、Fixed Workflow、Experiments、Benchmark、Memory、Reports 与 Diagnostics。受控搜索可分别选择模型白名单和可调参数；Knowledge 面板可以启停 Multi-Agent 注入、调整 top-k，并预览白名单来源。Idea/Plan 事件会在 Inspector 中显示 evidence ID、citation、hash、score 和 memory provenance。
@@ -136,7 +151,7 @@ Web 首页默认进入 Multi-Agent。中栏的 Timeline、Console、Raw Events �
 
 `v4.4.1` 在 Multi-Agent 控制面开放搜索轮次、每轮实验数与独立终评开关，默认用低成本的 `1 x 1` 验证链路；批量 `3 x 3` 仍可直接配置。DeepSeek V4 的结构化 Agent 调用显式关闭 thinking，确保 token 用于最终 JSON，而不是只留下 reasoning 内容。
 
-回归覆盖包括 `508` 项完整测试；另有真实 DeepSeek 最小链路验证 Coding、Execution、Writing 与 terminal 状态，而不是仅依赖 scripted fixture。
+回归覆盖包括 `516` 项完整测试；另有真实 DeepSeek 混合链路验证 Plan、Coding、Execution、独立终评、Writing 与 terminal 状态，而不是仅依赖 scripted fixture。
 
 实验策略对照以 `random_search` 为参照组，在相同 domain、seed、trial budget、参数上限和目标阈值下比较 Optuna TPE、LLM Direct 与 LLM + Program Reflection；表格给出相对参照组增量，配对区域显示 treatment-control、样本数和显著性。
 

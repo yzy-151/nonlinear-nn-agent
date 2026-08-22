@@ -71,6 +71,7 @@ class CodingTaskSpec:
     parameter_count_max: int
     smoke_timeout_seconds: float = 120.0
     constraints: tuple[str, ...] = ()
+    scaffold_required: bool = False
 
     def __post_init__(self) -> None:
         if not _IDENTIFIER.fullmatch(self.task_id):
@@ -220,6 +221,8 @@ class CodeChangePlan:
         ]
         if not any(item.path.endswith(".py") for item in files):
             raise ValueError("candidate response must include Python source")
+        if task.scaffold_required:
+            _validate_torch_scaffold_package(files, source_path, class_name)
         return cls(
             task_id=task.task_id,
             candidate_name=task.candidate_name,
@@ -314,6 +317,47 @@ def inspect_candidate_source(source: str) -> list[str]:
             ):
                 errors.append(f"forbidden capability call: {node.func.attr}")
     return list(dict.fromkeys(errors))
+
+
+def _validate_torch_scaffold_package(
+    files: list[CodeFile], source_path: str, class_name: str
+) -> None:
+    for code_file in files:
+        if code_file.path != source_path:
+            continue
+        try:
+            tree = ast.parse(code_file.content)
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef) or node.name != class_name:
+                continue
+            base_names = {
+                base.id for base in node.bases if isinstance(base, ast.Name)
+            }
+            if "TorchArchitecturePlugin" not in base_names:
+                raise ValueError(
+                    "manifest entrypoint class must subclass TorchArchitecturePlugin"
+                )
+            methods = {
+                item.name
+                for item in node.body
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            if "build_model" not in methods:
+                raise ValueError(
+                    "TorchArchitecturePlugin candidate must implement build_model"
+                )
+            forbidden = sorted(methods & {"train", "estimate_parameters"})
+            if forbidden:
+                raise ValueError(
+                    "TorchArchitecturePlugin candidate must not override: "
+                    + ", ".join(forbidden)
+                )
+            return
+    raise ValueError(
+        "manifest entrypoint class for TorchArchitecturePlugin was not found"
+    )
 
 
 def _is_safe_backend_selection(value: ast.expr) -> bool:
@@ -607,6 +651,7 @@ def _build_coding_prompt(
         "config": task.config,
         "parameter_count_max": task.parameter_count_max,
         "constraints": list(task.constraints),
+        "scaffold_required": task.scaffold_required,
     }
     repair = (
         "No prior failure."
@@ -622,52 +667,42 @@ Task:
 Attempt: {attempt_index + 1}
 {repair}
 
-Return a complete replacement candidate package, not only a model class. The
-Python entrypoint class must implement ModelPlugin with:
-- descriptor: ModelDescriptor with generic architecture nodes and edges
-- estimate_parameters(config) -> non-negative int
-- train(TrainingRequest) -> TrainingResult
-Import ArchitectureNode, ArchitectureEdge, ModelDescriptor, TrainingResult,
-and descriptor_hash from nonlinear_agent.model_plugins.contracts. The class
-attribute descriptor must be an actual ModelDescriptor instance whose nodes
-and edges are tuples of ArchitectureNode and ArchitectureEdge instances; never
-use a plain dict as descriptor. Return an actual TrainingResult instance.
-Use the exact public constructor fields:
+Return a complete architecture-only candidate package using the trusted
+PyTorch training scaffold. Import torch and torch.nn as needed, import
+TorchArchitecturePlugin from
+nonlinear_agent.model_plugins.torch_scaffold, and import ArchitectureNode,
+ArchitectureEdge, and ModelDescriptor from
+nonlinear_agent.model_plugins.contracts. The manifest entrypoint class must
+subclass TorchArchitecturePlugin and implement only:
+- descriptor: an actual ModelDescriptor describing the real generated graph
+- build_model(self, input_dim, config) -> torch.nn.Module
+Do not implement train or estimate_parameters. The trusted scaffold owns MAT
+loading, complex feature construction, split/seed handling, optimizer,
+scheduler, parameter counting, NMSE, PSD and artifact generation. This keeps
+the generated code focused on the architecture hypothesis.
+
+The returned module must map [batch, input_dim] to [batch, 2], where the two
+outputs are real and imaginary components. Use input_dim supplied by the
+scaffold; do not recalculate it from guessed tensor dimensions. Every residual
+addition must use equal widths. Read widths, activations, depth and other
+architecture settings from config with bounded defaults. Keep the generated
+plugin under 4000 characters and under the parameter_count_max budget.
+
+The descriptor name must be exactly "{task.candidate_name}" and its nodes must
+match the actual layers returned by build_model. config_schema may list the
+architecture fields but must allow the shared training fields by leaving
+additionalProperties enabled. Use the exact descriptor constructor fields:
 - ArchitectureNode(node_id, label, operation, details={{}}), never id=
 - ArchitectureEdge(source, target, label="")
 - ModelDescriptor(name, version, training_mode, config_schema, nodes, edges)
-- TrainingResult(status, metrics, artifacts, descriptor_hash)
-TrainingRequest exposes exactly request.run_id, request.workspace,
-request.config, request.output_dir, request.data_file, request.train_ratio, and
-request.seed. Load the shared MAT file from Path(request.workspace) /
-request.data_file with scipy.io.loadmat; it contains MAT keys "x" and "d".
-Scale d to x power as the existing nonlinear experiment does, and use the
-fixed request.train_ratio split. x and d are complex one-dimensional signals:
-never cast a complex array directly to float or discard its imaginary part.
-Represent real/imaginary components explicitly, use causal memory features
-when the hypothesis requires them, reconstruct a complex prediction, and
-compute held-out NMSE as 10*log10(mean(abs(prediction-target)**2) /
-mean(abs(target)**2)). Do not expect train_data, test_data, inputs, targets, or
-another hidden request field. training_mode must be exactly one of
-"gradient", "closed_form", or "custom". Keep the complete plugin.py concise
-(prefer under 7000 characters) so the JSON response is not truncated.
-The train method must execute the candidate's own fitting procedure and write
-both metrics.json and a valid psd.png below request.workspace/request.output_dir.
-It must return finite nmse_db and parameter_count metrics, artifact paths
-relative to request.workspace, and descriptor_hash(descriptor).
-TrainingResult status must be "completed". artifacts must be a tuple/list of
-the workspace-relative metrics.json and psd.png paths, not a name-to-path map.
+training_mode must be "gradient".
 
 All files must stay below models/candidates/{task.candidate_name}/. The plugin
-must be self-contained except for the public contract import from
-nonlinear_agent.model_plugins.contracts. Do not import nonlinear_agent.contracts
-or any other guessed internal module. Python may use standard numerical and
-plotting libraries, but must not use os, subprocess, socket, network clients,
-dynamic imports, eval, or exec. Top-level code may contain only imports, class
-or function definitions, literal constants, and optionally exactly
-matplotlib.use("Agg") for a noninteractive backend. Do not modify rcParams,
-construct arrays, or perform plotting at module scope; put all other runtime
-setup and computation inside train.
+may depend only on torch, nonlinear_agent.model_plugins.torch_scaffold and the
+public contracts module. Do not import nonlinear_agent.contracts or another
+internal module. Do not use os, subprocess, socket, network clients, dynamic
+imports, eval, or exec. Top-level code may contain only imports, class or
+function definitions, and literal constants.
 The candidate manifest "schema_version" must be the JSON number 1, not the string "1".
 
 Required JSON schema:
