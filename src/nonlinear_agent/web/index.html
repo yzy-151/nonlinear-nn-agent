@@ -28,7 +28,7 @@
   <header class="topbar">
     <button class="icon-button mobile-only" id="menuBtn" title="打开导航"><svg><use href="#i-menu"/></svg></button>
     <div class="brand"><span class="brand-mark">NA</span><div><strong>Nonlinear Agent</strong><small>OPERATIONS CONSOLE</small></div></div>
-    <div class="runtime-strip"><span class="runtime-item"><span class="status-light idle" id="statusDot"></span><b id="statusLabel">空闲</b></span><span class="runtime-item"><small>服务</small><b>local</b></span><span class="runtime-item"><small>版本</small><b>v4.6.0</b></span><span class="runtime-item run-id"><small>RUN</small><b id="currentRunId">-</b></span></div>
+    <div class="runtime-strip"><span class="runtime-item"><span class="status-light idle" id="statusDot"></span><b id="statusLabel">空闲</b></span><span class="runtime-item"><small>服务</small><b>local</b></span><span class="runtime-item"><small>版本</small><b>v4.7.0</b></span><span class="runtime-item run-id"><small>RUN</small><b id="currentRunId">-</b></span></div>
     <div class="top-actions"><button class="button danger compact" id="stopBtn" disabled><svg><use href="#i-stop"/></svg>停止</button><button class="button ghost compact" id="newRunBtn">新建运行</button></div>
   </header>
   <div class="app-shell">
@@ -83,20 +83,9 @@
             <button class="mode-node" data-view="agent"><svg><use href="#i-bolt"/></svg><span><b>Agent Planner</b><small>单 Agent 循环</small></span></button>
             <button class="mode-node" data-view="workflow"><svg><use href="#i-flow"/></svg><span><b>Fixed Workflow</b><small>确定性工具链</small></span></button>
           </div>
-          <div class="graph-stage">
-            <svg class="graph-wires" viewBox="0 0 1000 280" preserveAspectRatio="none" aria-hidden="true">
-              <path data-wire="start-idea" d="M500 20 C500 62 115 48 115 112"/>
-              <path data-wire="idea-coding" d="M205 166 C242 132 283 200 320 166"/>
-              <path data-wire="coding-execution" d="M410 166 C448 132 492 200 530 166"/>
-              <path data-wire="execution-writing" d="M620 166 C662 132 708 200 750 166"/>
-              <path data-wire="writing-result" d="M840 166 C900 166 925 188 925 238"/>
-            </svg>
-            <button class="graph-start-node" data-view="multiagent"><span>START</span><b id="graphModeTitle">Multi-Agent</b><small>点击编辑运行参数</small></button>
-            <button class="agent-node pending" data-agent-node="idea_plan"><span class="node-index">01</span><small class="node-runtime">waiting</small><b>Idea / Plan</b><p>检索先验 · 提出假设 · 设计候选</p><footer><span class="node-state">PENDING</span><span class="node-cost">$0.0000</span></footer></button>
-            <button class="agent-node pending" data-agent-node="coding"><span class="node-index">02</span><small class="node-runtime">waiting</small><b>Coding</b><p>生成架构 · Schema/AST Gate · 修复</p><footer><span class="node-state">PENDING</span><span class="node-cost">$0.0000</span></footer></button>
-            <button class="agent-node pending" data-agent-node="execution"><span class="node-index">03</span><small class="node-runtime">waiting</small><b>Execution</b><p>受控工具 · 训练 · 指标与产物</p><footer><span class="node-state">PENDING</span><span class="node-cost">runtime</span></footer></button>
-            <button class="agent-node pending" data-agent-node="writing"><span class="node-index">04</span><small class="node-runtime">waiting</small><b>Writing</b><p>证据归因 · 成本 · PDF / HTML</p><footer><span class="node-state">PENDING</span><span class="node-cost">$0.0000</span></footer><div class="node-artifacts" id="writingArtifacts"></div></button>
-          </div>
+          <div class="graph-legend" id="graphLegend"><span><i class="port-control"></i>控制流 / Control</span><span><i class="port-artifact"></i>产物 / Artifact</span><span><i class="port-feedback"></i>反馈回滚 / Feedback</span><small>虚线流动 = 执行中 · 绿色 = 已完成 · 灰色 = 未执行</small></div>
+          <div class="graph-stage" id="graphStage" aria-live="polite"></div>
+          <div class="node-artifact-panel hidden" id="nodeArtifactPanel"><div><span class="eyebrow">NODE ARTIFACTS</span><b id="nodeArtifactTitle">Writing output</b></div><div id="writingArtifacts"></div></div>
         </section>
         <div class="view-tabs"><button class="active" data-event-view="timeline">Timeline</button><button data-event-view="console">Console</button><button data-event-view="raw">Raw Events</button></div><div class="activity-body"><ol class="timeline" id="timeline"><li class="timeline-empty">等待运行事件</li></ol><pre class="console hidden" id="evBox">Ready. Select a mode and start a run.</pre><pre class="console raw hidden" id="rawBox">[]</pre></div><div class="activity-foot"><button class="icon-text-button" id="clearBtn"><svg><use href="#i-clear"/></svg>清空事件</button><span id="streamStatus">SSE disconnected</span></div>
         <section class="result-panel hidden" id="resultPreview"><div class="result-head"><div><span class="eyebrow">RUN RESULTS</span><h2 id="resultTitle">性能证据</h2></div><a id="psdLink" class="hidden" href="#" target="_blank">打开原图 <svg><use href="#i-external"/></svg></a></div><div class="metric-strip"><div><small>best_nmse_db</small><b id="chipNmse">-</b></div><div><small>input_baseline_nmse_db</small><b id="chipBase">-</b></div><div><small>gain_over_input_db</small><b id="chipGain">-</b></div><div><small>best_parameter_count</small><b id="chipParams">-</b></div></div><div class="run-summary hidden" id="runSummary"></div><div class="table-wrap hidden" id="multiExperimentTable"></div><figure class="hidden" id="psdFigure"><img id="psdPreview" alt="最优实验 PSD 性能证据"><figcaption id="previewMeta">等待 psd.png</figcaption></figure><div class="result-links" id="resultLinks"></div></section>
@@ -107,10 +96,10 @@
   </div>
   <dialog class="approval-dialog" id="approvalDialog">
     <div class="approval-head"><div><span class="eyebrow">HUMAN REVIEW</span><h2 id="approvalTitle">等待审核</h2></div><span class="badge" id="approvalRole">AGENT</span></div>
-    <p id="approvalReason"></p><div class="approval-risk"><b>风险与检查点</b><p id="approvalRisk">-</p></div>
-    <details open><summary>输入 / 输出摘要</summary><pre id="approvalPayload"></pre></details>
-    <label for="approvalFeedback">驳回理由或改进方向</label><textarea id="approvalFeedback" placeholder="驳回时必填；该事实将回送给对应 Agent。"></textarea>
-    <div class="button-row"><button class="button danger" id="approvalReject">驳回并打回流程</button><button class="button primary" id="approvalApprove">批准继续</button></div>
+    <div class="approval-copy"><b>审批说明 / Review reason</b><p id="approvalReason"></p></div><div class="approval-risk"><b>风险与检查点 / Risks and checks</b><p id="approvalRisk">-</p></div>
+    <details open><summary>输入 / 输出摘要 · Input / Output</summary><pre id="approvalPayload"></pre></details>
+    <label for="approvalFeedback">驳回理由或改进方向 / Rejection feedback</label><textarea id="approvalFeedback" placeholder="驳回时必填；该事实将回送给 PlanAgent。 Required for No; feedback is returned to planning."></textarea>
+    <div class="approval-actions"><button class="review-action no" id="approvalReject" title="Reject and replan">× No <small>驳回</small></button><button class="review-action yes" id="approvalApprove" title="Approve and continue">✓ Yes <small>批准</small></button></div>
   </dialog>
   <script type="module" src="/ui/app.js"></script>
 </body>

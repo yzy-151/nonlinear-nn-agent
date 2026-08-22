@@ -247,6 +247,7 @@ class MultiAgentRuntime:
                 plan = self._apply_run_policy(
                     plan, round_index=int(request.get("round_index", 1))
                 )
+                plan = _canonicalize_plan_evidence_refs(plan, context_payload)
                 break
             except ValueError as exc:
                 validation_error = str(exc)
@@ -1002,6 +1003,53 @@ def _first_candidate(plan: dict[str, Any]) -> dict[str, Any]:
 def _requested_candidate(request: dict[str, Any]) -> dict[str, Any]:
     candidate = request.get("candidate")
     return dict(candidate) if isinstance(candidate, dict) else _first_candidate(request["plan"])
+
+
+def _canonicalize_plan_evidence_refs(
+    plan: dict[str, Any], context: dict[str, Any]
+) -> dict[str, Any]:
+    """Normalize known LLM aliases without admitting unverified references."""
+    allowed = {str(item) for item in context.get("allowed_citation_ids", [])}
+
+    def canonical(value: Any) -> Any:
+        text = str(value).strip()
+        aliases = (
+            ("historical-prior:", "prior:"),
+            ("historical_prior:", "prior:"),
+        )
+        for source, target in aliases:
+            if text.startswith(source):
+                candidate = target + text[len(source):]
+                return candidate if candidate in allowed else text
+        return text
+
+    normalized = dict(plan)
+    hypotheses = []
+    for raw in plan.get("hypotheses", []):
+        if not isinstance(raw, dict):
+            hypotheses.append(raw)
+            continue
+        item = dict(raw)
+        if "citation" in item:
+            item["citation"] = canonical(item["citation"])
+        hypotheses.append(item)
+    normalized["hypotheses"] = hypotheses
+
+    candidates = []
+    for raw in plan.get("candidate_experiments", []):
+        if not isinstance(raw, dict):
+            candidates.append(raw)
+            continue
+        item = dict(raw)
+        if "citation" in item:
+            item["citation"] = canonical(item["citation"])
+        if isinstance(item.get("based_on_fact_refs"), list):
+            item["based_on_fact_refs"] = [
+                canonical(ref) for ref in item["based_on_fact_refs"]
+            ]
+        candidates.append(item)
+    normalized["candidate_experiments"] = candidates
+    return normalized
 
 
 def _child_run_id(request: dict[str, Any]) -> str:

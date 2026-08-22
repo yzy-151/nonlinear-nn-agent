@@ -1,7 +1,7 @@
 import { classifyEvent, formatConsole, normalizeEvent } from "/ui/event_view_model.js";
 
 const $ = (id) => document.getElementById(id);
-const state = { events: [], selected: null, currentRunId: null, controller: null, approvalTimer: null, currentApproval: null, experiments: [], finalEvaluation: null, terminalStatus: null, runMode: null, runConfig: {}, coding: { candidates: 0, passed: 0, failed: 0, attempts: 0 } };
+const state = { events: [], selected: null, currentRunId: null, controller: null, approvalTimer: null, currentApproval: null, experiments: [], finalEvaluation: null, terminalStatus: null, runMode: null, runConfig: {}, graphMode: "multiagent", graphPreviousRole: null, coding: { candidates: 0, passed: 0, failed: 0, attempts: 0 } };
 const titles = { multiagent: "Multi-Agent 运行", controlled: "受控模型搜索", agent: "Agent Planner", workflow: "Fixed Workflow", experiments: "实验策略对照", benchmark: "Benchmark 评估", memory: "Memory Inspector", reports: "报告与产物", diagnostics: "运行诊断" };
 const CONTROLLED_DEFAULT_FIELDS = new Set(["feature_mode", "memory_depth", "mp_order_count", "hidden_units", "spline_knots", "epochs", "learning_rate", "optimizer"]);
 
@@ -19,8 +19,7 @@ function setView(view) {
   });
   document.querySelectorAll(".control-view").forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === view));
   document.querySelectorAll(".mode-node").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
-  document.querySelectorAll(".graph-start-node").forEach((item) => item.dataset.view = view);
-  $("graphModeTitle").textContent = titles[view]?.replace(" 运行", "") || view;
+  if (WORKFLOW_GRAPHS[view]) renderWorkflowGraph(view);
   $("viewTitle").textContent = titles[view] || view;
   $("sidebar").classList.remove("open");
   if (view === "memory") loadMemory();
@@ -28,7 +27,7 @@ function setView(view) {
 }
 
 document.querySelectorAll(".nav-item").forEach((item) => item.addEventListener("click", () => setView(item.dataset.view)));
-document.querySelectorAll(".mode-node, .graph-start-node").forEach((item) => item.addEventListener("click", () => setView(item.dataset.view || "multiagent")));
+document.querySelectorAll(".mode-node").forEach((item) => item.addEventListener("click", () => setView(item.dataset.view || "multiagent")));
 $("menuBtn").addEventListener("click", () => $("sidebar").classList.toggle("open"));
 $("closeInspectorBtn").addEventListener("click", () => $("inspector").classList.remove("open"));
 $("newRunBtn").addEventListener("click", clearEvents);
@@ -116,8 +115,66 @@ function bestExperiment() {
   return all.filter((item) => item.status === "completed" && Number.isFinite(Number(item.metrics?.nmse_db))).sort((a, b) => Number(a.metrics.nmse_db) - Number(b.metrics.nmse_db))[0];
 }
 
-const ROLE_ORDER = ["idea_plan", "coding", "execution", "writing"];
-const ROLE_WIRES = ["start-idea", "idea-coding", "coding-execution", "execution-writing", "writing-result"];
+const WORKFLOW_GRAPHS = {
+  multiagent: {
+    nodes: [
+      ["start", "START", "配置目标与预算", 440, 14, 120, 54, "start"],
+      ["idea_plan", "Idea / Plan", "先验 · 假设 · 候选计划", 35, 130, 155, 112],
+      ["plan_gate", "PlanGate", "Schema · 引用 · 预算", 235, 148, 100, 76, "gate"],
+      ["coding", "Coding", "候选代码 · AST · Smoke", 380, 130, 155, 112],
+      ["execution", "Execution", "Tool call · 训练 · Metrics", 610, 130, 155, 112],
+      ["writing", "Writing", "证据归因 · PDF / HTML", 815, 130, 150, 112],
+      ["result", "Result", "报告与可下载产物", 815, 300, 150, 82, "result"],
+    ],
+    edges: [
+      ["start-idea", "control", "M500 68 C500 102 112 88 112 130"],
+      ["idea-gate", "control", "M190 174 C208 174 217 186 235 186"],
+      ["idea-plan-artifact", "artifact", "M112 242 C112 274 457 274 457 242"],
+      ["gate-coding", "control", "M335 186 C352 186 363 174 380 174"],
+      ["coding-execution", "control", "M535 174 C562 142 583 142 610 174"],
+      ["coding-model-artifact", "artifact", "M457 242 C457 282 687 282 687 242"],
+      ["execution-writing", "control", "M765 174 C785 174 795 174 815 174"],
+      ["execution-evidence-artifact", "artifact", "M687 242 C687 270 890 270 890 242"],
+      ["writing-result", "artifact", "M890 242 C890 266 890 276 890 300"],
+      ["coding-plan", "feedback", "M457 130 C457 78 112 78 112 130"],
+      ["execution-plan", "feedback", "M687 130 C687 52 112 52 112 130"],
+      ["gate-plan", "feedback", "M285 148 C285 96 112 96 112 130"],
+      ["writing-plan", "feedback", "M890 130 C890 26 112 26 112 130"],
+    ],
+  },
+  controlled: {
+    nodes: [["start","START","模型与参数白名单",440,14,120,54,"start"],["planner","Planner","受控候选配置",35,145,155,105],["guard","Whitelist Guard","字段 · 值域 · 参数量",235,145,155,105],["training","Train / Evaluate","固定训练与 NMSE",455,145,155,105],["reflection","Facts","结果事实与去重",675,145,135,105],["best","Best Result","对照与最优产物",840,145,130,105,"result"]],
+    edges: [["start-planner","control","M500 68 C500 105 112 105 112 145"],["planner-guard","control","M190 197 C208 197 217 197 235 197"],["guard-training","control","M390 197 C415 197 430 197 455 197"],["training-facts","artifact","M532 250 C532 280 742 280 742 250"],["facts-planner","feedback","M742 145 C742 80 112 80 112 145"],["facts-best","control","M810 197 C822 197 828 197 840 197"]],
+  },
+  agent: {
+    nodes: [["start","START","目标与动作预算",440,14,120,54,"start"],["planner","Planner","选择一个工具动作",35,145,145,105],["tool_call","Tool Call","Schema 与参数检查",225,145,145,105],["runtime","Runtime","执行注册工具",415,145,145,105],["observation","Observation","指标 · 错误 · 产物",605,145,145,105],["reflection","Reflection","仅提取事实",795,145,145,105]],
+    edges: [["start-planner","control","M500 68 C500 105 107 105 107 145"],["planner-tool","control","M180 197 C198 197 207 197 225 197"],["tool-runtime","control","M370 197 C388 197 397 197 415 197"],["runtime-observation","artifact","M487 250 C487 280 677 280 677 250"],["observation-reflection","control","M750 197 C768 197 777 197 795 197"],["reflection-planner","feedback","M867 145 C867 70 107 70 107 145"]],
+  },
+  workflow: {
+    nodes: [["start","START","确定性请求",440,14,120,54,"start"],["generate_config","Generate Config","解析并冻结配置",35,145,155,105],["run_training","Run Training","固定训练入口",245,145,155,105],["verify_artifacts","Verify Artifacts","指标与文件复核",455,145,155,105],["write_report","Write Report","摘要与证据报告",665,145,155,105],["result","Result","产物下载",855,145,115,105,"result"]],
+    edges: [["start-config","control","M500 68 C500 105 112 105 112 145"],["config-training","artifact","M190 197 C210 197 225 197 245 197"],["training-verify","artifact","M400 197 C420 197 435 197 455 197"],["verify-report","control","M610 197 C630 197 645 197 665 197"],["report-result","artifact","M820 197 C835 197 840 197 855 197"]],
+  },
+};
+
+function renderWorkflowGraph(mode) {
+  const graph = WORKFLOW_GRAPHS[mode] || WORKFLOW_GRAPHS.multiagent;
+  state.graphMode = mode;
+  state.graphPreviousRole = null;
+  const edges = graph.edges.map(([id, type, d]) => `<path class="edge-${type}" data-wire="${id}" data-edge-type="${type}" d="${d}"/>`).join("");
+  const nodes = graph.nodes.map(([id, label, detail, x, y, width, height, kind = "agent"]) => `<button class="agent-node workflow-node pending ${kind}" data-agent-node="${id}" style="left:${x}px;top:${y}px;width:${width}px;height:${height}px"><i class="node-port input port-control" title="Control input"></i><i class="node-port output port-control" title="Control output"></i><i class="node-port artifact port-artifact" title="Artifact output"></i><i class="node-port feedback port-feedback" title="Feedback / replan"></i><small class="node-runtime">waiting</small><b>${esc(label)}</b><p>${esc(detail)}</p><footer><span class="node-state">PENDING</span><span class="node-cost">${id === "execution" || id === "runtime" || id === "run_training" ? "runtime" : "$0.0000"}</span></footer></button>`).join("");
+  $("graphStage").innerHTML = `<svg class="graph-wires" viewBox="0 0 1000 410" aria-hidden="true">${edges}</svg>${nodes}`;
+  $("nodeArtifactPanel").classList.add("hidden");
+  bindGraphNodeClicks();
+}
+
+function bindGraphNodeClicks() {
+  document.querySelectorAll(".workflow-node").forEach((node) => node.addEventListener("click", () => {
+    if (node.dataset.agentNode === "start") { setView(state.graphMode); return; }
+    if (["writing", "result", "write_report", "best"].includes(node.dataset.agentNode) && $("writingArtifacts").children.length) $("nodeArtifactPanel").classList.remove("hidden");
+    const found = [...state.events].reverse().find((event) => (event.raw.payload || {}).role === node.dataset.agentNode);
+    if (found) inspectEvent(found, null);
+  }));
+}
 
 function resetAgentGraph() {
   document.querySelectorAll(".agent-node").forEach((node) => {
@@ -129,10 +186,11 @@ function resetAgentGraph() {
   });
   document.querySelectorAll("[data-wire]").forEach((wire) => wire.classList.remove("active", "complete"));
   $("writingArtifacts").innerHTML = "";
+  $("nodeArtifactPanel").classList.add("hidden");
+  state.graphPreviousRole = null;
 }
 
 function setGraphRunning(role) {
-  const index = ROLE_ORDER.indexOf(role);
   document.querySelectorAll(".agent-node").forEach((node) => node.classList.remove("running"));
   const node = document.querySelector(`[data-agent-node="${role}"]`);
   if (node) {
@@ -140,26 +198,85 @@ function setGraphRunning(role) {
     node.classList.add("running");
     node.querySelector(".node-state").textContent = "RUNNING";
   }
-  ROLE_WIRES.forEach((name, wireIndex) => {
-    const wire = document.querySelector(`[data-wire="${name}"]`);
-    wire?.classList.toggle("complete", wireIndex < index);
-    wire?.classList.toggle("active", wireIndex === index);
-  });
+}
+
+function setEdgeState(id, value) {
+  const edge = document.querySelector(`[data-wire="${id}"]`);
+  if (!edge) return;
+  edge.classList.remove("active", "complete", "failed");
+  if (value) edge.classList.add(value);
+}
+
+function routeGraphEvent(payload) {
+  const role = payload.role;
+  const status = payload.status;
+  const failed = ["failed", "error", "budget_exceeded", "rejected", "invalid_plan"].includes(status);
+  if (state.graphMode !== "multiagent") return;
+  if (role === "idea_plan") {
+    if (state.graphPreviousRole === "execution") {
+      setEdgeState("execution-writing", null);
+      setEdgeState("execution-evidence-artifact", "complete");
+      setEdgeState("execution-plan", "active");
+    }
+    else setEdgeState("start-idea", "complete");
+    setEdgeState("idea-gate", failed ? "failed" : "active");
+    setEdgeState("idea-plan-artifact", failed ? "failed" : "active");
+    if (!failed) setGraphRunning("plan_gate");
+  } else if (role === "plan_gate") {
+    setEdgeState("idea-gate", failed ? "failed" : "complete");
+    setEdgeState("idea-plan-artifact", failed ? "failed" : "complete");
+    if (failed) { setEdgeState("gate-plan", "active"); setGraphRunning("idea_plan"); }
+    else { setEdgeState("gate-coding", "active"); setGraphRunning("coding"); }
+  } else if (role === "coding") {
+    setEdgeState("gate-coding", failed ? "failed" : "complete");
+    if (failed) { setEdgeState("coding-plan", "active"); setGraphRunning("idea_plan"); }
+    else { setEdgeState("coding-execution", "active"); setEdgeState("coding-model-artifact", "active"); setGraphRunning("execution"); }
+  } else if (role === "execution" || role === "final_evaluation") {
+    setEdgeState("coding-execution", failed ? "failed" : "complete");
+    setEdgeState("coding-model-artifact", failed ? "failed" : "complete");
+    if (failed || payload.next_node === "idea_plan") {
+      setEdgeState("execution-writing", null);
+      setEdgeState("execution-evidence-artifact", failed ? "failed" : "complete");
+      setEdgeState("execution-plan", "active");
+      setGraphRunning("idea_plan");
+    } else {
+      setEdgeState("execution-writing", "active");
+      setEdgeState("execution-evidence-artifact", "active");
+      if (payload.next_node === "final_evaluation") setGraphRunning("execution");
+      else setGraphRunning("writing");
+    }
+  } else if (role === "writing") {
+    setEdgeState("execution-writing", failed ? "failed" : "complete");
+    setEdgeState("execution-evidence-artifact", failed ? "failed" : "complete");
+    setEdgeState("writing-result", failed ? "failed" : "active");
+    if (payload.next_node === "idea_plan") {
+      setEdgeState("writing-plan", "active");
+      setGraphRunning("idea_plan");
+    }
+  }
+  state.graphPreviousRole = role;
 }
 
 function updateAgentGraph(raw) {
   const payload = raw.payload || {};
+  routeOperationalEvent(raw);
   if (raw.event_type === "multi_agent_terminal") {
-    document.querySelectorAll("[data-wire]").forEach((wire) => { wire.classList.remove("active"); wire.classList.add("complete"); });
+    document.querySelectorAll("[data-wire].active").forEach((wire) => { wire.classList.remove("active"); wire.classList.add("complete"); });
+    const resultNode = document.querySelector('[data-agent-node="result"]');
+    if (resultNode && ["completed", "succeeded"].includes(raw.status)) {
+      resultNode.classList.remove("pending", "running"); resultNode.classList.add("complete");
+      resultNode.querySelector(".node-state").textContent = "READY";
+    }
     return;
   }
-  if (raw.event_type !== "multi_agent_role" || !ROLE_ORDER.includes(payload.role)) return;
+  if (raw.event_type !== "multi_agent_role") return;
   const node = document.querySelector(`[data-agent-node="${payload.role}"]`);
+  routeGraphEvent(payload);
   if (!node) return;
   const usage = payload.model_usage || [];
   const latency_ms = Number(payload.latency_ms || usage.reduce((sum, item) => sum + Number(item.latency_ms || 0), 0));
   const cost_usd = Number(payload.cost_usd || usage.reduce((sum, item) => sum + Number(item.cost_usd || 0), 0));
-  const failed = ["failed", "error", "budget_exceeded", "rejected"].includes(payload.status);
+  const failed = ["failed", "error", "budget_exceeded", "rejected", "invalid_plan"].includes(payload.status);
   node.classList.remove("pending", "running", "complete", "failed", "rejected", "review");
   node.classList.add(failed ? payload.status : "complete");
   node.querySelector(".node-state").textContent = String(payload.status || "complete").toUpperCase();
@@ -168,16 +285,58 @@ function updateAgentGraph(raw) {
   const outputs = payload.output_refs || [];
   if (payload.role === "writing") {
     const reports = outputs.filter((item) => String(item).startsWith("report:"));
-    $("writingArtifacts").innerHTML = reports.map((ref) => { const path = String(ref).slice(7); return `<a href="${artifactUrl(path)}" target="_blank">${esc(path.toLowerCase().endsWith(".pdf") ? "PDF" : "REPORT")}</a>`; }).join("");
+    $("writingArtifacts").innerHTML = reports.map((ref) => { const path = String(ref).slice(7); return `<a href="${artifactUrl(path)}" target="_blank"><b>${esc(path.toLowerCase().endsWith(".pdf") ? "PDF" : "REPORT")}</b><span>PDF path: ${esc(path)}</span></a>`; }).join("");
+    $("nodeArtifactPanel").classList.toggle("hidden", reports.length === 0);
   }
-  const next = ROLE_ORDER[ROLE_ORDER.indexOf(payload.role) + 1];
-  if (!failed && next) setGraphRunning(next);
 }
 
-document.querySelectorAll(".agent-node").forEach((node) => node.addEventListener("click", () => {
-  const found = [...state.events].reverse().find((event) => (event.raw.payload || {}).role === node.dataset.agentNode);
-  if (found) inspectEvent(found, null);
-}));
+function routeOperationalEvent(raw) {
+  if (raw.event_type === "multi_agent_role" || state.graphMode === "multiagent") return;
+  const type = String(raw.event_type || "");
+  const payload = raw.payload || {};
+  const tool = String(raw.tool || payload.tool || payload.tool_name || "");
+  const complete = (node, edge) => { const card = document.querySelector(`[data-agent-node="${node}"]`); card?.classList.remove("pending", "running"); card?.classList.add("complete"); if (card) card.querySelector(".node-state").textContent = "DONE"; if (edge) setEdgeState(edge, "complete"); };
+  if (state.graphMode === "controlled") {
+    if (type === "plan_generated") { complete("planner", "start-planner"); setGraphRunning("guard"); }
+    else if (type === "experiment_rejected") { complete("guard", "planner-guard"); setEdgeState("facts-planner", "active"); }
+    else if (type === "experiment_start") { complete("guard", "planner-guard"); setGraphRunning("training"); }
+    else if (type === "experiment_end") { complete("training", "guard-training"); setEdgeState("training-facts", "active"); setGraphRunning("reflection"); }
+    else if (["complete", "loop_complete"].includes(type)) { complete("reflection", "training-facts"); setEdgeState("facts-best", "complete"); complete("best"); }
+  } else if (state.graphMode === "agent") {
+    if (type.includes("plan")) { complete("planner", "start-planner"); setGraphRunning("tool_call"); }
+    else if (type === "tool_start") { complete("tool_call", "planner-tool"); setGraphRunning("runtime"); }
+    else if (type === "tool_end") { complete("runtime", "tool-runtime"); setEdgeState("runtime-observation", "active"); setGraphRunning("observation"); }
+    else if (type.includes("reflection")) { complete("observation", "runtime-observation"); setGraphRunning("reflection"); }
+    else if (["complete", "loop_complete"].includes(type)) complete("reflection", "observation-reflection");
+  } else if (state.graphMode === "workflow") {
+    const order = ["generate_config", "run_training", "verify_artifacts", "write_report"];
+    const index = order.indexOf(tool);
+    if (index >= 0 && type === "tool_start") setGraphRunning(tool);
+    if (index >= 0 && type === "tool_end") {
+      complete(tool, index === 0 ? "start-config" : ["config-training", "training-verify", "verify-report"][index - 1]);
+      if (index + 1 < order.length) setGraphRunning(order[index + 1]); else { setEdgeState("report-result", "complete"); complete("result"); }
+    }
+  }
+}
+
+const REVIEW_GUIDANCE = {
+  idea_plan: {
+    reason: "检查实验假设、候选方案、预算和引用后再进入代码生成。 / Review hypotheses, candidates, budgets and citations before code generation.",
+    risk: "批准后可能创建候选模型目录、plugin.py 与 manifest.json，并消耗后续 Coding API 额度。 / Approval may create candidate model files and consume Coding API budget.",
+  },
+  coding: {
+    reason: "检查生成代码、改动文件、Gate 结果与修复记录后再执行。 / Review generated code scope, changed files, gate results and repairs before execution.",
+    risk: "批准后候选代码会在隔离工作区运行训练；仍可能超时、占用算力或生成错误产物。 / Approval runs candidate code in an isolated worktree; it may time out, consume compute or produce invalid artifacts.",
+  },
+  execution: {
+    reason: "确认训练配置、目标、历史最优和待执行工具。 / Confirm training config, goal, historical best and registered tools.",
+    risk: "批准后会真实训练并写入 metrics、模型和 PSD，产生时间与计算成本。 / Approval starts real training and writes metrics, model and PSD artifacts with time and compute cost.",
+  },
+  writing: {
+    reason: "检查指标归因、成本和最终报告产物。 / Review metric attribution, cost and final report artifacts.",
+    risk: "批准后会发布 PDF/HTML；错误归因或未支持的性能数字会影响报告可信度。 / Approval publishes PDF/HTML; unsupported claims or wrong attribution reduce report fidelity.",
+  },
+};
 
 async function pollApprovals() {
   if (!state.currentRunId || state.runConfig.approval_mode !== "review") return;
@@ -187,10 +346,14 @@ async function pollApprovals() {
     if (!pending || state.currentApproval?.approval_id === pending.approval_id) return;
     state.currentApproval = pending;
     const payload = pending.payload || {};
+    const guidance = REVIEW_GUIDANCE[pending.role] || {
+      reason: "检查输入、输出和继续执行的必要性。 / Review inputs, outputs and whether execution should continue.",
+      risk: "确认目标、预算、权限和证据约束。 / Confirm goal, budget, permission and evidence constraints.",
+    };
     $("approvalTitle").textContent = `${pending.role} · ${pending.phase}`;
     $("approvalRole").textContent = pending.role;
-    $("approvalReason").textContent = payload.reason || "请检查该 Agent 的输入、输出和继续执行的必要性。";
-    $("approvalRisk").textContent = payload.risk || "确认内容符合目标、预算和证据约束。";
+    $("approvalReason").textContent = `${guidance.reason}${payload.reason ? `\nAgent context: ${payload.reason}` : ""}`;
+    $("approvalRisk").textContent = `${guidance.risk}${payload.risk ? `\nRun-specific risk: ${payload.risk}` : ""}`;
     $("approvalPayload").textContent = JSON.stringify(payload, null, 2);
     $("approvalFeedback").value = "";
     const node = document.querySelector(`[data-agent-node="${pending.role}"]`);

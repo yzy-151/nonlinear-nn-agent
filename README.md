@@ -2,7 +2,7 @@
 
 面向真实机器学习实验的 Agent Harness：让 LLM 设计实验、生成候选代码并根据验证事实迭代，同时由确定性运行时负责安全校验、真实训练、指标复核、过程观测和证据报告。
 
-当前版本：`v4.6.0`。系统同时提供开放式 Multi-Agent 研究链路、验证锚点与开放探索结合的混合链路、稳定的受控模型搜索链路，以及可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、人工审核、行为评估和证据交付的完整过程。
+当前版本：`v4.7.0`。系统同时提供开放式 Multi-Agent 研究链路、验证锚点与开放探索结合的混合链路、稳定的受控模型搜索链路，以及可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、人工审核、行为评估和证据交付的完整过程。
 
 ## 项目总览
 
@@ -23,7 +23,7 @@
 
 | 能力 | 状态 | 真实性边界 |
 | --- | --- | --- |
-| Multi-Agent Supervisor | 已接通 | `Idea/Plan → PlanGate → Coding → Execution → Writing → Terminal` 共用结构化 state |
+| Multi-Agent Supervisor | 已接通 | LangGraph 主链与 PlanGate/Coding/Execution 反馈回路共用结构化 state；重规划有预算且只有一个终态 |
 | LLM Coding 闭环 | 已接通 | 输出完整 candidate package，经 JSON、路径、AST、契约与 smoke-training gate 后才可运行 |
 | 真实训练与独立评测 | 已接通 | ExecutionAgent 只调用注册工具；Evaluator 复核有限指标和 artifact 路径 |
 | Reflection 与重规划 | 已接通 | 程序只提取 metrics/failure facts，不用 `if` 规则替 LLM 决定下一步 |
@@ -34,7 +34,7 @@
 | 开放模型探索 | 已验证 | 真实 3×3 run 完成跨轮代码生成与独立终评，为后续知识增强和模型路由优化提供可复现实验基线 |
 | 混合 Multi-Agent | 已验证 | 固定 profile 只提供模型配置和成熟实现入口，不接受任意代码路径；真实 1×3 run 的搜索与独立终评均达到 `-40.5434 dB` |
 | Human-in-the-loop | 已接通 | 四个角色边界均可审核；驳回理由结构化回传 Planner，审核 API 不暴露密钥、原始 prompt 或候选源码 |
-| 节点式 Operations Console | 已接通 | 起点与 Agent 卡片可点击；曲线连线和节点状态随 SSE 更新，并展示墙钟耗时、模型费用、输入输出引用和报告下载 |
+| 节点式 Operations Console | 已接通 | 四种运行模式各有独立流程图；类型化端口、曲线分支和节点状态随 SSE 更新，并展示耗时、费用、输入输出与报告下载 |
 
 ## 量化证据
 
@@ -135,23 +135,21 @@ python scripts/run_tests.py fast
 
 Web 首页默认进入 Multi-Agent。中栏的 Timeline、Console、Raw Events 来自同一 SSE 事件流；点击事件后，右侧 Inspector 展示 role、model、token、cost、latency、输入/输出引用和失败事实。
 
-`v4.6.0` 将运行面重构为节点式编排图。Multi-Agent、受控搜索、Agent Planner 和 Fixed Workflow 是可点击起点；Multi-Agent 的 Idea/Plan、Coding、Execution、Writing 卡片由曲线连接，运行中节点和连线显示动态高亮，完成后保留状态、端到端耗时和费用。Writing 节点直接发布 HTML/PDF 报告入口。所有 LLM 入口默认使用 DeepSeek API，离线测试仍可显式指定 `--provider fake`。
+`v4.7.0` 为 Multi-Agent、受控搜索、Agent Planner 和 Fixed Workflow 分别提供独立的可点击流程图。Multi-Agent 图直接映射 LangGraph：`Idea/Plan → PlanGate → Coding → Execution → Writing → Result` 是主成功流，PlanGate 拒绝、Coding 失败和 Execution 失败则沿各自反馈端口回到 Idea/Plan。控制流、产物流和反馈流使用不同端口与曲线；运行中节点边框和当前分支流动高亮，完成后保留状态、端到端耗时和费用。点击 Writing 或 Result 节点可查看报告路径并打开或下载 HTML/PDF。所有 LLM 入口默认使用 DeepSeek API，离线测试仍可显式指定 `--provider fake`。
 
-历史 priors、白名单 Knowledge 和有效 typed Memory 会在第一轮进入 PlanAgent；后续轮次还会加入计划校验失败、人工驳回和执行事实。CodingAgent 获得候选 config、设计空间约束和历史指标，ExecutionAgent 获得 goal、hypothesis 与当前历史最优，WritingAgent 获得完整证据链、成本摘要和最终复评结果。PlanGate 失败不再直接进入终态，而是在有界重规划预算内回到 Idea/Plan。
+历史 priors、白名单 Knowledge 和有效 typed Memory 会在第一轮进入 PlanAgent；后续轮次还会加入计划校验失败、人工驳回和执行事实。CodingAgent 获得候选 config、设计空间约束和历史指标，ExecutionAgent 获得 goal、hypothesis 与当前历史最优，WritingAgent 获得完整证据链、成本摘要和最终复评结果。PlanGate 失败不再直接进入终态，而是在有界重规划预算内回到 Idea/Plan。prior/memory 必须同时存在于检索 evidence 与 citation allowlist 才能成为下一轮 fact。Review 模式在四个角色边界显示中英文的审核理由、实际风险及裁剪后的输入输出；Coding 审核额外显示 manifest、改动文件、尝试次数和 Gate 摘要，并以带原因的批准或驳回继续驱动同一状态机。
 
-v4.6.0 完整离线验收为 `540/540`，并使用 Playwright + Edge 检查 `1600×1000` 与 `1000×900` 视口；两者页面级 `scrollWidth == clientWidth`。
+`v4.7.0` 修复了多轮计划中的证据命名空间不一致：模型可能把允许的 `prior:exp016` 写成展示用的 `historical-prior:exp016`，而第二轮 PlanGate 又只接受上一轮 `fact:*`，导致合法的历史证据被误判为未知引用。运行时现在只对 allowlist 中的已验证别名做规范化，PlanGate 同时接受已验证 prior/memory 和实验事实，未知引用仍会拒绝。真实 DeepSeek `2 rounds × 1 experiment` 回归中，两轮 Plan、Gate、Coding、Execution 全部完成，第二轮输入明确包含第一轮 facts、priors 和 typed memory，Writing 最终生成 HTML/PDF 并进入唯一 `completed` 终态。
 
-![v4.6.0 节点式 Multi-Agent 控制台](docs/assets/ui/v4.6.0-node-console.png)
+![v4.7.0 LangGraph Multi-Agent 控制台](docs/assets/ui/v4.7.0-langgraph-console.png)
 
-![v4.2.0 受控模型搜索控制台](docs/assets/ui/v4.2.0-controlled-search.png)
-
-页面还包含受控搜索、Agent Planner、Fixed Workflow、Experiments、Benchmark、Memory、Reports 与 Diagnostics。受控搜索可分别选择模型白名单和可调参数；Knowledge 面板可以启停 Multi-Agent 注入、调整 top-k，并预览白名单来源。Idea/Plan 事件会在 Inspector 中显示 evidence ID、citation、hash、score 和 memory provenance。
+页面还包含 Experiments、Benchmark、Memory、Reports 与 Diagnostics。受控搜索可分别选择模型白名单和可调参数；Knowledge 面板可以启停 Multi-Agent 注入、调整 top-k，并预览白名单来源。Idea/Plan 事件会在 Inspector 中显示 evidence ID、citation、hash、score 和 memory provenance。四套模式图消费各自的真实 SSE 事件，而不是共用一张静态演示图。
 
 `v4.4.0` 统一了两条搜索链路的结果视图：Multi-Agent 显示候选数、Coding gate 通过数、修复尝试、执行成功数、目标命中和独立终评；受控搜索显示实验总数、完成/拒绝/运行失败、目标命中、最优 NMSE、输入基线、增益和参数量。结果行只消费真实 `experiment_end` 或 Multi-Agent execution 事件，不再把 Planner 的待执行计划误画成空白实验。
 
 `v4.4.1` 在 Multi-Agent 控制面开放搜索轮次、每轮实验数与独立终评开关，默认用低成本的 `1 x 1` 验证链路；批量 `3 x 3` 仍可直接配置。DeepSeek V4 的结构化 Agent 调用显式关闭 thinking，确保 token 用于最终 JSON，而不是只留下 reasoning 内容。
 
-回归覆盖包括 `516` 项完整测试；另有真实 DeepSeek 混合链路验证 Plan、Coding、Execution、独立终评、Writing 与 terminal 状态，而不是仅依赖 scripted fixture。
+发布验收包括 `546/546` 项完整离线测试、JavaScript 语法检查、桌面/窄屏视觉检查和真实 DeepSeek 多轮回归。
 
 实验策略对照以 `random_search` 为参照组，在相同 domain、seed、trial budget、参数上限和目标阈值下比较 Optuna TPE、LLM Direct 与 LLM + Program Reflection；表格给出相对参照组增量，配对区域显示 treatment-control、样本数和显著性。
 

@@ -528,8 +528,8 @@ def _build_batch_multi_agent_graph(
             {
                 "goal": state["goal"],
                 "round_index": state.get("round_index", 1),
-                "reason": plan.get("decision_rationale") or plan.get("risk", ""),
-                "risk": plan.get("risk", ""),
+                "reason": "检查实验假设、候选、预算与证据引用。 / Review hypotheses, candidates, budgets and citations.",
+                "risk": "批准后将进入 Coding，可能创建 plugin.py 与 manifest.json 并消耗 API 预算。 / Approval may create candidate code files and consume API budget.",
                 "hypotheses": plan.get("hypotheses", []),
                 "plan": plan,
                 "historical_best": _historical_best(
@@ -574,7 +574,10 @@ def _build_batch_multi_agent_graph(
             state.get("plan", {}),
             expected_experiments=experiments_per_round,
             round_index=state.get("round_index", 1),
-            available_fact_refs=set(state.get("available_fact_refs", [])),
+            available_fact_refs=(
+                set(state.get("available_fact_refs", []))
+                | _planner_fact_refs(dict(state.get("planner_context") or {}))
+            ),
             available_citation_ids=(
                 set(dict(state.get("planner_context") or {}).get("allowed_citation_ids", []))
                 if dict(state.get("planner_context") or {}).get("enabled")
@@ -656,14 +659,18 @@ def _build_batch_multi_agent_graph(
             {
                 "goal": state["goal"],
                 "round_index": round_index,
-                "reason": state["plan"].get("decision_rationale", ""),
-                "risk": state["plan"].get("risk", ""),
+                "reason": "检查生成代码范围、Gate 结果和修复事实。 / Review generated code scope, gate results and repair facts.",
+                "risk": "批准后候选代码会在隔离工作区执行；可能超时、占用算力或生成无效产物。 / Approval executes candidate code in an isolated worktree and may consume compute or fail.",
                 "candidate_count": len(results),
                 "output": [
                     {
                         "experiment_id": item.get("experiment_id"),
                         "passed": item.get("passed"),
                         "candidate_name": item.get("candidate_name"),
+                        "manifest_path": item.get("manifest_path"),
+                        "applied_files": list(item.get("applied_files", [])),
+                        "attempt_count": item.get("attempt_count", 0),
+                        "validation": dict(item.get("validation") or {}),
                         "failure_facts": item.get("failure_facts", []),
                     }
                     for item in results
@@ -697,8 +704,8 @@ def _build_batch_multi_agent_graph(
             {
                 "goal": state["goal"],
                 "round_index": round_index,
-                "reason": state["plan"].get("decision_rationale", ""),
-                "risk": state["plan"].get("risk", ""),
+                "reason": "确认训练配置、目标、候选与历史最优。 / Confirm training config, goal, candidates and historical best.",
+                "risk": "批准后会真实训练并写入 metrics、模型和 PSD，产生时间与计算成本。 / Approval starts real training and writes metrics, model and PSD artifacts.",
                 "hypotheses": state["plan"].get("hypotheses", []),
                 "candidates": state["plan"].get("candidate_experiments", []),
                 "historical_best": _historical_best(
@@ -817,6 +824,11 @@ def _build_batch_multi_agent_graph(
             ),
         }
         has_next_round = round_index < rounds
+        next_node = (
+            "idea_plan"
+            if has_next_round
+            else "final_evaluation" if final_evaluation else "writing"
+        )
         return {
             "status": "next_round" if has_next_round else "running",
             "round_index": round_index + 1 if has_next_round else round_index,
@@ -833,6 +845,7 @@ def _build_batch_multi_agent_graph(
                 failure_facts={
                     "failed_count": sum(item["status"] != "completed" for item in outcomes)
                 },
+                next_node=next_node,
             )],
         }
 
@@ -924,8 +937,8 @@ def _build_batch_multi_agent_graph(
             "output",
             {
                 "goal": state["goal"],
-                "reason": "Verify report evidence, attribution, cost and downloadable artifacts.",
-                "risk": "The report must not claim unsupported model performance.",
+                "reason": "检查报告证据、指标归因、成本和可下载产物。 / Review report evidence, attribution, cost and downloadable artifacts.",
+                "risk": "批准后会发布 PDF/HTML；禁止不受证据支持的性能数字。 / Approval publishes PDF/HTML; unsupported performance claims are not allowed.",
                 "metrics": request.get("historical_best", {}).get("metrics", {}),
                 "usage_summary": request.get("usage_summary", {}),
                 "output": result,
@@ -1054,9 +1067,10 @@ def _role_event(
     model_usage: list[dict[str, Any]] | None = None,
     failure_facts: dict[str, Any] | None = None,
     context_evidence: list[dict[str, Any]] | None = None,
+    next_node: str | None = None,
 ) -> dict[str, Any]:
     sequence = len(state.get("timeline", [])) + 1
-    return {
+    event = {
         "event_id": f"{state['run_id']}:{sequence:03d}:{role}",
         "run_id": state["run_id"],
         "sequence": sequence,
@@ -1068,6 +1082,11 @@ def _role_event(
         "failure_facts": dict(failure_facts or {}),
         "context_evidence": list(context_evidence or []),
     }
+    if state.get("round_index") is not None:
+        event["round_index"] = state["round_index"]
+    if next_node:
+        event["next_node"] = next_node
+    return event
 
 
 def _context_trace_evidence(
@@ -1097,6 +1116,21 @@ def _context_trace_evidence(
         for item in planner_context.get("evidence", [])
         if isinstance(item, dict)
     ]
+
+
+def _planner_fact_refs(planner_context: dict[str, Any]) -> set[str]:
+    """Return verified context IDs that may support causal plan revisions."""
+    allowed = {
+        str(item) for item in planner_context.get("allowed_citation_ids", [])
+    }
+    return {
+        str(item.get("evidence_id"))
+        for item in planner_context.get("evidence", [])
+        if isinstance(item, dict)
+        and item.get("kind") in {"prior", "memory"}
+        and item.get("evidence_id")
+        and str(item.get("evidence_id")) in allowed
+    }
 
 
 def _terminal_update(
@@ -1266,6 +1300,7 @@ def _replan_from_review(
             "rejected",
             output_refs=["failure:human_rejected"],
             failure_facts=failure,
+            next_node="idea_plan",
         )],
     }
 

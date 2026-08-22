@@ -925,6 +925,62 @@ class TestMultiAgentRuntime(unittest.TestCase):
         self.assertFalse(context["enabled"])
         self.assertEqual(context["allowed_citation_ids"], [])
 
+    def test_planner_canonicalizes_historical_prior_aliases(self):
+        from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
+
+        plan = {
+            "plan_id": "prior-alias",
+            "hypotheses": [{
+                "hypothesis": "reuse verified candidate",
+                "rationale": "measured result",
+                "citation": "historical-prior:exp016",
+            }],
+            "candidate_experiments": [{
+                "experiment_id": "candidate-1",
+                "implementation_source": "generated_plugin",
+                "model_type": "compact_test",
+                "config": {},
+                "params_estimate": 10,
+                "budget": {"parameter_count_max": 4000, "epochs_max": 1},
+                "stop_condition": "nmse_db <= -35",
+                "rationale": "test",
+                "citation": "historical-prior:exp016",
+                "exploration_role": "exploit",
+                "based_on_fact_refs": ["historical-prior:exp016"],
+                "expected_information_gain": 0.1,
+            }],
+            "experiment_dag": {"nodes": ["candidate-1"], "edges": []},
+            "expected_information_gain": 0.1,
+            "risk": "low",
+            "fallback": ["stop"],
+            "required_code_changes": [],
+        }
+
+        class Router:
+            def complete(self, role, prompt):
+                import json
+                return json.dumps(plan)
+
+        runtime = MultiAgentRuntime(
+            Path.cwd(), Router(), object(), object(),
+            historical_priors=[{
+                "id": "exp016", "known_nmse_db": -37.4,
+                "parameter_count": 3000, "config": {}, "source": "metrics.json",
+            }],
+        )
+        result = runtime._idea_plan({
+            "run_id": "prior-alias", "goal": "improve", "round_index": 2,
+            "rounds_total": 2, "experiments_per_round": 1,
+            "available_fact_refs": ["prior:exp016"], "round_records": [],
+        })
+
+        self.assertEqual(result["hypotheses"][0]["citation"], "prior:exp016")
+        self.assertEqual(result["candidate_experiments"][0]["citation"], "prior:exp016")
+        self.assertEqual(
+            result["candidate_experiments"][0]["based_on_fact_refs"],
+            ["prior:exp016"],
+        )
+
     def test_writing_worker_refreshes_cost_after_the_writing_model_call(self):
         from nonlinear_agent.multi_agent_runtime import MultiAgentRuntime
         from tests.test_reporting_tool import _task_source

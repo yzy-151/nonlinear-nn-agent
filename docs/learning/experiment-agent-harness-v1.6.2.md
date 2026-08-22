@@ -584,3 +584,25 @@ v4.5.0 将候选分成两类：
 ### 25.4 面试表达
 
 > 我发现 Multi-Agent 初始轮没有利用项目历史，计划校验失败又直接终止，导致角色数量增加了但决策质量没有形成闭环。我把可验证历史候选作为带 citation 的 prior evidence 注入第一轮，把 PlanGate、执行失败和人工驳回统一成结构化事实，在有界预算内回传 PlanAgent。不同角色只拿到完成职责所需的上下文。为了让链路既能自动跑也能受控上线，我在四个角色边界增加 Auto/Review 审核门，并把驳回理由继续送回规划，而不是直接结束。Web 端使用同一 SSE 构建节点图，展示每个角色的输入输出、状态、耗时、费用和最终报告，因此页面不是另写一套演示状态，而是运行时的可观测投影。
+
+## 26. v4.7.0：多轮证据契约与可观测 LangGraph
+
+### 26.1 为什么 round 大于等于 2 会稳定失败
+
+问题不在循环次数，而在证据 ID 的契约不一致。Planner 上下文把历史先验的真实 ID 定义为 `prior:exp016`，但展示字段 citation 使用 `historical-prior:exp016`。真实 DeepSeek 有时复制展示字段；第一轮 Plan 校验因此报 unknown citation。进入第二轮时，Planner 又会把已验证 prior 写入 `based_on_fact_refs`，而旧 PlanGate 只认可上一轮实验产生的 `fact:*`，于是合法先验再次被判 unknown fact ref。表面现象是“第二轮必败”，实质是 producer、prompt 和 validator 对同一证据使用了不同命名空间。
+
+修复遵循最小信任原则：运行时只在别名对应目标已存在于本轮 allowlist 时，将 `historical-prior:*` 规范化为 `prior:*`；PlanGate 只额外接纳 PlannerContext 中种类为 `prior` 或 `memory` 的已验证 evidence。任意新造 ID、未知知识引用和未登记 fact 仍然拒绝，不能为了提高通过率放松证据门。
+
+### 26.2 真实回归证明了什么
+
+真实 run `verify-round2-fixed-20260822` 使用 DeepSeek V4 Flash，配置为 `2 rounds × 1 experiment`、候选训练最多 1 epoch。第一轮选择已验证 `complex_lstsq`，得到 `-37.4875 dB / 3980 params`；第二轮 Idea/Plan 的 input refs 同时包含第一轮 completed/best facts、历史 priors、Knowledge 和新写入的 episodic memory。第二轮 PlanGate、Coding 和 Execution 全部通过，Writing 生成 HTML/PDF，terminal 为 `completed`。
+
+该回归只证明多轮证据回传、校验和终态正确。第二轮开放候选因只训练 1 epoch，NMSE 很差，不能作为算法性能结论。流程正确性用低成本回归验证，模型性能仍应使用足够 epoch、固定数据切分和独立终评验证。
+
+### 26.3 UI 为什么要画三种线和多个回路
+
+一条普通箭头无法同时表达“谁接下来执行”和“什么证据被交付”。v4.7.0 将端口分为 control、artifact 和 feedback：control 决定状态机推进，artifact 表示 plan/code/metrics/report 产物，feedback 表示 PlanGate、Coding 或 Execution 的失败事实回到 Idea/Plan。每种运行模式有独立图；Multi-Agent 图映射真实 LangGraph 分支。节点与连线直接消费 SSE，执行中流动高亮、完成后保留耗时和费用，点击 Writing/Result 可查看报告路径和下载入口。
+
+### 26.4 面试表达
+
+> 我遇到过一个很典型的 Agent 工程问题：round 大于等于 2 时 Planner 稳定失败。最初看起来像 LangGraph 循环错误，但我用真实 SSE trace 隔离后发现，是检索上下文、LLM 输出和 PlanGate 对证据 ID 的命名空间约定不一致。我没有直接放宽校验，而是只规范化 allowlist 内的已验证 prior 别名，并让 Gate 显式接纳 typed prior/memory。真实 DeepSeek 两轮回归中，第二轮成功消费第一轮 facts、历史先验和 episodic memory，最终生成 PDF 并正常收口。随后我把控制流、产物流和失败反馈流分别映射到节点图，让页面能够解释系统为什么走某条回路，而不只是显示一串日志。

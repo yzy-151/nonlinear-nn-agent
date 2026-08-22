@@ -49,6 +49,65 @@ def _three_candidate_plan(round_index: int, fact_refs=()) -> dict:
 
 
 class TestSupervisorE2E(unittest.TestCase):
+    def test_planner_fact_refs_require_allowlisted_evidence(self):
+        from nonlinear_agent.supervisor_graph import _planner_fact_refs
+
+        refs = _planner_fact_refs({
+            "allowed_citation_ids": ["prior:verified"],
+            "evidence": [
+                {"evidence_id": "prior:verified", "kind": "prior"},
+                {"evidence_id": "memory:forged", "kind": "memory"},
+                {"evidence_id": "prior:forged", "kind": "prior"},
+            ],
+        })
+
+        self.assertEqual(refs, {"prior:verified"})
+
+
+    def test_verified_prior_is_accepted_as_a_later_round_fact(self):
+        from nonlinear_agent.supervisor_graph import (
+            MultiAgentWorkers,
+            build_multi_agent_graph,
+            run_multi_agent_graph,
+        )
+
+        requests = []
+
+        def idea_plan(request):
+            requests.append(request)
+            plan = _three_candidate_plan(request["round_index"], ["prior:exp016"])
+            plan["hypotheses"][0]["citation"] = "prior:exp016"
+            for candidate in plan["candidate_experiments"]:
+                candidate["citation"] = "prior:exp016"
+            plan["_planner_context"] = {
+                "enabled": True,
+                "allowed_citation_ids": ["prior:exp016"],
+                "evidence": [{"evidence_id": "prior:exp016", "kind": "prior"}],
+            }
+            return plan
+
+        graph = build_multi_agent_graph(
+            MultiAgentWorkers(
+                idea_plan=idea_plan,
+                coding=lambda request: {"passed": True},
+                execution=lambda request: {
+                    "status": "completed", "metrics": {"nmse_db": -30.0},
+                },
+                writing=lambda request: {"pdf_path": "reports/prior/report.pdf"},
+            ),
+            rounds=2,
+            experiments_per_round=3,
+        )
+        result = run_multi_agent_graph(graph, "reuse verified prior", "prior-r2")
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual([item["round_index"] for item in requests], [1, 2])
+        execution_events = [
+            event for event in result["timeline"] if event["role"] == "execution"
+        ]
+        self.assertEqual([item["next_node"] for item in execution_events], ["idea_plan", "writing"])
+
+
     def test_context_trace_exposes_provenance_without_prompt_text(self):
         from nonlinear_agent.supervisor_graph import (
             MultiAgentWorkers,
@@ -241,7 +300,7 @@ class TestSupervisorE2E(unittest.TestCase):
             build_multi_agent_graph(
                 MultiAgentWorkers(
                     idea_plan=idea_plan,
-                    coding=lambda request: {"passed": True},
+                    coding=lambda request: {"passed": True, "manifest_path": "models/candidates/demo/manifest.json", "applied_files": ["models/candidates/demo/plugin.py", "models/candidates/demo/manifest.json"], "validation": {"parameter_count": 42}, "attempt_count": 1},
                     execution=lambda request: {
                         "status": "completed",
                         "metrics": {"nmse_db": -36.0},
@@ -266,6 +325,11 @@ class TestSupervisorE2E(unittest.TestCase):
         self.assertIn("beats the prior", plan_requests[1]["plan_failure_facts"]["error"])
         self.assertIn(("execution", "input"), [(r, p) for r, p, _ in reviews])
 
+        coding_review = next(payload for role, _, payload in reviews if role == "coding")
+        candidate = coding_review["output"][0]
+        self.assertEqual(candidate["manifest_path"], "models/candidates/demo/manifest.json")
+        self.assertIn("models/candidates/demo/plugin.py", candidate["applied_files"])
+        self.assertEqual(candidate["validation"]["parameter_count"], 42)
     def test_success_path_records_role_timeline_and_unique_terminal(self):
         from nonlinear_agent.supervisor_graph import (
             MultiAgentWorkers,

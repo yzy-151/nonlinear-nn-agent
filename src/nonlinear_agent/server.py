@@ -998,7 +998,7 @@ def create_app(
         ) from exc
 
     root = Path(workspace)
-    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.6.0")
+    app = FastAPI(title="Nonlinear Experiment Agent Harness", version="4.7.0")
     app.state.approval_controllers = {}
 
     # v3.6.0: process-local memory inspector backend (LangGraph InMemoryStore).

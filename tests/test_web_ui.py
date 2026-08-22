@@ -39,10 +39,10 @@ class WebUITest(unittest.TestCase):
         self.assertIn('experiments_per_round: number("maExperiments")', script)
         self.assertNotIn("rounds: 3, experiments_per_round: 3", script)
         self.assertIn('id="agentGraph"', html)
-        self.assertIn('data-agent-node="idea_plan"', html)
-        self.assertIn('data-agent-node="coding"', html)
-        self.assertIn('data-agent-node="execution"', html)
-        self.assertIn('data-agent-node="writing"', html)
+        self.assertIn('["idea_plan", "Idea / Plan"', script)
+        self.assertIn('["coding", "Coding"', script)
+        self.assertIn('["execution", "Execution"', script)
+        self.assertIn('["writing", "Writing"', script)
         self.assertIn('id="approvalMode"', html)
         self.assertIn('value="review"', html)
 
@@ -164,6 +164,48 @@ class WebUITest(unittest.TestCase):
         self.assertIn("latency_ms", script)
         self.assertIn("cost_usd", script)
         self.assertIn("report:", script)
+
+    def test_each_runtime_mode_has_a_distinct_graph_template(self):
+        script = read_web_asset("app.js")
+
+        for mode in ("multiagent", "controlled", "agent", "workflow"):
+            self.assertIn(f'{mode}: {{', script)
+        for node in ("plan_gate", "reflection", "guard", "verify_artifacts"):
+            self.assertIn(node, script)
+        self.assertIn("renderWorkflowGraph", script)
+
+    def test_graph_has_typed_ports_artifact_edges_and_feedback_routes(self):
+        html = render_home_page()
+        script = read_web_asset("app.js")
+        css = read_web_asset("styles.css")
+
+        self.assertIn('id="graphLegend"', html)
+        self.assertIn("port-control", script + css)
+        self.assertIn("port-artifact", script + css)
+        self.assertIn("port-feedback", script + css)
+        self.assertIn("edge-feedback", script + css)
+        self.assertIn("edge-artifact", script + css)
+        self.assertIn("routeGraphEvent", script)
+        self.assertIn("execution-plan", script)
+        self.assertIn("coding-plan", script)
+        self.assertIn("writing-plan", script)
+        self.assertIn("payload.next_node", script)
+        self.assertNotIn('preserveAspectRatio="none"', script)
+        self.assertIn("width: 1000px", css)
+        self.assertIn('setEdgeState("execution-writing", null)', script)
+        self.assertIn('"rejected", "invalid_plan"', script)
+
+
+    def test_writing_node_and_review_dialog_expose_required_actions(self):
+        html = render_home_page()
+        script = read_web_asset("app.js")
+
+        self.assertIn('id="nodeArtifactPanel"', html)
+        self.assertIn("PDF path", script)
+        self.assertIn("审批说明 / Review reason", html)
+        self.assertIn("风险与检查点 / Risks and checks", html)
+        self.assertIn("✓ Yes", html)
+        self.assertIn("× No", html)
 
 
 if __name__ == "__main__":
