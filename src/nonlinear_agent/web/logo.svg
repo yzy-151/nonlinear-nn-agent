@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Nonlinear Agent</title>
+  <desc id="desc">A compact neural signal mark for the Nonlinear Agent console.</desc>
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="#0d1824" stroke="#4aaeff" stroke-width="2"/>
+  <path d="M10 39h8l5-18 8 31 7-40 6 27h10" fill="none" stroke="#63d6a4" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter"/>
+  <circle cx="10" cy="39" r="3" fill="#8dccff"/>
+  <circle cx="54" cy="39" r="3" fill="#8dccff"/>
+</svg>

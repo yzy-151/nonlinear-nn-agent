@@ -606,3 +606,43 @@ v4.5.0 将候选分成两类：
 ### 26.4 面试表达
 
 > 我遇到过一个很典型的 Agent 工程问题：round 大于等于 2 时 Planner 稳定失败。最初看起来像 LangGraph 循环错误，但我用真实 SSE trace 隔离后发现，是检索上下文、LLM 输出和 PlanGate 对证据 ID 的命名空间约定不一致。我没有直接放宽校验，而是只规范化 allowlist 内的已验证 prior 别名，并让 Gate 显式接纳 typed prior/memory。真实 DeepSeek 两轮回归中，第二轮成功消费第一轮 facts、历史先验和 episodic memory，最终生成 PDF 并正常收口。随后我把控制流、产物流和失败反馈流分别映射到节点图，让页面能够解释系统为什么走某条回路，而不只是显示一串日志。
+
+## 27. v4.8.0：有状态节点投影与可恢复 UI
+
+### 27.1 为什么切换模式会丢失高亮
+
+旧实现把 `running / complete / active` 直接写在当前 DOM class 上。`setView()` 切换模式时会重新生成整张图，旧 DOM 被销毁，节点和连线状态也随之消失。更隐蔽的问题是，受控搜索、Agent Planner 和 Fixed Workflow 的事件路由依赖当前正在显示的 `graphMode`：用户一旦切到别页，后台事件即使继续到达，也可能被错误模式忽略。
+
+v4.8.0 增加按模式隔离的 `graphSnapshots`。每份快照保存节点状态、连线状态、当前角色、耗时、费用和报告路径。事件处理先更新快照，再由 `applyGraphSnapshot()` 投影到当前 DOM。切换页面只是重新渲染并恢复快照；如果后台还在推进，返回时看到的是更晚的新状态，而不是旧状态或全 Pending。
+
+### 27.2 为什么以前不是所有卡片和线都会亮
+
+旧实现只有 Multi-Agent 在发起请求时显式点亮首节点，其他三种模式必须等第一条 SSE 才可能更新；部分阶段只完成上一节点，却没有把下一条边设为 active。v4.8.0 将 URL 明确映射为四种 `runMode`，请求发出后统一完成 Start、点亮首条边并启动首节点。后续事件边界同时完成上一步、激活传输边并启动下一步。
+
+例如受控搜索的真实映射是：
+
+`plan_generated → Planner DONE → planner-guard ACTIVE → Guard RUNNING`
+
+`experiment_start → Guard DONE → guard-training ACTIVE → Train RUNNING`
+
+`experiment_end → Train DONE → training-facts ACTIVE → Facts RUNNING`
+
+`reflection → Facts DONE → facts-planner ACTIVE → Planner RUNNING`
+
+### 27.3 端口、产物和动画如何表达真实语义
+
+节点图借鉴 PaperStorm 的双层语义：控制线表示下一个执行者，产物线表示实际 handoff 文件，反馈线表示失败事实回到规划。图上直接标出 `plan.json`、`plugin.py`、`metrics.json + psd.png`、`reflection_facts.json` 和 `report.pdf`，避免只看到箭头却不知道传递了什么。
+
+运行边框不再使用伪元素闪烁，而是在每张卡片内放置独立 SVG outline，通过 `stroke-dashoffset` 让高亮段沿四周连续移动。连线同样使用 dash offset 表示正在传输；节点完成后变为稳定绿色，失败和拒绝保持红色证据态。
+
+### 27.4 面试表达
+
+> 我把 Web UI 定义成 runtime 的状态投影，而不是一套独立动画。最初节点状态只存在 DOM，切换模式就丢失，而且后台事件依赖当前页面，导致流程实际在跑但卡片不亮。我引入按模式隔离的 graph snapshot，让 SSE 先更新状态模型，再投影到 DOM；同时把每个事件边界拆成“完成上一节点、激活传输边、启动下一节点”。因此模式切换、后台推进和反馈回路都能保持一致。端口还标注实际 JSON、Python、Metrics 和 PDF handoff，页面可以直接解释系统在每一步传了什么。
+
+### 27.5 验收证据
+
+- 17 项 Web UI 定向回归通过；完整套件 550 项通过；
+- Edge 浏览器验证四种模式均渲染独立节点图，无控制台错误和页面级横向溢出；
+- 真实受控搜索 SSE 验证 Planner、Guard、Training 及相邻连线按事件推进；
+- 切换到其他模式后返回，已完成和正在执行的状态继续保留，后台进展不会回退；
+- 运行卡片的 `runningGlow` 与 SVG `nodeOutlineFlow` 动画均实际生效。

@@ -2,7 +2,7 @@
 
 面向真实机器学习实验的 Agent Harness：让 LLM 设计实验、生成候选代码并根据验证事实迭代，同时由确定性运行时负责安全校验、真实训练、指标复核、过程观测和证据报告。
 
-当前版本：`v4.7.0`。系统同时提供开放式 Multi-Agent 研究链路、验证锚点与开放探索结合的混合链路、稳定的受控模型搜索链路，以及可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、人工审核、行为评估和证据交付的完整过程。
+当前版本：`v4.8.0`。系统同时提供开放式 Multi-Agent 研究链路、验证锚点与开放探索结合的混合链路、稳定的受控模型搜索链路，以及可复算的 Evidence Benchmark，覆盖从实验构思、代码生成到训练评测、人工审核、行为评估和证据交付的完整过程。
 
 ## 项目总览
 
@@ -142,6 +142,12 @@ Web 首页默认进入 Multi-Agent。中栏的 Timeline、Console、Raw Events �
 `v4.7.0` 修复了多轮计划中的证据命名空间不一致：模型可能把允许的 `prior:exp016` 写成展示用的 `historical-prior:exp016`，而第二轮 PlanGate 又只接受上一轮 `fact:*`，导致合法的历史证据被误判为未知引用。运行时现在只对 allowlist 中的已验证别名做规范化，PlanGate 同时接受已验证 prior/memory 和实验事实，未知引用仍会拒绝。真实 DeepSeek `2 rounds × 1 experiment` 回归中，两轮 Plan、Gate、Coding、Execution 全部完成，第二轮输入明确包含第一轮 facts、priors 和 typed memory，Writing 最终生成 HTML/PDF 并进入唯一 `completed` 终态。
 
 ![v4.7.0 LangGraph Multi-Agent 控制台](docs/assets/ui/v4.7.0-langgraph-console.png)
+
+`v4.8.0` 将节点控制台从“DOM 即状态”改为按运行模式持久化的前端状态投影。Multi-Agent、受控搜索、Agent Planner 与 Fixed Workflow 分别保存节点状态、连线状态、当前角色、耗时、费用和报告产物；切换模式只重绘并恢复快照，后台 SSE 继续推进时也会写入所属模式，不再出现返回页面后全部高亮消失。四种入口都会在请求发出时点亮首节点和首条控制线，后续由真实事件边界推进节点、产物线和反馈线。
+
+连接点与曲线现在标注实际 handoff 文件，如 `plan.json`、`plugin.py`、`metrics.json`、`reflection_facts.json` 与 `report.pdf`。运行节点使用独立 SVG 描边沿卡片边界持续流转，当前控制流或产物流使用方向动画，完成态继续保留。顶部品牌使用独立可打包 Logo，Start 节点改为紧凑运行入口；三栏宽度重新分配，使 1000px 流程画布在常见桌面窗口中完整展示。
+
+![v4.8.0 有状态节点控制台](docs/assets/ui/v4.8.0-stateful-node-console.png)
 
 页面还包含 Experiments、Benchmark、Memory、Reports 与 Diagnostics。受控搜索可分别选择模型白名单和可调参数；Knowledge 面板可以启停 Multi-Agent 注入、调整 top-k，并预览白名单来源。Idea/Plan 事件会在 Inspector 中显示 evidence ID、citation、hash、score 和 memory provenance。四套模式图消费各自的真实 SSE 事件，而不是共用一张静态演示图。
 

@@ -190,10 +190,54 @@ class WebUITest(unittest.TestCase):
         self.assertIn("coding-plan", script)
         self.assertIn("writing-plan", script)
         self.assertIn("payload.next_node", script)
-        self.assertNotIn('preserveAspectRatio="none"', script)
+        self.assertNotIn('<svg class="graph-wires" viewBox="0 0 1000 410" preserveAspectRatio="none"', script)
         self.assertIn("width: 1000px", css)
-        self.assertIn('setEdgeState("execution-writing", null)', script)
+        self.assertIn('setEdgeState("execution-writing", null, mode)', script)
         self.assertIn('"rejected", "invalid_plan"', script)
+
+    def test_graph_runtime_state_survives_mode_switches(self):
+        script = read_web_asset("app.js")
+
+        self.assertIn("graphSnapshots", script)
+        self.assertIn("ensureGraphSnapshot", script)
+        self.assertIn("applyGraphSnapshot", script)
+        self.assertIn("snapshot.nodes", script)
+        self.assertIn("snapshot.edges", script)
+        self.assertNotIn("state.graphPreviousRole = null;\n  const edges", script)
+
+    def test_graph_ports_name_real_handoff_artifacts(self):
+        script = read_web_asset("app.js")
+
+        for artifact in (
+            "plan.json",
+            "plugin.py",
+            "metrics.json",
+            "report.pdf",
+            "candidate_config.yaml",
+            "reflection_facts.json",
+        ):
+            self.assertIn(artifact, script)
+        self.assertIn("port-label", script)
+        self.assertIn("artifact-label", script)
+
+    def test_running_nodes_use_a_real_outline_runner(self):
+        script = read_web_asset("app.js")
+        css = read_web_asset("styles.css")
+
+        self.assertIn("node-outline-runner", script)
+        self.assertIn("node-outline-path", script)
+        self.assertIn("nodeOutlineFlow", css)
+        self.assertIn("stroke-dashoffset", css)
+
+    def test_brand_uses_packaged_logo_and_start_node_has_dedicated_layout(self):
+        html = render_home_page()
+        logo = read_web_asset("logo.svg")
+        script = read_web_asset("app.js")
+
+        self.assertIn('src="/ui/logo.svg"', html)
+        self.assertIn("Nonlinear Agent", logo)
+        self.assertIn("start-node-copy", script)
+        self.assertIn("RUN ENTRY", script)
 
 
     def test_writing_node_and_review_dialog_expose_required_actions(self):

@@ -35,7 +35,8 @@ svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width:
 
 .topbar { height: 64px; display: grid; grid-template-columns: 232px minmax(0, 1fr) auto; align-items: center; border-bottom: 1px solid var(--border); background: #0d1016; position: sticky; top: 0; z-index: 20; }
 .brand { height: 64px; padding: 0 18px; display: flex; align-items: center; gap: 11px; border-right: 1px solid var(--border); }
-.brand-mark { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid #397bb0; background: #102235; color: #8dccff; font: 700 11px var(--mono); }
+.brand-mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #397bb0; background: #102235; }
+.brand-mark img { width: 28px; height: 28px; display: block; }
 .brand strong, .brand small { display: block; }
 .brand strong { font-size: 14px; }
 .brand small { margin-top: 1px; color: var(--muted); font: 9px var(--mono); }
@@ -206,7 +207,7 @@ details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12
 /* v4.6 node-oriented operations surface */
 .app-shell { display: block; }
 .sidebar { display: none; }
-.workspace { grid-template-columns: minmax(270px, 320px) minmax(620px, 1fr) minmax(290px, 350px); }
+.workspace { grid-template-columns: minmax(260px, 280px) minmax(720px, 1fr) minmax(260px, 280px); }
 .agent-graph { margin-top: 16px; border: 1px solid var(--border); background: #0b0f16; min-width: 0; overflow: hidden; }
 .mode-node-row { min-height: 74px; padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; border-bottom: 1px solid var(--border); background: #0e131b; }
 .mode-node { min-width: 0; padding: 9px 10px; display: flex; align-items: center; gap: 9px; color: var(--muted); background: #111720; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; text-align: left; }
@@ -218,6 +219,7 @@ details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12
 .graph-stage { height: 410px; position: relative; min-width: 1000px; }
 .graph-wires { position: absolute; inset: 0; width: 1000px; height: 410px; pointer-events: none; }
 .graph-wires path { fill: none; stroke: #34404f; stroke-width: 2; vector-effect: non-scaling-stroke; transition: stroke .2s, opacity .2s; }
+.graph-wires text { paint-order: stroke; stroke: #0e141c; stroke-width: 3px; stroke-linejoin: round; }
 .graph-wires path.active { stroke: #55b7ff; stroke-width: 3; stroke-dasharray: 9 9; animation: flowPulse 1s linear infinite; filter: drop-shadow(0 0 4px rgba(69,169,255,.75)); }
 .graph-wires path.complete { stroke: #3f9d76; }
 @keyframes flowPulse { to { stroke-dashoffset: -18; } }
@@ -238,8 +240,6 @@ details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12
 .agent-node p { min-height: 32px; margin-top: 5px; color: var(--muted); font: 9px/1.45 var(--mono); overflow-wrap: anywhere; }
 .agent-node footer { margin-top: 8px; display: flex; justify-content: space-between; color: var(--faint); font: 9px var(--mono); }
 .agent-node.running { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(69,169,255,.25), 0 0 18px rgba(69,169,255,.2); }
-.agent-node.running::before { content: ""; position: absolute; inset: -1px; border: 1px dashed #77c8ff; border-radius: 5px; animation: nodeFlow 1.2s linear infinite; }
-@keyframes nodeFlow { 50% { border-color: transparent #77c8ff transparent #77c8ff; } }
 .agent-node.complete { border-color: #367c61; background: #101c19; }
 .agent-node.failed, .agent-node.rejected { border-color: #843e48; background: #211318; }
 .agent-node.review { border-color: var(--warning); box-shadow: 0 0 14px rgba(224,168,75,.2); }
@@ -257,19 +257,29 @@ details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12
 .graph-legend { min-width: 760px; min-height: 42px; padding: 8px 12px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--border); color: var(--muted); font: 9px var(--mono); }
 .graph-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .graph-legend small { margin-left: auto; color: var(--faint); }
-.graph-legend i, .node-port { display: inline-block; width: 9px; height: 9px; background: #0b0f16; border: 2px solid; }
-.port-control { border-color: #55b7ff !important; border-radius: 50%; }
-.port-artifact { border-color: #59b98c !important; border-radius: 1px; }
-.port-feedback { border-color: #e0a84b !important; transform: rotate(45deg); border-radius: 1px; }
+.graph-legend i, .node-port i { display: inline-block; width: 9px; height: 9px; flex: 0 0 auto; background: #0b0f16; border: 2px solid; }
+.graph-legend .port-control, .node-port.port-control i { border-color: #55b7ff !important; border-radius: 50%; }
+.graph-legend .port-artifact, .node-port.port-artifact i { border-color: #59b98c !important; border-radius: 1px; }
+.graph-legend .port-feedback, .node-port.port-feedback i { border-color: #e0a84b !important; border-radius: 1px; transform: rotate(45deg); }
 .workflow-node { min-width: 0; margin: 0; overflow: visible; z-index: 2; }
-.workflow-node.start { border-color: #347db2; background: #102235; text-align: center; }
+.workflow-node.start { display: grid; grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: 1fr auto; align-items: center; gap: 2px 8px; padding: 9px 10px; border-color: #347db2; background: #102235; text-align: left; }
+.start-node-mark { width: 20px; height: 20px; color: #75c8ff; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.start-node-copy { min-width: 0; display: block; }
+.start-node-copy small { display: block; color: #78c2f7; font: 700 7px var(--mono); }
+.start-node-copy b { margin-top: 2px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.start-node-copy em { display: block; margin-top: 2px; overflow: hidden; color: var(--muted); font: 8px var(--mono); font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-node.start > .node-state { position: absolute; top: 6px; right: 6px; border: 1px solid #315f80; padding: 2px 4px; color: #9fd7ff; font: 700 7px var(--mono); }
+.workflow-node.start > .node-runtime { position: static; grid-column: 2 / -1; color: var(--faint); font: 7px var(--mono); }
 .workflow-node.gate { border-color: #69788a; }
 .workflow-node.result { border-color: #367c61; }
-.workflow-node .node-port { position: absolute; z-index: 4; width: 10px; height: 10px; pointer-events: none; }
+.workflow-node .node-port { position: absolute; z-index: 4; display: flex; align-items: center; gap: 5px; pointer-events: none; color: #91a5b8; font: 700 7px var(--mono); white-space: nowrap; }
+.workflow-node .node-port em { max-width: 132px; overflow: hidden; font-style: normal; text-overflow: ellipsis; }
+.workflow-node .node-port em { display: none; }
 .workflow-node .node-port.input { left: -6px; top: calc(50% - 5px); }
-.workflow-node .node-port.output { right: -6px; top: calc(50% - 5px); }
-.workflow-node .node-port.artifact { left: calc(50% - 5px); bottom: -6px; }
-.workflow-node .node-port.feedback { left: calc(50% - 5px); top: -6px; }
+.workflow-node .node-port.output { right: -6px; top: calc(50% - 5px); flex-direction: row-reverse; text-align: right; }
+.workflow-node .node-port.artifact { left: 50%; bottom: -15px; flex-direction: column; gap: 2px; transform: translateX(-50%); }
+.workflow-node .node-port.feedback { left: 50%; top: -15px; flex-direction: column-reverse; gap: 2px; transform: translateX(-50%); }
+.workflow-node.start .output { right: auto; left: 50%; top: auto; bottom: -15px; flex-direction: column; gap: 2px; transform: translateX(-50%); text-align: center; }
 .workflow-node.start .input, .workflow-node.start .artifact, .workflow-node.start .feedback, .workflow-node.result .output, .workflow-node.result .feedback { display: none; }
 .workflow-node.gate p, .workflow-node.gate footer { font-size: 8px; }
 .graph-wires path.edge-control { stroke: #3f6f92; }
@@ -278,9 +288,16 @@ details { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12
 .graph-wires path.edge-feedback.active { stroke: #e0a84b; }
 .graph-wires path.edge-artifact.active { stroke: #65d8a1; }
 .graph-wires path.failed { stroke: #c65362; }
+.node-outline-runner { position: absolute; z-index: 7; inset: -4px; width: calc(100% + 8px); height: calc(100% + 8px); overflow: visible; pointer-events: none; opacity: 0; }
+.node-outline-path { fill: none; stroke: #74c8ff; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-dasharray: 18 82; stroke-dashoffset: 0; filter: drop-shadow(0 0 4px rgba(69,169,255,.9)); }
 .workflow-node.running { isolation: isolate; animation: runningGlow 1.25s ease-in-out infinite; }
-.workflow-node.running::before { inset: -3px; border-width: 2px; border-style: dashed; animation: nodeFlow .7s linear infinite; }
+.workflow-node.running .node-outline-runner { opacity: 1; }
+.workflow-node.running .node-outline-path { animation: nodeOutlineFlow 1.05s linear infinite; }
 @keyframes runningGlow { 50% { box-shadow: 0 0 0 2px rgba(69,169,255,.32), 0 0 24px rgba(69,169,255,.3); } }
+@keyframes nodeOutlineFlow { to { stroke-dashoffset: -100; } }
+.artifact-label { fill: #8499ad; font: 700 8px var(--mono); letter-spacing: 0; pointer-events: none; }
+.edge-artifact-label { fill: #69b98f; }
+.edge-feedback-label { fill: #d4a85a; }
 .node-artifact-panel { padding: 10px 12px; display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: center; gap: 12px; border-top: 1px solid var(--border); background: #0f151d; }
 .node-artifact-panel > div:first-child b { display: block; margin-top: 3px; font-size: 11px; }
 .node-artifact-panel #writingArtifacts { display: grid; gap: 5px; }

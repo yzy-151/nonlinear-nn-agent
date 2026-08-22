@@ -9,6 +9,7 @@ WEB_ASSETS = {
     "styles.css": "text/css; charset=utf-8",
     "app.js": "text/javascript; charset=utf-8",
     "event_view_model.js": "text/javascript; charset=utf-8",
+    "logo.svg": "image/svg+xml",
 }
 
 

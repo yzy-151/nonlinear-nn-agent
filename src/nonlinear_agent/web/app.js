@@ -1,7 +1,7 @@
 import { classifyEvent, formatConsole, normalizeEvent } from "/ui/event_view_model.js";
 
 const $ = (id) => document.getElementById(id);
-const state = { events: [], selected: null, currentRunId: null, controller: null, approvalTimer: null, currentApproval: null, experiments: [], finalEvaluation: null, terminalStatus: null, runMode: null, runConfig: {}, graphMode: "multiagent", graphPreviousRole: null, coding: { candidates: 0, passed: 0, failed: 0, attempts: 0 } };
+const state = { events: [], selected: null, currentRunId: null, controller: null, approvalTimer: null, currentApproval: null, experiments: [], finalEvaluation: null, terminalStatus: null, runMode: null, runConfig: {}, graphMode: "multiagent", graphSnapshots: {}, coding: { candidates: 0, passed: 0, failed: 0, attempts: 0 } };
 const titles = { multiagent: "Multi-Agent 运行", controlled: "受控模型搜索", agent: "Agent Planner", workflow: "Fixed Workflow", experiments: "实验策略对照", benchmark: "Benchmark 评估", memory: "Memory Inspector", reports: "报告与产物", diagnostics: "运行诊断" };
 const CONTROLLED_DEFAULT_FIELDS = new Set(["feature_mode", "memory_depth", "mp_order_count", "hidden_units", "spline_knots", "epochs", "learning_rate", "optimizer"]);
 
@@ -118,53 +118,109 @@ function bestExperiment() {
 const WORKFLOW_GRAPHS = {
   multiagent: {
     nodes: [
-      ["start", "START", "配置目标与预算", 440, 14, 120, 54, "start"],
-      ["idea_plan", "Idea / Plan", "先验 · 假设 · 候选计划", 35, 130, 155, 112],
-      ["plan_gate", "PlanGate", "Schema · 引用 · 预算", 235, 148, 100, 76, "gate"],
-      ["coding", "Coding", "候选代码 · AST · Smoke", 380, 130, 155, 112],
-      ["execution", "Execution", "Tool call · 训练 · Metrics", 610, 130, 155, 112],
-      ["writing", "Writing", "证据归因 · PDF / HTML", 815, 130, 150, 112],
-      ["result", "Result", "报告与可下载产物", 815, 300, 150, 82, "result"],
+      ["start", "Multi-Agent Run", "目标、预算与审核策略", 390, 12, 220, 70, "start", { output: "run_request.json" }],
+      ["idea_plan", "Idea / Plan", "先验 · 假设 · 候选计划", 35, 140, 155, 118, "agent", { input: "run_request.json", output: "plan.json", artifact: "plan.json", feedback: "failure_facts.json" }],
+      ["plan_gate", "PlanGate", "Schema · 引用 · 预算", 235, 158, 105, 82, "gate", { input: "plan.json", output: "validated_plan.json", feedback: "gate_errors.json" }],
+      ["coding", "Coding", "候选代码 · AST · Smoke", 385, 140, 160, 118, "agent", { input: "validated_plan.json", output: "candidate_manifest.json", artifact: "plugin.py", feedback: "coding_errors.json" }],
+      ["execution", "Execution", "Tool call · 训练 · Metrics", 615, 140, 160, 118, "agent", { input: "candidate_manifest.json", output: "execution_state.json", artifact: "metrics.json", feedback: "failure_facts.json" }],
+      ["writing", "Writing", "证据归因 · PDF / HTML", 820, 140, 150, 118, "agent", { input: "metrics.json + psd.png", output: "report.pdf", artifact: "report.pdf", feedback: "fidelity_errors.json" }],
+      ["result", "Result", "报告与可下载产物", 820, 315, 150, 78, "result", { input: "report.pdf", artifact: "report.pdf" }],
     ],
     edges: [
-      ["start-idea", "control", "M500 68 C500 102 112 88 112 130"],
-      ["idea-gate", "control", "M190 174 C208 174 217 186 235 186"],
-      ["idea-plan-artifact", "artifact", "M112 242 C112 274 457 274 457 242"],
-      ["gate-coding", "control", "M335 186 C352 186 363 174 380 174"],
-      ["coding-execution", "control", "M535 174 C562 142 583 142 610 174"],
-      ["coding-model-artifact", "artifact", "M457 242 C457 282 687 282 687 242"],
-      ["execution-writing", "control", "M765 174 C785 174 795 174 815 174"],
-      ["execution-evidence-artifact", "artifact", "M687 242 C687 270 890 270 890 242"],
-      ["writing-result", "artifact", "M890 242 C890 266 890 276 890 300"],
-      ["coding-plan", "feedback", "M457 130 C457 78 112 78 112 130"],
-      ["execution-plan", "feedback", "M687 130 C687 52 112 52 112 130"],
-      ["gate-plan", "feedback", "M285 148 C285 96 112 96 112 130"],
-      ["writing-plan", "feedback", "M890 130 C890 26 112 26 112 130"],
+      ["start-idea", "control", "M500 82 C500 112 112 104 112 140", "run_request.json", 294, 103],
+      ["idea-gate", "control", "M190 199 C208 199 217 199 235 199", "plan.json", 202, 188],
+      ["idea-plan-artifact", "artifact", "M112 258 C112 292 465 292 465 258", "plan.json", 276, 305],
+      ["gate-coding", "control", "M340 199 C357 199 368 199 385 199", "validated.json", 347, 188],
+      ["coding-execution", "control", "M545 199 C572 167 588 167 615 199", "manifest.json", 564, 161],
+      ["coding-model-artifact", "artifact", "M465 258 C465 302 695 302 695 258", "plugin.py", 565, 315],
+      ["execution-writing", "control", "M775 199 C792 199 803 199 820 199", "state.json", 787, 188],
+      ["execution-evidence-artifact", "artifact", "M695 258 C695 292 895 292 895 258", "metrics.json + psd.png", 742, 305],
+      ["writing-result", "artifact", "M895 258 C895 282 895 291 895 315", "report.pdf", 902, 288],
+      ["coding-plan", "feedback", "M465 140 C465 88 112 88 112 140", "coding_errors", 295, 77],
+      ["execution-plan", "feedback", "M695 140 C695 62 112 62 112 140", "failure_facts", 420, 51],
+      ["gate-plan", "feedback", "M287 158 C287 108 112 108 112 140", "gate_errors", 193, 98],
+      ["writing-plan", "feedback", "M895 140 C895 35 112 35 112 140", "fidelity_errors", 760, 18],
     ],
   },
   controlled: {
-    nodes: [["start","START","模型与参数白名单",440,14,120,54,"start"],["planner","Planner","受控候选配置",35,145,155,105],["guard","Whitelist Guard","字段 · 值域 · 参数量",235,145,155,105],["training","Train / Evaluate","固定训练与 NMSE",455,145,155,105],["reflection","Facts","结果事实与去重",675,145,135,105],["best","Best Result","对照与最优产物",840,145,130,105,"result"]],
-    edges: [["start-planner","control","M500 68 C500 105 112 105 112 145"],["planner-guard","control","M190 197 C208 197 217 197 235 197"],["guard-training","control","M390 197 C415 197 430 197 455 197"],["training-facts","artifact","M532 250 C532 280 742 280 742 250"],["facts-planner","feedback","M742 145 C742 80 112 80 112 145"],["facts-best","control","M810 197 C822 197 828 197 840 197"]],
+    nodes: [["start","Controlled Search","白名单模型与可调字段",410,12,180,70,"start",{output:"search_request.json"}],["planner","Planner","受控候选配置",35,150,155,112,"agent",{input:"search_request.json",output:"candidate_config.yaml"}],["guard","Whitelist Guard","字段 · 值域 · 参数量",235,150,155,112,"gate",{input:"candidate_config.yaml",output:"resolved_config.yaml",feedback:"guard_rejection.json"}],["training","Train / Evaluate","固定训练与 NMSE",455,150,155,112,"agent",{input:"resolved_config.yaml",output:"training_result.json",artifact:"metrics.json + psd.png"}],["reflection","Facts","结果事实与去重",675,150,135,112,"agent",{input:"training_result.json",output:"reflection_facts.json",feedback:"reflection_facts.json"}],["best","Best Result","对照与最优产物",840,150,130,112,"result",{input:"metrics.json",artifact:"best_result.json"}]],
+    edges: [["start-planner","control","M500 82 C500 112 112 112 112 150","search_request.json",285,103],["planner-guard","control","M190 206 C208 206 217 206 235 206","candidate_config.yaml",190,195],["guard-training","control","M390 206 C415 206 430 206 455 206","resolved_config.yaml",390,195],["training-facts","artifact","M532 262 C532 296 742 296 742 262","metrics.json + psd.png",574,309],["facts-planner","feedback","M742 150 C742 80 112 80 112 150","reflection_facts.json",370,69],["facts-best","control","M810 206 C822 206 828 206 840 206","best_result.json",803,195]],
   },
   agent: {
-    nodes: [["start","START","目标与动作预算",440,14,120,54,"start"],["planner","Planner","选择一个工具动作",35,145,145,105],["tool_call","Tool Call","Schema 与参数检查",225,145,145,105],["runtime","Runtime","执行注册工具",415,145,145,105],["observation","Observation","指标 · 错误 · 产物",605,145,145,105],["reflection","Reflection","仅提取事实",795,145,145,105]],
-    edges: [["start-planner","control","M500 68 C500 105 107 105 107 145"],["planner-tool","control","M180 197 C198 197 207 197 225 197"],["tool-runtime","control","M370 197 C388 197 397 197 415 197"],["runtime-observation","artifact","M487 250 C487 280 677 280 677 250"],["observation-reflection","control","M750 197 C768 197 777 197 795 197"],["reflection-planner","feedback","M867 145 C867 70 107 70 107 145"]],
+    nodes: [["start","Agent Planner Run","目标与动作预算",410,12,180,70,"start",{output:"agent_request.json"}],["planner","Planner","选择一个工具动作",35,150,145,112,"agent",{input:"agent_request.json",output:"tool_call.json",feedback:"reflection_facts.json"}],["tool_call","Tool Call","Schema 与参数检查",225,150,145,112,"gate",{input:"tool_call.json",output:"validated_call.json"}],["runtime","Runtime","执行注册工具",415,150,145,112,"agent",{input:"validated_call.json",output:"tool_result.json",artifact:"artifacts.json"}],["observation","Observation","指标 · 错误 · 产物",605,150,145,112,"agent",{input:"tool_result.json",output:"observation.json"}],["reflection","Reflection","仅提取事实",795,150,145,112,"agent",{input:"observation.json",output:"reflection_facts.json",feedback:"reflection_facts.json"}]],
+    edges: [["start-planner","control","M500 82 C500 112 107 112 107 150","agent_request.json",285,103],["planner-tool","control","M180 206 C198 206 207 206 225 206","tool_call.json",177,195],["tool-runtime","control","M370 206 C388 206 397 206 415 206","validated_call.json",365,195],["runtime-observation","artifact","M487 262 C487 296 677 296 677 262","tool_result.json",530,309],["observation-reflection","control","M750 206 C768 206 777 206 795 206","observation.json",746,195],["reflection-planner","feedback","M867 150 C867 70 107 70 107 150","reflection_facts.json",400,59]],
   },
   workflow: {
-    nodes: [["start","START","确定性请求",440,14,120,54,"start"],["generate_config","Generate Config","解析并冻结配置",35,145,155,105],["run_training","Run Training","固定训练入口",245,145,155,105],["verify_artifacts","Verify Artifacts","指标与文件复核",455,145,155,105],["write_report","Write Report","摘要与证据报告",665,145,155,105],["result","Result","产物下载",855,145,115,105,"result"]],
-    edges: [["start-config","control","M500 68 C500 105 112 105 112 145"],["config-training","artifact","M190 197 C210 197 225 197 245 197"],["training-verify","artifact","M400 197 C420 197 435 197 455 197"],["verify-report","control","M610 197 C630 197 645 197 665 197"],["report-result","artifact","M820 197 C835 197 840 197 855 197"]],
+    nodes: [["start","Fixed Workflow Run","确定性请求与固定工具链",410,12,180,70,"start",{output:"workflow_request.json"}],["generate_config","Generate Config","解析并冻结配置",35,150,155,112,"agent",{input:"workflow_request.json",output:"config.yaml"}],["run_training","Run Training","固定训练入口",245,150,155,112,"agent",{input:"config.yaml",output:"checkpoint.pt",artifact:"metrics.json"}],["verify_artifacts","Verify Artifacts","指标与文件复核",455,150,155,112,"gate",{input:"metrics.json",output:"verified_artifacts.json"}],["write_report","Write Report","摘要与证据报告",665,150,155,112,"agent",{input:"verified_artifacts.json",output:"summary.md",artifact:"report.pdf"}],["result","Result","产物下载",855,150,115,112,"result",{input:"report.pdf",artifact:"report.pdf"}]],
+    edges: [["start-config","control","M500 82 C500 112 112 112 112 150","workflow_request.json",285,103],["config-training","artifact","M190 206 C210 206 225 206 245 206","config.yaml",190,195],["training-verify","artifact","M400 206 C420 206 435 206 455 206","metrics.json",400,195],["verify-report","control","M610 206 C630 206 645 206 665 206","verified_artifacts.json",598,195],["report-result","artifact","M820 206 C835 206 840 206 855 206","report.pdf",815,195]],
   },
 };
+
+function ensureGraphSnapshot(mode) {
+  const graph = WORKFLOW_GRAPHS[mode] || WORKFLOW_GRAPHS.multiagent;
+  if (!state.graphSnapshots[mode]) {
+    state.graphSnapshots[mode] = {
+      nodes: Object.fromEntries(graph.nodes.map(([id]) => [id, { status: "pending", runtime: "waiting", cost: id === "execution" || id === "runtime" || id === "run_training" ? "runtime" : "$0.0000" }])),
+      edges: Object.fromEntries(graph.edges.map(([id]) => [id, null])),
+      previousRole: null,
+      artifacts: [],
+    };
+  }
+  return state.graphSnapshots[mode];
+}
+
+function graphPort(kind, label) {
+  if (!label) return "";
+  return `<span class="node-port ${kind} port-${kind === "artifact" ? "artifact" : kind === "feedback" ? "feedback" : "control"}"><i></i><em class="port-label">${esc(label)}</em></span>`;
+}
 
 function renderWorkflowGraph(mode) {
   const graph = WORKFLOW_GRAPHS[mode] || WORKFLOW_GRAPHS.multiagent;
   state.graphMode = mode;
-  state.graphPreviousRole = null;
-  const edges = graph.edges.map(([id, type, d]) => `<path class="edge-${type}" data-wire="${id}" data-edge-type="${type}" d="${d}"/>`).join("");
-  const nodes = graph.nodes.map(([id, label, detail, x, y, width, height, kind = "agent"]) => `<button class="agent-node workflow-node pending ${kind}" data-agent-node="${id}" style="left:${x}px;top:${y}px;width:${width}px;height:${height}px"><i class="node-port input port-control" title="Control input"></i><i class="node-port output port-control" title="Control output"></i><i class="node-port artifact port-artifact" title="Artifact output"></i><i class="node-port feedback port-feedback" title="Feedback / replan"></i><small class="node-runtime">waiting</small><b>${esc(label)}</b><p>${esc(detail)}</p><footer><span class="node-state">PENDING</span><span class="node-cost">${id === "execution" || id === "runtime" || id === "run_training" ? "runtime" : "$0.0000"}</span></footer></button>`).join("");
+  const edges = graph.edges.map(([id, type, d, label, labelX, labelY]) => `<path class="edge-${type}" data-wire="${id}" data-edge-type="${type}" d="${d}"/><text class="artifact-label edge-${type}-label" x="${labelX}" y="${labelY}" text-anchor="middle">${esc(label)}</text>`).join("");
+  const nodes = graph.nodes.map(([id, label, detail, x, y, width, height, kind = "agent", ports = {}]) => {
+    const runner = '<svg class="node-outline-runner" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect class="node-outline-path" x="1" y="1" width="98" height="98" pathLength="100"/></svg>';
+    if (kind === "start") return `<button class="agent-node workflow-node pending start" data-agent-node="${id}" style="left:${x}px;top:${y}px;width:${width}px;height:${height}px">${runner}${graphPort("output", ports.output)}<svg class="start-node-mark" aria-hidden="true"><use href="#i-play"/></svg><span class="start-node-copy"><small>RUN ENTRY</small><b>${esc(label)}</b><em>${esc(detail)}</em></span><span class="node-state">PENDING</span><small class="node-runtime">waiting</small><span class="node-cost hidden">$0.0000</span></button>`;
+    return `<button class="agent-node workflow-node pending ${kind}" data-agent-node="${id}" style="left:${x}px;top:${y}px;width:${width}px;height:${height}px">${runner}${graphPort("input", ports.input)}${graphPort("output", ports.output)}${graphPort("artifact", ports.artifact)}${graphPort("feedback", ports.feedback)}<small class="node-runtime">waiting</small><b>${esc(label)}</b><p>${esc(detail)}</p><footer><span class="node-state">PENDING</span><span class="node-cost">${id === "execution" || id === "runtime" || id === "run_training" ? "runtime" : "$0.0000"}</span></footer></button>`;
+  }).join("");
   $("graphStage").innerHTML = `<svg class="graph-wires" viewBox="0 0 1000 410" aria-hidden="true">${edges}</svg>${nodes}`;
   $("nodeArtifactPanel").classList.add("hidden");
   bindGraphNodeClicks();
+  applyGraphSnapshot(mode);
+}
+
+function applyGraphSnapshot(mode = state.graphMode) {
+  const snapshot = ensureGraphSnapshot(mode);
+  if (mode !== state.graphMode) return;
+  Object.entries(snapshot.nodes).forEach(([id, item]) => {
+    const node = document.querySelector(`[data-agent-node="${id}"]`);
+    if (!node) return;
+    node.classList.remove("pending", "running", "complete", "failed", "rejected", "review");
+    node.classList.add(item.status || "pending");
+    node.querySelector(".node-state").textContent = String(item.label || item.status || "pending").toUpperCase();
+    node.querySelector(".node-runtime").textContent = item.runtime || "waiting";
+    node.querySelector(".node-cost").textContent = item.cost || "$0.0000";
+  });
+  Object.entries(snapshot.edges).forEach(([id, edgeState]) => {
+    const edge = document.querySelector(`[data-wire="${id}"]`);
+    if (!edge) return;
+    edge.classList.remove("active", "complete", "failed");
+    if (edgeState) edge.classList.add(edgeState);
+  });
+  renderGraphArtifacts(snapshot.artifacts);
+}
+
+function updateGraphNode(id, status, telemetry = {}, mode = state.graphMode) {
+  const snapshot = ensureGraphSnapshot(mode);
+  const current = snapshot.nodes[id];
+  if (!current) return;
+  snapshot.nodes[id] = { ...current, ...telemetry, status };
+  applyGraphSnapshot(mode);
+}
+
+function completeGraphNode(id, edge, mode = state.graphMode, status = "complete") {
+  updateGraphNode(id, status, { label: status === "complete" ? "DONE" : status }, mode);
+  if (edge) setEdgeState(edge, status === "complete" ? "complete" : "failed", mode);
 }
 
 function bindGraphNodeClicks() {
@@ -177,144 +233,136 @@ function bindGraphNodeClicks() {
 }
 
 function resetAgentGraph() {
-  document.querySelectorAll(".agent-node").forEach((node) => {
-    node.classList.remove("running", "complete", "failed", "rejected", "review");
-    node.classList.add("pending");
-    node.querySelector(".node-state").textContent = "PENDING";
-    node.querySelector(".node-runtime").textContent = "waiting";
-    node.querySelector(".node-cost").textContent = node.dataset.agentNode === "execution" ? "runtime" : "$0.0000";
-  });
-  document.querySelectorAll("[data-wire]").forEach((wire) => wire.classList.remove("active", "complete"));
+  state.graphSnapshots = {};
   $("writingArtifacts").innerHTML = "";
   $("nodeArtifactPanel").classList.add("hidden");
-  state.graphPreviousRole = null;
+  renderWorkflowGraph(state.graphMode);
 }
 
-function setGraphRunning(role) {
-  document.querySelectorAll(".agent-node").forEach((node) => node.classList.remove("running"));
-  const node = document.querySelector(`[data-agent-node="${role}"]`);
-  if (node) {
-    node.classList.remove("pending");
-    node.classList.add("running");
-    node.querySelector(".node-state").textContent = "RUNNING";
-  }
+function setGraphRunning(role, mode = state.graphMode) {
+  const snapshot = ensureGraphSnapshot(mode);
+  Object.entries(snapshot.nodes).forEach(([id, item]) => {
+    if (item.status === "running" && id !== role) snapshot.nodes[id] = { ...item, status: "complete", label: "DONE" };
+  });
+  updateGraphNode(role, "running", { label: "RUNNING" }, mode);
 }
 
-function setEdgeState(id, value) {
-  const edge = document.querySelector(`[data-wire="${id}"]`);
-  if (!edge) return;
-  edge.classList.remove("active", "complete", "failed");
-  if (value) edge.classList.add(value);
+function setEdgeState(id, value, mode = state.graphMode) {
+  const snapshot = ensureGraphSnapshot(mode);
+  if (!(id in snapshot.edges)) return;
+  snapshot.edges[id] = value;
+  applyGraphSnapshot(mode);
 }
 
-function routeGraphEvent(payload) {
+function routeGraphEvent(payload, mode = "multiagent") {
   const role = payload.role;
   const status = payload.status;
   const failed = ["failed", "error", "budget_exceeded", "rejected", "invalid_plan"].includes(status);
-  if (state.graphMode !== "multiagent") return;
+  const snapshot = ensureGraphSnapshot(mode);
   if (role === "idea_plan") {
-    if (state.graphPreviousRole === "execution") {
-      setEdgeState("execution-writing", null);
-      setEdgeState("execution-evidence-artifact", "complete");
-      setEdgeState("execution-plan", "active");
+    if (snapshot.previousRole === "execution" || snapshot.previousRole === "final_evaluation") {
+      setEdgeState("execution-writing", null, mode);
+      setEdgeState("execution-evidence-artifact", "complete", mode);
+      setEdgeState("execution-plan", "active", mode);
     }
-    else setEdgeState("start-idea", "complete");
-    setEdgeState("idea-gate", failed ? "failed" : "active");
-    setEdgeState("idea-plan-artifact", failed ? "failed" : "active");
-    if (!failed) setGraphRunning("plan_gate");
+    else setEdgeState("start-idea", "complete", mode);
+    setEdgeState("idea-gate", failed ? "failed" : "active", mode);
+    setEdgeState("idea-plan-artifact", failed ? "failed" : "active", mode);
+    if (!failed) setGraphRunning("plan_gate", mode);
   } else if (role === "plan_gate") {
-    setEdgeState("idea-gate", failed ? "failed" : "complete");
-    setEdgeState("idea-plan-artifact", failed ? "failed" : "complete");
-    if (failed) { setEdgeState("gate-plan", "active"); setGraphRunning("idea_plan"); }
-    else { setEdgeState("gate-coding", "active"); setGraphRunning("coding"); }
+    setEdgeState("idea-gate", failed ? "failed" : "complete", mode);
+    setEdgeState("idea-plan-artifact", failed ? "failed" : "complete", mode);
+    if (failed) { setEdgeState("gate-plan", "active", mode); setGraphRunning("idea_plan", mode); }
+    else { setEdgeState("gate-coding", "active", mode); setGraphRunning("coding", mode); }
   } else if (role === "coding") {
-    setEdgeState("gate-coding", failed ? "failed" : "complete");
-    if (failed) { setEdgeState("coding-plan", "active"); setGraphRunning("idea_plan"); }
-    else { setEdgeState("coding-execution", "active"); setEdgeState("coding-model-artifact", "active"); setGraphRunning("execution"); }
+    setEdgeState("gate-coding", failed ? "failed" : "complete", mode);
+    if (failed) { setEdgeState("coding-plan", "active", mode); setGraphRunning("idea_plan", mode); }
+    else { setEdgeState("coding-execution", "active", mode); setEdgeState("coding-model-artifact", "active", mode); setGraphRunning("execution", mode); }
   } else if (role === "execution" || role === "final_evaluation") {
-    setEdgeState("coding-execution", failed ? "failed" : "complete");
-    setEdgeState("coding-model-artifact", failed ? "failed" : "complete");
+    setEdgeState("coding-execution", failed ? "failed" : "complete", mode);
+    setEdgeState("coding-model-artifact", failed ? "failed" : "complete", mode);
     if (failed || payload.next_node === "idea_plan") {
-      setEdgeState("execution-writing", null);
-      setEdgeState("execution-evidence-artifact", failed ? "failed" : "complete");
-      setEdgeState("execution-plan", "active");
-      setGraphRunning("idea_plan");
+      setEdgeState("execution-writing", null, mode);
+      setEdgeState("execution-evidence-artifact", failed ? "failed" : "complete", mode);
+      setEdgeState("execution-plan", "active", mode);
+      setGraphRunning("idea_plan", mode);
     } else {
-      setEdgeState("execution-writing", "active");
-      setEdgeState("execution-evidence-artifact", "active");
-      if (payload.next_node === "final_evaluation") setGraphRunning("execution");
-      else setGraphRunning("writing");
+      setEdgeState("execution-writing", "active", mode);
+      setEdgeState("execution-evidence-artifact", "active", mode);
+      if (payload.next_node === "final_evaluation") setGraphRunning("execution", mode);
+      else setGraphRunning("writing", mode);
     }
   } else if (role === "writing") {
-    setEdgeState("execution-writing", failed ? "failed" : "complete");
-    setEdgeState("execution-evidence-artifact", failed ? "failed" : "complete");
-    setEdgeState("writing-result", failed ? "failed" : "active");
+    setEdgeState("execution-writing", failed ? "failed" : "complete", mode);
+    setEdgeState("execution-evidence-artifact", failed ? "failed" : "complete", mode);
+    setEdgeState("writing-result", failed ? "failed" : "active", mode);
     if (payload.next_node === "idea_plan") {
-      setEdgeState("writing-plan", "active");
-      setGraphRunning("idea_plan");
+      setEdgeState("writing-plan", "active", mode);
+      setGraphRunning("idea_plan", mode);
     }
   }
-  state.graphPreviousRole = role;
+  snapshot.previousRole = role;
 }
 
 function updateAgentGraph(raw) {
   const payload = raw.payload || {};
-  routeOperationalEvent(raw);
+  const mode = raw.event_type === "multi_agent_role" || raw.event_type === "multi_agent_terminal" ? "multiagent" : (state.runMode || state.graphMode);
+  routeOperationalEvent(raw, mode);
   if (raw.event_type === "multi_agent_terminal") {
-    document.querySelectorAll("[data-wire].active").forEach((wire) => { wire.classList.remove("active"); wire.classList.add("complete"); });
-    const resultNode = document.querySelector('[data-agent-node="result"]');
-    if (resultNode && ["completed", "succeeded"].includes(raw.status)) {
-      resultNode.classList.remove("pending", "running"); resultNode.classList.add("complete");
-      resultNode.querySelector(".node-state").textContent = "READY";
-    }
+    const snapshot = ensureGraphSnapshot("multiagent");
+    Object.entries(snapshot.edges).forEach(([id, value]) => { if (value === "active") setEdgeState(id, "complete", "multiagent"); });
+    if (["completed", "succeeded"].includes(raw.status || payload.status)) updateGraphNode("result", "complete", { label: "READY" }, "multiagent");
     return;
   }
   if (raw.event_type !== "multi_agent_role") return;
-  const node = document.querySelector(`[data-agent-node="${payload.role}"]`);
-  routeGraphEvent(payload);
-  if (!node) return;
+  routeGraphEvent(payload, "multiagent");
   const usage = payload.model_usage || [];
   const latency_ms = Number(payload.latency_ms || usage.reduce((sum, item) => sum + Number(item.latency_ms || 0), 0));
   const cost_usd = Number(payload.cost_usd || usage.reduce((sum, item) => sum + Number(item.cost_usd || 0), 0));
   const failed = ["failed", "error", "budget_exceeded", "rejected", "invalid_plan"].includes(payload.status);
-  node.classList.remove("pending", "running", "complete", "failed", "rejected", "review");
-  node.classList.add(failed ? payload.status : "complete");
-  node.querySelector(".node-state").textContent = String(payload.status || "complete").toUpperCase();
-  node.querySelector(".node-runtime").textContent = latency_ms ? `${(latency_ms / 1000).toFixed(2)}s` : "local runtime";
-  node.querySelector(".node-cost").textContent = cost_usd ? `$${cost_usd.toFixed(4)}` : (payload.role === "execution" ? "tool runtime" : "$0.0000");
+  updateGraphNode(payload.role === "final_evaluation" ? "execution" : payload.role, failed ? payload.status : "complete", { label: payload.status || "complete", runtime: latency_ms ? `${(latency_ms / 1000).toFixed(2)}s` : "local runtime", cost: cost_usd ? `$${cost_usd.toFixed(4)}` : (payload.role === "execution" ? "tool runtime" : "$0.0000") }, "multiagent");
   const outputs = payload.output_refs || [];
   if (payload.role === "writing") {
     const reports = outputs.filter((item) => String(item).startsWith("report:"));
-    $("writingArtifacts").innerHTML = reports.map((ref) => { const path = String(ref).slice(7); return `<a href="${artifactUrl(path)}" target="_blank"><b>${esc(path.toLowerCase().endsWith(".pdf") ? "PDF" : "REPORT")}</b><span>PDF path: ${esc(path)}</span></a>`; }).join("");
+    ensureGraphSnapshot("multiagent").artifacts = reports.map((ref) => String(ref).slice(7));
+    renderGraphArtifacts(ensureGraphSnapshot("multiagent").artifacts);
     $("nodeArtifactPanel").classList.toggle("hidden", reports.length === 0);
   }
 }
 
-function routeOperationalEvent(raw) {
-  if (raw.event_type === "multi_agent_role" || state.graphMode === "multiagent") return;
+function renderGraphArtifacts(paths = []) {
+  $("writingArtifacts").innerHTML = paths.map((path) => `<a href="${artifactUrl(path)}" target="_blank"><b>${esc(path.toLowerCase().endsWith(".pdf") ? "PDF" : "REPORT")}</b><span>PDF path: ${esc(path)}</span></a>`).join("");
+}
+
+function routeOperationalEvent(raw, mode = state.runMode || state.graphMode) {
+  if (raw.event_type === "multi_agent_role" || mode === "multiagent") return;
   const type = String(raw.event_type || "");
   const payload = raw.payload || {};
   const tool = String(raw.tool || payload.tool || payload.tool_name || "");
-  const complete = (node, edge) => { const card = document.querySelector(`[data-agent-node="${node}"]`); card?.classList.remove("pending", "running"); card?.classList.add("complete"); if (card) card.querySelector(".node-state").textContent = "DONE"; if (edge) setEdgeState(edge, "complete"); };
-  if (state.graphMode === "controlled") {
-    if (type === "plan_generated") { complete("planner", "start-planner"); setGraphRunning("guard"); }
-    else if (type === "experiment_rejected") { complete("guard", "planner-guard"); setEdgeState("facts-planner", "active"); }
-    else if (type === "experiment_start") { complete("guard", "planner-guard"); setGraphRunning("training"); }
-    else if (type === "experiment_end") { complete("training", "guard-training"); setEdgeState("training-facts", "active"); setGraphRunning("reflection"); }
-    else if (["complete", "loop_complete"].includes(type)) { complete("reflection", "training-facts"); setEdgeState("facts-best", "complete"); complete("best"); }
-  } else if (state.graphMode === "agent") {
-    if (type.includes("plan")) { complete("planner", "start-planner"); setGraphRunning("tool_call"); }
-    else if (type === "tool_start") { complete("tool_call", "planner-tool"); setGraphRunning("runtime"); }
-    else if (type === "tool_end") { complete("runtime", "tool-runtime"); setEdgeState("runtime-observation", "active"); setGraphRunning("observation"); }
-    else if (type.includes("reflection")) { complete("observation", "runtime-observation"); setGraphRunning("reflection"); }
-    else if (["complete", "loop_complete"].includes(type)) complete("reflection", "observation-reflection");
-  } else if (state.graphMode === "workflow") {
+  if (mode === "controlled") {
+    if (type === "plan_generated") { completeGraphNode("planner", "start-planner", mode); setEdgeState("planner-guard", "active", mode); setGraphRunning("guard", mode); }
+    else if (type === "experiment_rejected") { completeGraphNode("guard", "planner-guard", mode, "rejected"); setEdgeState("facts-planner", "active", mode); setGraphRunning("planner", mode); }
+    else if (type === "experiment_start") { completeGraphNode("guard", "planner-guard", mode); setEdgeState("guard-training", "active", mode); setGraphRunning("training", mode); }
+    else if (type === "experiment_end") { completeGraphNode("training", "guard-training", mode); setEdgeState("training-facts", "active", mode); setGraphRunning("reflection", mode); }
+    else if (type.includes("reflection") && !["complete", "loop_complete"].includes(type)) { completeGraphNode("reflection", "training-facts", mode); setEdgeState("facts-planner", "active", mode); setGraphRunning("planner", mode); }
+    else if (["complete", "loop_complete"].includes(type)) { completeGraphNode("reflection", "training-facts", mode); setEdgeState("facts-best", "complete", mode); completeGraphNode("best", null, mode); }
+  } else if (mode === "agent") {
+    if (type.includes("plan")) { completeGraphNode("planner", "start-planner", mode); setEdgeState("planner-tool", "active", mode); setGraphRunning("tool_call", mode); }
+    else if (type === "tool_start") { completeGraphNode("tool_call", "planner-tool", mode); setEdgeState("tool-runtime", "active", mode); setGraphRunning("runtime", mode); }
+    else if (type === "tool_end") { completeGraphNode("runtime", "tool-runtime", mode); setEdgeState("runtime-observation", "active", mode); setGraphRunning("observation", mode); }
+    else if (type.includes("reflection")) { completeGraphNode("observation", "runtime-observation", mode); setEdgeState("observation-reflection", "active", mode); setGraphRunning("reflection", mode); }
+    else if (["complete", "loop_complete"].includes(type)) completeGraphNode("reflection", "observation-reflection", mode);
+  } else if (mode === "workflow") {
     const order = ["generate_config", "run_training", "verify_artifacts", "write_report"];
     const index = order.indexOf(tool);
-    if (index >= 0 && type === "tool_start") setGraphRunning(tool);
+    if (index >= 0 && type === "tool_start") {
+      const edge = index === 0 ? "start-config" : ["config-training", "training-verify", "verify-report"][index - 1];
+      setEdgeState(edge, "active", mode); setGraphRunning(tool, mode);
+    }
     if (index >= 0 && type === "tool_end") {
-      complete(tool, index === 0 ? "start-config" : ["config-training", "training-verify", "verify-report"][index - 1]);
-      if (index + 1 < order.length) setGraphRunning(order[index + 1]); else { setEdgeState("report-result", "complete"); complete("result"); }
+      completeGraphNode(tool, index === 0 ? "start-config" : ["config-training", "training-verify", "verify-report"][index - 1], mode);
+      if (index + 1 < order.length) { setEdgeState(["config-training", "training-verify", "verify-report"][index], "active", mode); setGraphRunning(order[index + 1], mode); }
+      else { setEdgeState("report-result", "complete", mode); completeGraphNode("result", null, mode); }
     }
   }
 }
@@ -504,7 +552,7 @@ function applyTerminalStatus() {
 async function streamRun(url, body, button, runId) {
   if (state.controller) return;
   clearEvents();
-  state.runMode = url.startsWith("/multi-agent/") ? "multiagent" : (url.startsWith("/controlled-search/") ? "controlled" : "other");
+  state.runMode = url.startsWith("/multi-agent/") ? "multiagent" : url.startsWith("/controlled-search/") ? "controlled" : url.startsWith("/agent/") ? "agent" : url.startsWith("/runs/") ? "workflow" : "other";
   state.runConfig = { ...body };
   setRunControlsDisabled(true);
   const original = button.innerHTML;
@@ -512,7 +560,12 @@ async function streamRun(url, body, button, runId) {
   const controller = new AbortController();
   state.controller = controller;
   setRunning(runId, true);
-  if (state.runMode === "multiagent") setGraphRunning("idea_plan");
+  const graphEntry = { multiagent: ["idea_plan", "start-idea"], controlled: ["planner", "start-planner"], agent: ["planner", "start-planner"], workflow: ["generate_config", "start-config"] }[state.runMode];
+  if (graphEntry) {
+    updateGraphNode("start", "complete", { label: "STARTED", runtime: "0.00s" }, state.runMode);
+    setEdgeState(graphEntry[1], "active", state.runMode);
+    setGraphRunning(graphEntry[0], state.runMode);
+  }
   if (body.approval_mode === "review") state.approvalTimer = setInterval(pollApprovals, 700);
   try {
     const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal });
